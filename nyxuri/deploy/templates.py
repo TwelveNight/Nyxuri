@@ -52,3 +52,9 @@ def _phase_render_templates(only_app: Optional[str] = None) -> None:
             content = fish_vars.read_text(encoding="utf-8", errors="replace")
             content = content.replace("/home/user", str(home))
             fish_vars.write_text(content, encoding="utf-8")
+
+    if only_app in (None, "kitty-nyxuri"):
+        kitty_conf = config_dir / "kitty-nyxuri" / "kitty.conf"
+        if kitty_conf.is_file():
+            content = kitty_conf.read_text(encoding="utf-8", errors="replace")
+            kitty_conf.write_text(content.replace("/home/user", str(home)), encoding="utf-8")

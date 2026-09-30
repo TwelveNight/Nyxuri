@@ -27,8 +27,9 @@ environment {
     XDG_SESSION_TYPE "wayland"
     GTK_IM_MODULE ""
     QT_QPA_PLATFORM "wayland;xcb"
-    QT_QPA_PLATFORMTHEME "gtk3"
+    QT_QPA_PLATFORMTHEME "kde"
     QT_WAYLAND_DISABLE_WINDOWDECORATION "1"
+    KITTY_CONFIG_DIRECTORY "/home/user/.config/kitty-nyxuri"
 }
 
 spawn-at-startup "~/.config/niri/scripts/session-shell.sh"

@@ -23,8 +23,9 @@
 ### Configs（默认配置）
 
 仓库 `configs/<app>/` 里 ship 的。`nyxuri install` 部署到 `~/.config/<app>/`。
-当前 ship 8 个 app：fastfetch、fish、kitty、niri、noctalia、starship.toml、
-xdg-desktop-portal、zed（`starship.toml` 是文件型 app，其余是目录）。
+个人分支新增 `kitty-nyxuri` 配置目录，作为 niri 会话的 Kitty 入口；
+原有 `kitty` 配置仍供 Hyprland 使用。个人部署只选三项，见
+[dual-session](dual-session.md)。
 
 ### Presets（官方/用户预设）
 
@@ -70,4 +71,3 @@ xdg-desktop-portal、zed（`starship.toml` 是文件型 app，其余是目录）
 | `packaging/` | 自动汇总 Manifest 依赖并生成 AUR PKGBUILD 依赖块 | `gen-deps.py` |
 | `tui.py` / `menus.py` | 终端 TUI 组件（TerminalGuard 光标保护、Menu、CheckboxList、PresetSwitcher）与菜单编排 | `TerminalGuard`, `main_menu_loop()` |
 | `doctor.py` | 系统健康与环境诊断（_check_* 注册模式）与 bug 报告导出 | `run_doctor()`, `generate_bug_report()` |
-

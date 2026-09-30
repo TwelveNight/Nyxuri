@@ -1,5 +1,9 @@
 # Noctalia 主题适配 (Theme Adaptation)
 
+个人分支的双会话部署禁用了本页原有的共享 GTK、Qt、Starship、Fcitx
+主题输出；当前 Kitty 配色写入 `kitty-nyxuri/colors__custom__.conf`，
+Hyprland 的 ii 颜色文件由 ii 继续管理。本页下方是上游完整主题集成的历史说明。
+
 > 本目录是 Nyxuri 主题系统的物理归属，包含调度脚本、配置模板、
 > hook 脚本和 GTK Material You 模板。本文档记录架构设计、遇到过的
 > 所有问题及其解决方案，供未来维护参考。
