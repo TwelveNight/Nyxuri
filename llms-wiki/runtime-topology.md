@@ -7,6 +7,13 @@
 
 ## 1. 运行时架构
 
+个人分支的双会话配置：niri 设置 `KITTY_CONFIG_DIRECTORY` 指向
+`~/.config/kitty-nyxuri`。该入口先读用户原有 Kitty 设置，再由 Noctalia
+渲染的 `colors__custom__.conf` 覆盖颜色；Hyprland 仍由 ii 生成原有颜色文件。
+Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
+`session-shell.sh` 启动 Noctalia 前停止 ii 的 skwd 壁纸单元；
+`personal/systemd/` 中的单元模板只随 Hyprland 会话目标运行。
+
 ```
 [ Niri Compositor 会话 (Wayland) ]
   │

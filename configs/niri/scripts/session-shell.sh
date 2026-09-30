@@ -6,6 +6,7 @@
 
 set -euo pipefail
 
+bash "$(dirname "$0")/stop-ii-wallpaper.sh"
 systemctl --user stop 'app-niri-noctalia-*.scope' >/dev/null 2>&1 || true
 
 state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
