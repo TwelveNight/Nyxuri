@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Install only the personal niri session and its Hyprland wallpaper units."""
+"""Install only the personal niri session files."""
 
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -37,42 +36,24 @@ def main() -> int:
         print(f"Install session tools before deploying: {', '.join(missing)}", file=sys.stderr)
         return 1
 
-    units_dir = env.config_dir / "systemd" / "user"
-    units = (
-        (ROOT / "personal/systemd/hyprland-session.target", units_dir / "hyprland-session.target"),
-        (ROOT / "personal/systemd/ii-skwd-wall-theme.service", units_dir / "ii-skwd-wall-theme.service"),
-        (ROOT / "personal/systemd/skwd-walld-session.conf", units_dir / "skwd-walld.service.d" / "session.conf"),
-        (ROOT / "configs/xdg-desktop-portal/niri-portals.conf", env.config_dir / "xdg-desktop-portal" / "niri-portals.conf"),
-    )
-    old_unit = units_dir / "ii-skwd-wall-theme.service"
-    for source, target in units:
-        if not source.is_file() or (target.is_symlink() and not target.resolve().is_relative_to(env.home)):
-            print(f"Unsafe unit destination: {target}", file=sys.stderr)
-            return 1
-        if not marker_path.is_file() and target != old_unit and (target.exists() or target.is_symlink()):
-            print(f"Existing user unit needs review: {target}", file=sys.stderr)
-            return 1
+    portal_source = ROOT / "configs/xdg-desktop-portal/niri-portals.conf"
+    portal_target = env.config_dir / "xdg-desktop-portal" / "niri-portals.conf"
+    if not portal_source.is_file() or (portal_target.is_symlink() and not portal_target.resolve().is_relative_to(env.home)):
+        print(f"Unsafe portal destination: {portal_target}", file=sys.stderr)
+        return 1
+    if not marker_path.is_file() and (portal_target.exists() or portal_target.is_symlink()):
+        print(f"Existing portal config needs review: {portal_target}", file=sys.stderr)
+        return 1
 
     print("Deploy: niri, noctalia, kitty-nyxuri")
-    print("User units: hyprland-session.target, ii-skwd-wall-theme.service, skwd-walld drop-in")
     print("Portal: niri-portals.conf; wallpaper: offline starter image")
-    print("Enable wallpaper services only for the Hyprland session")
-    backup = env.nyx_dir / "personal-original" / old_unit.name
-    if old_unit.is_file() and not backup.exists():
-        if not atomic_replace_item(old_unit, backup):
-            return 1
     if _phase_atomic_deployment(list(CONFIGS)):
         return 1
     for item in CONFIGS:
         _phase_render_templates(only_app=item)
     deploy_wallpapers(do_download=False)
-    for source, target in units:
-        if not atomic_replace_item(source, target):
-            return 1
-
-    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-    subprocess.run(["systemctl", "--user", "disable", "ii-skwd-wall-theme.service"], check=True)
-    subprocess.run(["systemctl", "--user", "enable", "ii-skwd-wall-theme.service"], check=True)
+    if not atomic_replace_item(portal_source, portal_target):
+        return 1
     marker = ROOT / "personal" / "mode-enabled"
     if not atomic_replace_item(marker, marker_path):
         return 1

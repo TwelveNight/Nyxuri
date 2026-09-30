@@ -124,7 +124,6 @@ class TestNoctaliaStartup(unittest.TestCase):
         self.assertEqual(
             self.calls.read_text(encoding="utf-8").splitlines(),
             [
-                "systemctl:--user stop hyprland-session.target ii-skwd-wall-theme.service skwd-walld.service",
                 "systemctl:--user stop app-niri-noctalia-*.scope",
                 "noctalia",
             ],
@@ -150,7 +149,6 @@ class TestNoctaliaStartup(unittest.TestCase):
         self.assertEqual(
             self.calls.read_text(encoding="utf-8").splitlines(),
             [
-                "systemctl:--user stop hyprland-session.target ii-skwd-wall-theme.service skwd-walld.service",
                 "systemctl:--user stop app-niri-noctalia-*.scope",
                 "noctalia",
             ],

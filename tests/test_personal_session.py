@@ -24,7 +24,7 @@ class TestPersonalSession(unittest.TestCase):
             self.assertEqual(exit_result.exception.code, 2)
             workflow.assert_not_called()
 
-    def test_installer_deploys_only_session_files_and_moves_wallpaper_unit(self):
+    def test_installer_keeps_existing_wallpaper_unit(self):
         from personal.install import main
 
         with TempEnv() as ctx:
@@ -38,8 +38,7 @@ class TestPersonalSession(unittest.TestCase):
 
             with patch("personal.install.shutil.which", return_value="/usr/bin/program"), \
                  patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
-                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"), \
-                 patch("personal.install.subprocess.run") as run:
+                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(main(), 0)
 
             self.assertEqual((kitty / "kitty.conf").read_text(encoding="utf-8"), "shell zsh\n")
@@ -51,28 +50,18 @@ class TestPersonalSession(unittest.TestCase):
             self.assertTrue((config / "xdg-desktop-portal/niri-portals.conf").is_file())
             self.assertFalse((config / "xdg-desktop-portal/portals.conf").exists())
             self.assertNotIn("/home/user", (config / "kitty-nyxuri/kitty.conf").read_text(encoding="utf-8"))
-            self.assertIn("WantedBy=hyprland-session.target", old_unit.read_text(encoding="utf-8"))
-            self.assertEqual(
-                (config / "nyxuri/personal-original/ii-skwd-wall-theme.service").read_text(encoding="utf-8"),
-                "[Install]\nWantedBy=default.target\n",
-            )
+            self.assertEqual(old_unit.read_text(encoding="utf-8"), "[Install]\nWantedBy=default.target\n")
+            self.assertFalse((config / "systemd/user/skwd-walld.service.d/session.conf").exists())
+            self.assertFalse((config / "systemd/user/hyprland-session.target").exists())
             self.assertTrue((config / "nyxuri/personal-mode").is_file())
             colors = config / "kitty-nyxuri/colors__custom__.conf"
             colors.write_text("background #123456\n", encoding="utf-8")
             with patch("personal.install.shutil.which", return_value="/usr/bin/program"), \
                  patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
-                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"), \
-                 patch("personal.install.subprocess.run"):
+                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(main(), 0)
             self.assertEqual(colors.read_text(encoding="utf-8"), "background #123456\n")
-            self.assertEqual(
-                [call.args[0] for call in run.call_args_list if call.args[0][0] == "systemctl"],
-                [
-                    ["systemctl", "--user", "daemon-reload"],
-                    ["systemctl", "--user", "disable", "ii-skwd-wall-theme.service"],
-                    ["systemctl", "--user", "enable", "ii-skwd-wall-theme.service"],
-                ],
-            )
+            self.assertEqual(old_unit.read_text(encoding="utf-8"), "[Install]\nWantedBy=default.target\n")
 
 
 if __name__ == "__main__":
