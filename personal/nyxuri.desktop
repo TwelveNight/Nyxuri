@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Nyxuri (niri + Noctalia)
+Comment=Personal niri desktop session
+Exec=niri --session
+Type=Application
+DesktopNames=niri

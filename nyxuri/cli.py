@@ -418,8 +418,14 @@ def main() -> None:
 
     acquire_lock()
     init_logger()
-    get_env()
+    env = get_env()
     ensure_nyxuri_symlink()
+
+    if (env.nyx_dir / "personal-mode").is_file():
+        args = sys.argv[1:]
+        if not args or args[0].lower() in ("install", "deploy", "update"):
+            print("Personal desktop: deploy with python3 personal/install.py and update this branch with git.", file=sys.stderr)
+            sys.exit(2)
 
     # Post-update handoff: a previous run pulled new code and re-execed into
     # us, so the deploy offer runs on the updated engine instead of the stale

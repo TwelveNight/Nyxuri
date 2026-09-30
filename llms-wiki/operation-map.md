@@ -2,6 +2,10 @@
 
 > 命令分发在 `nyxuri/cli.py` 的 `COMMANDS` dict。退出码自动传播。aliases 并列。
 
+个人双会话部署成功后，`~/.config/nyxuri/personal-mode` 会让无参数入口、
+`install`、`deploy`、`update` 提示改用 `personal/install.py` 和 Git。
+这是个人分支保护已有应用配置的边界，见 [dual-session](dual-session.md)。
+
 ## 管"配置内容"的
 
 | 命令 | 干啥 |
