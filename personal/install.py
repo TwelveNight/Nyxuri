@@ -12,10 +12,12 @@ sys.path.insert(0, str(ROOT))
 
 from nyxuri.core import get_env  # noqa: E402
 from nyxuri.deploy.atomic import atomic_replace_item  # noqa: E402
+from nyxuri.deploy.assets import deploy_wallpapers  # noqa: E402
 from nyxuri.deploy.deploy import _phase_atomic_deployment  # noqa: E402
 from nyxuri.deploy.templates import _phase_render_templates  # noqa: E402
 
 CONFIGS = ("niri", "noctalia", "kitty-nyxuri")
+SESSION_TOOLS = ("niri", "noctalia", "kitty", "mpvpaper", "ffmpeg", "jq", "inotifywait", "wlsunset")
 
 
 def main() -> int:
@@ -30,8 +32,9 @@ def main() -> int:
     if not (env.config_dir / "kitty" / "kitty.conf").is_file():
         print("Existing Kitty settings are required.", file=sys.stderr)
         return 1
-    if not all(shutil.which(binary) for binary in ("niri", "noctalia", "kitty")):
-        print("Install niri, noctalia and kitty before deploying the session.", file=sys.stderr)
+    missing = [binary for binary in SESSION_TOOLS if not shutil.which(binary)]
+    if missing:
+        print(f"Install session tools before deploying: {', '.join(missing)}", file=sys.stderr)
         return 1
 
     units_dir = env.config_dir / "systemd" / "user"
@@ -39,6 +42,7 @@ def main() -> int:
         (ROOT / "personal/systemd/hyprland-session.target", units_dir / "hyprland-session.target"),
         (ROOT / "personal/systemd/ii-skwd-wall-theme.service", units_dir / "ii-skwd-wall-theme.service"),
         (ROOT / "personal/systemd/skwd-walld-session.conf", units_dir / "skwd-walld.service.d" / "session.conf"),
+        (ROOT / "configs/xdg-desktop-portal/niri-portals.conf", env.config_dir / "xdg-desktop-portal" / "niri-portals.conf"),
     )
     old_unit = units_dir / "ii-skwd-wall-theme.service"
     for source, target in units:
@@ -51,6 +55,7 @@ def main() -> int:
 
     print("Deploy: niri, noctalia, kitty-nyxuri")
     print("User units: hyprland-session.target, ii-skwd-wall-theme.service, skwd-walld drop-in")
+    print("Portal: niri-portals.conf; wallpaper: offline starter image")
     print("Enable wallpaper services only for the Hyprland session")
     backup = env.nyx_dir / "personal-original" / old_unit.name
     if old_unit.is_file() and not backup.exists():
@@ -60,6 +65,7 @@ def main() -> int:
         return 1
     for item in CONFIGS:
         _phase_render_templates(only_app=item)
+    deploy_wallpapers(do_download=False)
     for source, target in units:
         if not atomic_replace_item(source, target):
             return 1

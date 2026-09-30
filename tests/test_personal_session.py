@@ -37,6 +37,8 @@ class TestPersonalSession(unittest.TestCase):
             old_unit.write_text("[Install]\nWantedBy=default.target\n", encoding="utf-8")
 
             with patch("personal.install.shutil.which", return_value="/usr/bin/program"), \
+                 patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
+                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"), \
                  patch("personal.install.subprocess.run") as run:
                 self.assertEqual(main(), 0)
 
@@ -46,6 +48,8 @@ class TestPersonalSession(unittest.TestCase):
             self.assertTrue((config / "niri/config.kdl").is_file())
             self.assertTrue((config / "noctalia/noctalia-config.toml").is_file())
             self.assertTrue((config / "kitty-nyxuri/kitty.conf").is_file())
+            self.assertTrue((config / "xdg-desktop-portal/niri-portals.conf").is_file())
+            self.assertFalse((config / "xdg-desktop-portal/portals.conf").exists())
             self.assertNotIn("/home/user", (config / "kitty-nyxuri/kitty.conf").read_text(encoding="utf-8"))
             self.assertIn("WantedBy=hyprland-session.target", old_unit.read_text(encoding="utf-8"))
             self.assertEqual(
@@ -56,6 +60,8 @@ class TestPersonalSession(unittest.TestCase):
             colors = config / "kitty-nyxuri/colors__custom__.conf"
             colors.write_text("background #123456\n", encoding="utf-8")
             with patch("personal.install.shutil.which", return_value="/usr/bin/program"), \
+                 patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
+                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"), \
                  patch("personal.install.subprocess.run"):
                 self.assertEqual(main(), 0)
             self.assertEqual(colors.read_text(encoding="utf-8"), "background #123456\n")

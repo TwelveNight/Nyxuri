@@ -7,7 +7,8 @@
 
 `personal/install.py` 是该分支的配置部署入口。它通过
 `_phase_atomic_deployment` 只部署 `niri`、`noctalia` 和 `kitty-nyxuri`，
-再用 `atomic_replace_item` 安装用户服务单元。入口不运行默认安装后的
+再用 `atomic_replace_item` 安装用户服务单元与 niri 专属 Portal 路由，
+并向壁纸目录补齐离线基础图片。入口不运行默认安装后的
 主题同步、GTK 渲染、Fisher、Fcitx 皮肤或 Greeter 安装。
 成功后写入 `~/.config/nyxuri/personal-mode`；普通 CLI 的无参数、
 `install`、`deploy`、`update` 路径会拒绝执行，避免随后覆写已有应用配置。

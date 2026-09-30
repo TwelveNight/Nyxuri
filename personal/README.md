@@ -1,8 +1,11 @@
 # 双会话个人配置
 
 此分支在 GDM 下分别运行 Hyprland + ii 和 niri + Noctalia。先安装
-`niri`、`noctalia`、`kitty`，再运行 `python3 personal/install.py`。
-它只部署 niri、noctalia、kitty-nyxuri，并配置 Hyprland 专属的用户服务。
+`niri`、`noctalia`、`kitty`、`mpvpaper`、`ffmpeg`、`jq`、`inotify-tools`、
+`wlsunset`，再运行 `python3 personal/install.py`。
+它部署 niri、noctalia、kitty-nyxuri，单独放入 niri 的 Portal 路由和一张离线
+基础壁纸，并配置 Hyprland 专属的用户服务。Python 壁纸选择器另需
+`python-gobject`、`gtk-layer-shell`。
 不要运行上游默认的完整安装；个人部署标记创建后，CLI 会阻止误用。
 
 Kitty 在 Hyprland 下继续读原有 `~/.config/kitty/kitty.conf`，在 niri 下通过
