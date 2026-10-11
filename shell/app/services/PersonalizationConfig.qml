@@ -1971,27 +1971,34 @@ Singleton {
         };
     }
 
+    function configSection(value) {
+        return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    }
+
     function loadFromObject(parsed) {
-        const wallpaper = parsed.wallpaper || {};
-        const theme = parsed.theme || {};
-        const effects = parsed.effects || {};
-        const keystone = parsed.keystone || {};
-        const media = keystone.media || {};
-        const bar = parsed.bar || {};
-        const sidebar = parsed.sidebar || {};
-        const desktopCards = parsed.desktopCards || {};
-        const transition = wallpaper.transition || {};
-        const overview = wallpaper.overview || {};
-        const parallax = wallpaper.parallax || {};
-        const autoCycle = wallpaper.autoCycle || {};
-        const fonts = theme.fonts || {};
-        const horizontalClock = keystone.horizontalClock || {};
-        const keyhole = keystone.keyhole || {};
-        root.bannerSource = String(wallpaper.bannerSource || "");
-        root.wallpaperFolder = wallpaper.folder || Paths.dataHome + "/wallpapers";
-        root.wallpaperPath = wallpaper.path === Paths.currentWallpaper ? "" : (wallpaper.path || "");
-        root.wallpaperPathLight = wallpaper.pathLight || "";
-        root.wallpaperPathDark = wallpaper.pathDark || "";
+        const source = configSection(parsed);
+        const wallpaper = configSection(source.wallpaper);
+        const theme = configSection(source.theme);
+        const effects = configSection(source.effects);
+        const keystone = configSection(source.keystone);
+        const media = configSection(keystone.media);
+        const bar = configSection(source.bar);
+        const sidebar = configSection(source.sidebar);
+        const desktopCards = configSection(source.desktopCards);
+        const transition = configSection(wallpaper.transition);
+        const overview = configSection(wallpaper.overview);
+        const parallax = configSection(wallpaper.parallax);
+        const autoCycle = configSection(wallpaper.autoCycle);
+        const fonts = configSection(theme.fonts);
+        const horizontalClock = configSection(keystone.horizontalClock);
+        const keyhole = configSection(keystone.keyhole);
+        root.bannerSource = typeof wallpaper.bannerSource === "string" ? wallpaper.bannerSource : "";
+        root.wallpaperFolder = typeof wallpaper.folder === "string" && wallpaper.folder !== ""
+            ? wallpaper.folder : Paths.dataHome + "/wallpapers";
+        const wallpaperPath = typeof wallpaper.path === "string" ? wallpaper.path : "";
+        root.wallpaperPath = wallpaperPath === Paths.currentWallpaper ? "" : wallpaperPath;
+        root.wallpaperPathLight = typeof wallpaper.pathLight === "string" ? wallpaper.pathLight : "";
+        root.wallpaperPathDark = typeof wallpaper.pathDark === "string" ? wallpaper.pathDark : "";
         root.perModeWallpaper = !!wallpaper.perMode;
         root.perMonitorWallpaper = !!wallpaper.perMonitor;
         root.monitorWallpapers = normalizedStringMap(wallpaper.monitorWallpapers);
@@ -2050,7 +2057,7 @@ Singleton {
                 ? theme.cursorHideWhenTyping : false;
         root.cursorHideAfterInactiveMs = root.normalizedBoundedInt(theme.cursorHideAfterInactiveMs, 0, 0,
                                                                    5000);
-        root.iconTheme = theme.iconTheme || "";
+        root.iconTheme = typeof theme.iconTheme === "string" ? theme.iconTheme : "";
         FontService.setConfiguredFamilies(fonts.ui, fonts.mono, fonts.numeric, fonts.expressive);
         root.shellBackgroundOpacity = normalizedBoundedReal(effects.shellBackgroundOpacity, 1, 0, 1);
         root.shellBlurEnabled = typeof effects.shellBlurEnabled === "boolean" ? effects.shellBlurEnabled :
@@ -2142,7 +2149,7 @@ Singleton {
         root.quickSettingsComponents = root.normalizedQuickSettingsComponents(bar.quickSettingsComponents);
         root.keepSidebarsLoaded = sidebar.keepLoaded === undefined ? true : !!sidebar.keepLoaded;
         root.sidebarPositions = SidebarPolicy.restoredPositions(sidebar);
-        root.hotCornerActions = root.normalizedHotCornerActions(parsed.hotCorners);
+        root.hotCornerActions = root.normalizedHotCornerActions(source.hotCorners);
         root.desktopCardGridSnapEnabled = desktopCards.gridSnapEnabled === undefined ? true : !
                                                                                        !desktopCards.gridSnapEnabled;
         root.desktopCardGridVisibleWhileDragging = desktopCards.gridVisibleWhileDragging === undefined ? true :

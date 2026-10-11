@@ -1122,5 +1122,73 @@ class TestInstallBootstrapCacheCopy(unittest.TestCase):
             self.assertFalse((cache / "configs" / "effects.kdl").exists())
 
 
+class TestConfigSectionHardening(unittest.TestCase):
+    """A mistyped section must not abort the whole config load.
+
+    loadFromObject() kept any truthy non-object section, because `parsed.bar
+    || {}` leaves 7 untouched, and `"barLayoutLeft" in 7` throws. The catch-all
+    in onLoaded then fell back to defaults and rewrote the file, so one bad
+    field discarded every setting the user had already made.
+    """
+
+    def _source(self):
+        return (Path(__file__).resolve().parent.parent / "shell" / "app" / "services"
+                / "PersonalizationConfig.qml").read_text(encoding="utf-8")
+
+    def _loader(self):
+        source = self._source()
+        start = source.index("function loadFromObject")
+        return source[start:source.index("function needsScrollingMigration", start)]
+
+    def test_every_section_is_coerced_to_an_object(self):
+        loader = self._loader()
+        for declaration in (
+            "const wallpaper = configSection(source.wallpaper)",
+            "const theme = configSection(source.theme)",
+            "const effects = configSection(source.effects)",
+            "const keystone = configSection(source.keystone)",
+            "const media = configSection(keystone.media)",
+            "const bar = configSection(source.bar)",
+            "const sidebar = configSection(source.sidebar)",
+            "const desktopCards = configSection(source.desktopCards)",
+            "const transition = configSection(wallpaper.transition)",
+            "const overview = configSection(wallpaper.overview)",
+            "const parallax = configSection(wallpaper.parallax)",
+            "const autoCycle = configSection(wallpaper.autoCycle)",
+            "const fonts = configSection(theme.fonts)",
+            "const horizontalClock = configSection(keystone.horizontalClock)",
+            "const keyhole = configSection(keystone.keyhole)",
+        ):
+            self.assertIn(declaration, loader)
+
+    def test_no_section_keeps_a_truthy_non_object(self):
+        loader = self._loader()
+        for section in ("wallpaper", "theme", "effects", "keystone", "bar", "sidebar",
+                        "desktopCards", "hotCorners"):
+            self.assertNotIn("parsed.%s || {}" % section, loader)
+
+    def test_config_section_helper_rejects_non_objects_and_arrays(self):
+        source = self._source()
+        helper = source[source.index("function configSection"):
+                        source.index("function loadFromObject")]
+        self.assertIn('typeof value === "object"', helper)
+        self.assertIn("!Array.isArray(value)", helper)
+        self.assertIn("? value : {}", helper)
+
+    def test_wallpaper_strings_are_type_narrowed(self):
+        loader = self._loader()
+        self.assertIn('typeof wallpaper.path === "string"', loader)
+        self.assertIn('typeof wallpaper.folder === "string"', loader)
+        self.assertIn('typeof wallpaper.pathLight === "string"', loader)
+        self.assertIn('typeof wallpaper.pathDark === "string"', loader)
+        self.assertNotIn('wallpaper.pathLight || ""', loader)
+        self.assertNotIn('wallpaper.pathDark || ""', loader)
+
+    def test_icon_theme_is_type_narrowed(self):
+        loader = self._loader()
+        self.assertIn('typeof theme.iconTheme === "string"', loader)
+        self.assertNotIn('theme.iconTheme || ""', loader)
+
+
 if __name__ == "__main__":
     unittest.main()
