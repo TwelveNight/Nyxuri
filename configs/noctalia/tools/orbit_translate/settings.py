@@ -108,7 +108,11 @@ class SettingsDocument:
         if self.path.is_symlink():
             raise SettingsError("配置是符号链接；请使用 --config 指定真实文件后保存")
         encoded = _dump_toml(self.data).encode("utf-8")
-        if tomllib.loads(encoded.decode("utf-8")) != self.data:
+        try:
+            round_tripped = tomllib.loads(encoded.decode("utf-8"))
+        except (tomllib.TOMLDecodeError, UnicodeError) as exc:
+            raise SettingsError("配置不能无损写回；原文件未改动") from exc
+        if round_tripped != self.data:
             raise SettingsError("配置不能无损写回；原文件未改动")
         backup: Path | None = None
         temporary: Path | None = None

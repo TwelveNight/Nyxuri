@@ -10,6 +10,7 @@ not with library size.
 """
 
 import os
+import re
 import sys
 import hashlib
 import subprocess
@@ -24,6 +25,14 @@ from .config import (
     VIDEO_EXTENSIONS, ALL_SUPPORTED_EXTENSIONS,
     CACHE_DIR, get_wallpaper_search_roots
 )
+
+
+_NATURAL_SPLIT = re.compile(r"(\d+)", re.ASCII)
+
+
+def _natural_key(title: str) -> list:
+    parts = _NATURAL_SPLIT.split((title or "").lower())
+    return [(0, int(part)) if part.isdecimal() else (1, part) for part in parts]
 
 
 class WallpaperItem:
@@ -105,7 +114,7 @@ class WallpaperScanner:
                                 custom_subfolders.add(cat_name)
 
         # Sort naturally by title
-        discovered_items.sort(key=lambda x: x.title.lower())
+        discovered_items.sort(key=lambda x: _natural_key(x.title))
         self.items = discovered_items
 
         # Build categories list: primary tabs + actual custom user subfolders

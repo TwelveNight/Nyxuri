@@ -650,7 +650,7 @@ def _select_protocol(
             continue
         if key in (10, 13, "\n", "\r", getattr(curses, "KEY_ENTER", -1)):
             return AI_PROVIDER_TYPES[selected]
-        if isinstance(key, str) and key.isdigit():
+        if isinstance(key, str) and key.isdecimal():
             index = int(key)
         elif isinstance(key, int) and ord("0") <= key <= ord("9"):
             index = key - ord("0")

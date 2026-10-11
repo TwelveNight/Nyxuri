@@ -148,6 +148,33 @@ def probe_running_shells() -> "list[Tuple[str, int]]":
     instances: "list[Tuple[str, int]]" = []
     my_pids = {os.getpid(), os.getppid()}
 
+    def nyxuri_shell_dirs() -> "set[Path]":
+        dirs: "set[Path]" = set()
+        for raw in (resolve_custom_bin(), str(Path(__file__).resolve().parent.parent / "shell")):
+            if not raw:
+                continue
+            path = Path(raw)
+            for probe in (path, path.parent):
+                try:
+                    resolved = probe.resolve()
+                except OSError:
+                    continue
+                if resolved.is_dir():
+                    dirs.add(resolved)
+        return dirs
+
+    known_shell_dirs = nyxuri_shell_dirs()
+
+    def qs_profile(args: "list[str]") -> "str | None":
+        for index, arg in enumerate(args):
+            if arg == "-p" and index + 1 < len(args):
+                return args[index + 1]
+            if arg.startswith("-p") and len(arg) > 2:
+                return arg[2:]
+            if arg.startswith("--path="):
+                return arg.split("=", 1)[1]
+        return None
+
     def classify(args: "list[str]") -> "str | None":
         prog = Path(args[0]).name
         cmd = " ".join(args)
@@ -156,8 +183,15 @@ def probe_running_shells() -> "list[Tuple[str, int]]":
         if prog in ("qs", "quickshell", "nyxuri-shell"):
             if any(sub in args for sub in ["ipc", "kill", "--stop", "--check-ready", "--status", "--stage"]):
                 return None
-            if any("shell" in a for a in args) or prog == "nyxuri-shell":
+            if prog == "nyxuri-shell":
                 return "nyxuri-shell"
+            profile = qs_profile(args)
+            if profile:
+                try:
+                    if Path(profile).resolve() in known_shell_dirs:
+                        return "nyxuri-shell"
+                except OSError:
+                    pass
             return None
         if (prog == "noctalia" or args[0].endswith("/noctalia")) and "python" not in prog:
             if "greeter" not in cmd:
@@ -414,11 +448,17 @@ def hot_switch_shell(target: str, custom_bin_override: Optional[str] = None) -> 
     target_pids = [pid for name, pid in instances if name == target]
     other_instances = [(name, pid) for name, pid in instances if name != target]
 
+    def commit_running_bin() -> None:
+        if target != "nyxuri-shell":
+            set_shell(target, None)
+            return
+        set_shell(target, custom_shell_bin() or target_bin)
+
     # "Already active" requires a clean field: the target running AND zero
     # instances of the other shell. A target-up-but-side-lingering state is
     # crashed-switch residue, not success.
     if target_pids and not other_instances:
-        set_shell(target, target_bin if target == "nyxuri-shell" else None)
+        commit_running_bin()
         return True, f"{target} is already the active running shell (PID: {target_pids[0]})"
 
     if target_pids and other_instances:
@@ -428,7 +468,7 @@ def hot_switch_shell(target: str, custom_bin_override: Optional[str] = None) -> 
                 removed.append(f"{name}({pid})")
         leftover = [(name, pid) for name, pid in probe_running_shells() if name != target]
         if not leftover:
-            set_shell(target, target_bin if target == "nyxuri-shell" else None)
+            commit_running_bin()
             return True, (f"{target} is the active running shell (PID: {target_pids[0]}); "
                           f"cleaned lingering residue: {', '.join(removed)}")
         # Residue survived the sweep: fall through to a full switch with a
@@ -469,7 +509,10 @@ def hot_switch_shell(target: str, custom_bin_override: Optional[str] = None) -> 
         stop_all_shell_instances("nyxuri-shell", "", timeout=1.5)
         stop_all_shell_instances("noctalia", timeout=1.5)
         if current_name != "none" and old_bin:
-            spawn_shell(current_name, old_bin)
+            try:
+                spawn_shell(current_name, old_bin)
+            except Exception as restore_error:
+                return False, f"Failed to spawn target shell: {e}; restore of {current_name} also failed: {restore_error}"
         return False, f"Failed to spawn target shell: {e}"
 
     # Bounded readiness probe

@@ -22,6 +22,15 @@ from nyxuri.i18n import msg, text
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+def stdin_fd() -> Optional[int]:
+    try:
+        if not sys.stdin.isatty():
+            return None
+        return sys.stdin.fileno()
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
 class TerminalGuard:
     """Fail-safe guard that guarantees terminal attributes and cursor visibility are restored."""
     _orig_attr: Optional[List[Any]] = None
@@ -51,6 +60,8 @@ class TerminalGuard:
         # Belt-and-suspenders: if a signal crashed a mouse-enabled loop before
         # interactive_screen's finally ran, disable tracking + show cursor so
         # the terminal isn't left in a quirked state.
+        if not sys.stdout.isatty():
+            return
         sys.stdout.write("\033[?1006l\033[?1002l")
         sys.stdout.write(Colors.CURSOR_SHOW)
         sys.stdout.flush()
@@ -66,13 +77,16 @@ TerminalGuard.init()
 
 
 # --- Geometric Column Alignment ---
+def _char_width(ch: str) -> int:
+    if unicodedata.combining(ch) or unicodedata.category(ch) in ("Cf", "Mn", "Me"):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
 def display_width(text: str) -> int:
     """Calculate the real physical terminal column width of a string (CJK = 2 cols)."""
     clean_text = ANSI_ESCAPE_RE.sub("", text)
-    return sum(
-        0 if unicodedata.combining(ch) else 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
-        for ch in clean_text
-    )
+    return sum(_char_width(ch) for ch in clean_text)
 
 
 def pad_display(text: str, width: int) -> str:
@@ -91,7 +105,9 @@ def truncate_display(text: str, width: int, suffix: str = "…") -> str:
         return text
 
     suffix_width = display_width(suffix)
-    content_width = max(0, width - suffix_width)
+    if suffix_width > width:
+        return truncate_display(suffix, width, suffix="")
+    content_width = width - suffix_width
     output: List[str] = []
     used = 0
     pos = 0
@@ -102,7 +118,7 @@ def truncate_display(text: str, width: int, suffix: str = "…") -> str:
             pos = match.end()
             continue
         char = text[pos]
-        char_width = 0 if unicodedata.combining(char) else 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+        char_width = _char_width(char)
         if used + char_width > content_width:
             break
         output.append(char)
@@ -155,10 +171,10 @@ def read_key() -> Any:
     every component but PresetSwitcher(mouse=True) no mouse sequence ever
     arrives and the mouse branch is inert.
     """
-    if not sys.stdin.isatty():
+    fd = stdin_fd()
+    if fd is None:
         return "ENTER"
 
-    fd = sys.stdin.fileno()
     old_attr = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
@@ -169,6 +185,25 @@ def read_key() -> Any:
             ready, _, _ = select.select([fd], [], [], 0.05)
             if ready:
                 raw_bytes += os.read(fd, 31)
+        elif raw_bytes[0] >= 0x80:
+            lead = raw_bytes[0]
+            if lead & 0xE0 == 0xC0:
+                pending = 1
+            elif lead & 0xF0 == 0xE0:
+                pending = 2
+            elif lead & 0xF8 == 0xF0:
+                pending = 3
+            else:
+                pending = 0
+            while pending > 0:
+                ready, _, _ = select.select([fd], [], [], 0.05)
+                if not ready:
+                    break
+                chunk = os.read(fd, pending)
+                if not chunk:
+                    break
+                raw_bytes += chunk
+                pending -= len(chunk)
 
         # 1. Standalone ESC
         if raw_bytes == b"\x1b":
@@ -250,7 +285,7 @@ def _swallow_repeat(fd: int, quiet: float = 0.05, cap: float = 2.0) -> None:
             return
 
 
-def _drain_pending(fd: int, debounce: bool = False) -> None:
+def _drain_pending(fd: Optional[int], debounce: bool = False) -> None:
     """Discard pending input; optionally debounce-swallow the auto-repeat tail.
 
     Two modes:
@@ -267,6 +302,8 @@ def _drain_pending(fd: int, debounce: bool = False) -> None:
     A held Enter otherwise cascades: repeat bytes feed the next read_key().
     """
     found = False
+    if fd is None:
+        return
     while True:
         ready, _, _ = select.select([fd], [], [], 0)
         if not ready:
@@ -323,8 +360,11 @@ def drain_stdin() -> None:
     """
     if not sys.stdin.isatty():
         return
-    with raw_input_mode(sys.stdin.fileno()):
-        _drain_pending(sys.stdin.fileno())
+    fd = stdin_fd()
+    if fd is None:
+        return
+    with raw_input_mode(fd):
+        _drain_pending(fd)
 
 # --- Rendering Primitives & Screen Cleaners ---
 def clear_screen() -> None:
@@ -364,7 +404,7 @@ def interactive_screen(clear_first: bool = True, mouse: bool = False):
     lifetime; read_key() then yields MouseEvent for clicks/wheel. Off by
     default so non-mouse components see no mouse sequence at all.
     """
-    fd = sys.stdin.fileno()
+    fd = stdin_fd()
     if clear_first:
         clear_screen()
     sys.stdout.write(Colors.CURSOR_HIDE)
@@ -447,7 +487,8 @@ def render_menu_item(idx: int, label: str, focus: int, style: str = "normal", co
             color = ""
     available = max(1, cols - display_width(prefix) - 1)
     clipped_label = truncate_display(label, available)
-    sys.stdout.write(f"{prefix}{color}{clipped_label}{Colors.RESET}\033[K\n")
+    row = f"{prefix}{color}{clipped_label}{Colors.RESET}"
+    sys.stdout.write(f"{truncate_display(row, cols, suffix='')}\033[K\n")
 
 def render_check_row(is_focus: bool, check_str: str, label: str, cols: Optional[int] = None) -> None:
     """Render a single checkbox item row with line-level erase."""
@@ -457,17 +498,18 @@ def render_check_row(is_focus: bool, check_str: str, label: str, cols: Optional[
     available = max(1, cols - display_width(prefix) - display_width(check_str) - 2)
     clipped_label = truncate_display(label, available)
     if is_focus:
-        sys.stdout.write(
+        row = (
             f"  {Colors.BOLD_CYAN}❯ {Colors.RESET}{check_str} "
-            f"{Colors.BOLD_WHITE}{clipped_label}{Colors.RESET}\033[K\n"
+            f"{Colors.BOLD_WHITE}{clipped_label}{Colors.RESET}"
         )
     else:
-        sys.stdout.write(f"    {check_str} {clipped_label}\033[K\n")
+        row = f"    {check_str} {clipped_label}"
+    sys.stdout.write(f"{truncate_display(row, cols, suffix='')}\033[K\n")
 
 def press_any_key() -> None:
     """Prompt to press any key to continue."""
-    if sys.stdin.isatty():
-        fd = sys.stdin.fileno()
+    fd = stdin_fd()
+    if fd is not None:
         sys.stdout.write(msg("press_any_key"))
         sys.stdout.flush()
         with raw_input_mode(fd):
@@ -492,10 +534,10 @@ def prompt_confirm(prompt_key: str, default: str = "y", destructive: bool = Fals
 
     sys.stdout.write(msg(prompt_key))
     sys.stdout.flush()
-    if not sys.stdin.isatty():
+    fd = stdin_fd()
+    if fd is None:
         return default.lower().startswith("y")
 
-    fd = sys.stdin.fileno()
     with raw_input_mode(fd):
         _drain_pending(fd)
         key = read_key()
@@ -587,7 +629,7 @@ class Menu:
                     focus = max_idx
                 elif key in ("ENTER", "SPACE"):
                     return focus
-                elif key.isdigit() and 1 <= int(key) <= len(self.items):
+                elif key.isdecimal() and 1 <= int(key) <= len(self.items):
                     return int(key) - 1
                 elif key in ("0", "q", "Q"):
                     return max_idx
@@ -696,7 +738,7 @@ class CheckboxList:
                             e.checked = False
                 elif key in ("0", "q", "Q", "ESC", "EXIT"):
                     return None
-                elif key.isdigit():
+                elif key.isdecimal():
                     num = int(key) - 1
                     if 0 <= num < len(selectable):
                         focus_pos = num

@@ -14,6 +14,35 @@ def _print_result(result) -> int:
     return result.returncode
 
 
+def _group_operands(operands, available):
+    groups = {"repo": [], "aur": []}
+    for operand in operands:
+        if operand.startswith(("aur/", "repo/")):
+            source, name = operand.split("/", 1)
+        else:
+            name = operand
+            source = "repo" if name in available else "aur"
+        if not name or name.startswith("-"):
+            return None
+        groups[source].append(name)
+    return groups
+
+
+def _run_groups(action, groups, manager) -> int:
+    for source, packages in groups.items():
+        if not packages:
+            continue
+        try:
+            argv = command(action, packages, source=source, manager=manager)
+        except ValueError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        result = run(argv)
+        if result.returncode:
+            return result.returncode
+    return 0
+
+
 def search(query: str) -> int:
     parts = query.strip().split(maxsplit=1)
     source = parts[0] if parts and parts[0] in ("aur", "pac", "repo") else "repo"
@@ -25,7 +54,7 @@ def search(query: str) -> int:
         if manager == "pacman":
             print("AUR search requires paru, yay or shelly", file=sys.stderr)
             return 1
-        argv = ([manager, "search", "aur", "--json", keyword] if manager == "shelly"
+        argv = ([manager, "search", "aur", "--json", "--", keyword] if manager == "shelly"
                 else [manager, "-Ssq", "--aur", "--", keyword])
         result = run(argv, capture=True, timeout=QUERY_TIMEOUT)
         if result.returncode:
@@ -88,32 +117,21 @@ def main(args: list[str]) -> int:
     if action in ("install", "remove") and (not operands or any(p.startswith("-") for p in operands)):
         return 2
     if action != "install":
+        if action == "remove" and manager == "shelly":
+            repo = run(["pacman", "-Slq"], capture=True, timeout=QUERY_TIMEOUT)
+            if repo.returncode:
+                return _print_result(repo)
+            groups = _group_operands(operands, set(repo.stdout.splitlines()))
+            if groups is None:
+                return 2
+            return _run_groups("remove", groups, manager)
         return run(command(action, operands, manager=manager)).returncode
 
     # Source tags from fzf are retained. Plain names use the local repo database.
     repo = run(["pacman", "-Slq"], capture=True, timeout=QUERY_TIMEOUT)
     if repo.returncode:
         return _print_result(repo)
-    available = set(repo.stdout.splitlines())
-    groups = {"repo": [], "aur": []}
-    for operand in operands:
-        if operand.startswith(("aur/", "repo/")):
-            source, name = operand.split("/", 1)
-        else:
-            name = operand
-            source = "repo" if name in available else "aur"
-        if not name or name.startswith("-"):
-            return 2
-        groups[source].append(name)
-    for source, packages in groups.items():
-        if not packages:
-            continue
-        try:
-            argv = command("install", packages, source=source, manager=manager)
-        except ValueError as error:
-            print(str(error), file=sys.stderr)
-            return 1
-        result = run(argv)
-        if result.returncode:
-            return result.returncode
-    return 0
+    groups = _group_operands(operands, set(repo.stdout.splitlines()))
+    if groups is None:
+        return 2
+    return _run_groups("install", groups, manager)

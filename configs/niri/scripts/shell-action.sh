@@ -67,21 +67,21 @@ case "$action" in
         exec noctalia msg wallpaper-random
         ;;
     wallpaper-picker)
-        tools_dir="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/tools"
+        tools_dir="$HOME/.config/noctalia/tools"
         if [ -x "$tools_dir/wallpaper-picker.py" ]; then
             exec "$tools_dir/wallpaper-picker.py"
         fi
         exec python3 "$tools_dir/wallpaper-picker.py"
         ;;
     radial-launcher)
-        tools_dir="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/tools"
+        tools_dir="$HOME/.config/noctalia/tools"
         if [ -x "$tools_dir/orbit-launcher.py" ]; then
             exec "$tools_dir/orbit-launcher.py"
         fi
         exec python3 "$tools_dir/orbit-launcher.py"
         ;;
     translate)
-        tools_dir="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/tools"
+        tools_dir="$HOME/.config/noctalia/tools"
         if [ -x "$tools_dir/orbit-translate.py" ]; then
             exec "$tools_dir/orbit-translate.py"
         fi

@@ -17,6 +17,10 @@ def write_atomic(path: Path, content: str) -> None:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
         handle.write(content)
         temp = Path(handle.name)
+    try:
+        temp.chmod(path.stat().st_mode & 0o777)
+    except OSError:
+        pass
     temp.replace(path)
 
 
@@ -33,13 +37,19 @@ def remove_sections(content: str, sections: Iterable[str]) -> str:
     return "\n".join(result).rstrip() + "\n"
 
 
+def _find_header(lines: list[str], header: str) -> int:
+    for index, line in enumerate(lines):
+        if line.split("#", 1)[0].strip() == header:
+            return index
+    return -1
+
+
 def set_section_key(content: str, section: str, key: str, value: str) -> str:
     """Set a string key in a TOML table while preserving surrounding text."""
     header = f"[{section}]"
     lines = content.splitlines()
-    try:
-        start = lines.index(header)
-    except ValueError:
+    start = _find_header(lines, header)
+    if start < 0:
         return content
     end = len(lines)
     for index in range(start + 1, len(lines)):
@@ -72,9 +82,7 @@ def add_section(content: str, section: str, items: dict[str, str] | None = None)
     """Ensure a TOML section exists with the given key-value string pairs."""
     header = f"[{section}]"
     lines = content.rstrip().splitlines() if content.strip() else []
-    try:
-        lines.index(header)
-    except ValueError:
+    if _find_header(lines, header) < 0:
         if lines:
             lines.append("")
         lines.append(header)

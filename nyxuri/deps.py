@@ -150,11 +150,11 @@ def install_selected_deps(selected_deps: List[str]) -> bool:
     return ok
 
 
-def run_dep_menu_loop() -> None:
+def run_dep_menu_loop() -> bool:
     """Open interactive checkbox list for core dependencies."""
     if not sys.stdin.isatty():
         print(msg("interactive_terminal_required"), file=sys.stderr)
-        return
+        return False
 
     status_map = check_all_deps()
     entries = []
@@ -166,9 +166,10 @@ def run_dep_menu_loop() -> None:
 
     chk = CheckboxList("dep_menu_title", entries, hint_key="dep_menu_hint")
     chosen = chk.run()
-    if chosen:
-        print(msg("installing_selected"))
-        install_selected_deps(chosen)
+    if not chosen:
+        return True
+    print(msg("installing_selected"))
+    return bool(install_selected_deps(chosen))
 
 def install_optional_apps(selected_apps: List[str]) -> bool:
     """Install package declarations; skin activation belongs to its own module."""
@@ -219,11 +220,11 @@ def _run_post_install_hook(hook_spec: str) -> bool:
     return False
 
 
-def run_optional_apps_menu_loop() -> None:
+def run_optional_apps_menu_loop() -> bool:
     """Open the category accordion checklist for recommended applications."""
     if not sys.stdin.isatty():
         print(msg("interactive_terminal_required"), file=sys.stderr)
-        return
+        return False
 
     manifests = dict(discover_manifest_apps())
     probe = DependencyProbe()
@@ -270,3 +271,4 @@ def run_optional_apps_menu_loop() -> None:
         install_optional_apps(chosen)
     else:
         print(msg("opt_apps_none_selected"))
+    return True

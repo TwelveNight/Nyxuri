@@ -92,6 +92,8 @@ def _merge_directory_contents(src: Path, dest: Path) -> bool:
         dest.mkdir(parents=True, exist_ok=True)
         for item in src.iterdir():
             target = dest / item.name
+            if target.is_symlink() and not target.exists():
+                return False
             if item.is_symlink():
                 if not target.exists() and not target.is_symlink():
                     copy_path(item, target)

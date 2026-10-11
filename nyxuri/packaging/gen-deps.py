@@ -36,12 +36,15 @@ def compute_depends(repo_root: Path):
 
     depends = set()
     optdepends = []
+    seen_optional = set()
     for _name, m in discover_manifest_apps():
         # Axis B (optional, .optional-apps.toml) wins → optdepends, even if the
         # app also ships a config dir (optional + config coexist, §2).
         if m.is_optional:
             for pkg in list(m.packages_repo) + list(m.packages_aur):
-                optdepends.append((pkg, m.label))
+                if pkg not in seen_optional:
+                    seen_optional.add(pkg)
+                    optdepends.append((pkg, m.label))
         elif m.is_deployable:
             depends.update(m.packages_repo)
             depends.update(m.packages_aur)
@@ -51,10 +54,15 @@ def compute_depends(repo_root: Path):
     return sorted(depends), optdepends
 
 
+def _sh_quote(value) -> str:
+    return "'" + str(value).replace("'", "'\\''") + "'"
+
+
 def _render(depends, optdepends):
-    dep_block = _BEGIN + "\ndepends=(\n" + "".join(f"  '{p}'\n" for p in depends) + ")\n" + _END
+    dep_block = _BEGIN + "\ndepends=(\n" + "".join(f"  {_sh_quote(p)}\n" for p in depends) + ")\n" + _END
     if optdepends:
-        opt_block = _OBEGIN + "\noptdepends=(\n" + "".join(f"  '{p}: {lbl}'\n" for p, lbl in optdepends) + ")\n" + _OEND
+        entries = "".join(f"  {_sh_quote(str(p) + ': ' + str(lbl))}\n" for p, lbl in optdepends)
+        opt_block = _OBEGIN + "\noptdepends=(\n" + entries + ")\n" + _OEND
     else:
         opt_block = _OBEGIN + "\noptdepends=(\n)\n" + _OEND
     return dep_block + "\n" + opt_block

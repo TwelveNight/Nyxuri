@@ -22,7 +22,7 @@ process_assignments() {
         return
     fi
     
-    VIDEO_PATH=$(jq -r 'to_entries | .[0].value // empty' "$ASSIGNMENTS_FILE" 2>/dev/null || true)
+    VIDEO_PATH=$(jq -r '.assignments // . | to_entries | .[0].value // empty' "$ASSIGNMENTS_FILE" 2>/dev/null || true)
     
     if [[ -n "$VIDEO_PATH" && -f "$VIDEO_PATH" ]]; then
         # Check if it's a video
@@ -35,7 +35,7 @@ process_assignments() {
             
             # Generate thumbnail if it doesn't exist
             if [ ! -f "$THUMB_PATH" ]; then
-                local tmp_thumb="${THUMB_PATH}.tmp.$$"
+                local tmp_thumb="${THUMB_PATH%.jpg}.tmp.$$.jpg"
                 if timeout 30 ffmpeg -y -i "$VIDEO_PATH" -ss 00:00:01 -vframes 1 "$tmp_thumb" 2>/dev/null; then
                     mv "$tmp_thumb" "$THUMB_PATH"
                 else
@@ -44,6 +44,9 @@ process_assignments() {
             fi
             
             # Set it as the native Noctalia wallpaper
+            if [ ! -f "$THUMB_PATH" ]; then
+                return
+            fi
             CURRENT_WP=$(noctalia msg wallpaper-get 2>/dev/null || true)
             if [ "$CURRENT_WP" != "$THUMB_PATH" ]; then
                 noctalia msg wallpaper-set "$THUMB_PATH" 2>/dev/null || true

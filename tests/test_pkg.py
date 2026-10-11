@@ -102,7 +102,7 @@ class TestPackageAdapter(unittest.TestCase):
              contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(cli.main(["search", "aur sample"]), 0)
         self.assertEqual(output.getvalue(), "[AUR] sample-bin\n")
-        self.assertEqual(run.call_args.args[0], ["shelly", "search", "aur", "--json", "sample"])
+        self.assertEqual(run.call_args.args[0], ["shelly", "search", "aur", "--json", "--", "sample"])
 
     def test_block_page_is_not_a_package_list(self):
         with patch("nyxuri.pkg.cli.preferred_manager", return_value="shelly"), \

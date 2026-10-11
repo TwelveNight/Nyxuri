@@ -7,7 +7,8 @@ from typing import Any, Dict
 
 from nyxuri.constants import CLI_CMD, Colors, PROJECT_NAME, STORAGE_NAME
 
-_CURRENT_LANG: str = "zh" if "zh" in os.environ.get("LANG", "").lower() or "zh" in os.environ.get("LC_ALL", "").lower() else "en"
+_LOCALE_SOURCE: str = os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG", "")
+_CURRENT_LANG: str = "zh" if "zh" in _LOCALE_SOURCE.lower() else "en"
 
 def get_lang() -> str:
     """Get currently selected language mode ('zh' or 'en')."""

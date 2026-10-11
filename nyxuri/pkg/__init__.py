@@ -49,6 +49,8 @@ def preferred_manager() -> str:
 def command(action: str, packages=(), *, source: str = "repo", automatic: bool = False,
             manager: str | None = None) -> list[str]:
     """Build backend arguments; no process or filesystem changes occur here."""
+    if isinstance(packages, str):
+        packages = [packages]
     if action not in ("install", "remove", "upgrade") or source not in ("repo", "aur"):
         raise ValueError("Unsupported package operation")
     manager = manager or preferred_manager()
@@ -74,6 +76,8 @@ def command(action: str, packages=(), *, source: str = "repo", automatic: bool =
 
 
 def install(packages, *, source="repo", manager=None, automatic=True) -> bool:
+    if isinstance(packages, str):
+        packages = [packages]
     if not packages:
         return True
     try:

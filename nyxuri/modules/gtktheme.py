@@ -38,6 +38,19 @@ def gtktheme_registered() -> bool:
         return False
 
 
+def gtktheme_any_registered() -> bool:
+    """True if any owned GTK template section is still present."""
+    noctalia_conf, _, _ = _paths()
+    if not noctalia_conf.is_file():
+        return False
+    try:
+        content = noctalia_conf.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return False
+    keys = set(GTK_TEMPLATE_KEYS) | set(LEGACY_GTK_TEMPLATE_KEYS)
+    return any(f"theme.templates.user.{key}" in content for key in keys)
+
+
 def gtktheme_status_label() -> str:
     """Return compact status label for menus."""
     return msg("status_enabled") if gtktheme_registered() else msg("status_not_installed")
@@ -146,7 +159,7 @@ def gtktheme_uninstall() -> bool:
     print(msg("gtk_uninstall_title"))
 
     # Unregister from noctalia-config.toml
-    if noctalia_conf.is_file() and gtktheme_registered():
+    if noctalia_conf.is_file() and gtktheme_any_registered():
         sections = {f"theme.templates.user.{key}" for key in GTK_TEMPLATE_KEYS} | {
             f"theme.templates.user.{key}" for key in LEGACY_GTK_TEMPLATE_KEYS
         }

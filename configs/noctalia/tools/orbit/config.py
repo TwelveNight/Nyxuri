@@ -166,6 +166,18 @@ DEFAULT_SEARCH_ENGINES = [
 ]
 
 
+def _valid_menu_items(items) -> bool:
+    if not isinstance(items, list) or not items:
+        return False
+    return all(isinstance(entry, dict) for entry in items)
+
+
+def _valid_engines(engines) -> bool:
+    if not isinstance(engines, list) or not engines:
+        return False
+    return all(isinstance(entry, dict) for entry in engines)
+
+
 def load_menu_tree() -> list:
     """Load menu tree from prioritized TOML/JSON custom configurations or return default tree."""
     for conf_path in CONFIG_PATHS:
@@ -177,7 +189,7 @@ def load_menu_tree() -> list:
                 with open(conf_path, "rb") as f:
                     data = tomllib.load(f)
                     items = data.get("items", [])
-                    if isinstance(items, list) and len(items) > 0:
+                    if _valid_menu_items(items):
                         return items
             except Exception as e:
                 print(f"Error loading menu from {conf_path}: {e}", file=sys.stderr)
@@ -186,9 +198,9 @@ def load_menu_tree() -> list:
             try:
                 with open(conf_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, list) and len(data) > 0:
+                    if _valid_menu_items(data):
                         return data
-                    elif isinstance(data, dict) and "items" in data:
+                    elif isinstance(data, dict) and _valid_menu_items(data.get("items")):
                         return data["items"]
             except Exception as e:
                 print(f"Error loading menu from {conf_path}: {e}", file=sys.stderr)
@@ -198,6 +210,7 @@ def load_menu_tree() -> list:
 
 def load_search_config() -> tuple:
     """Load search engines suite and metadata from prioritized configuration or return defaults."""
+    fallback_meta = None
     for conf_path in CONFIG_PATHS:
         if not os.path.isfile(conf_path):
             continue
@@ -208,10 +221,12 @@ def load_search_config() -> tuple:
                     data = tomllib.load(f)
                     engines = data.get("search_engines", [])
                     search_meta = data.get("search", {})
-                    if isinstance(engines, list) and len(engines) > 0:
-                        return engines, search_meta
-                    elif isinstance(search_meta, dict) and "engines" in search_meta:
+                    if _valid_engines(engines):
+                        return engines, search_meta if isinstance(search_meta, dict) else {}
+                    elif isinstance(search_meta, dict) and _valid_engines(search_meta.get("engines")):
                         return search_meta["engines"], search_meta
+                    elif isinstance(search_meta, dict) and search_meta and fallback_meta is None:
+                        fallback_meta = search_meta
             except Exception as e:
                 print(f"Error loading search config from {conf_path}: {e}", file=sys.stderr)
 
@@ -222,9 +237,17 @@ def load_search_config() -> tuple:
                     if isinstance(data, dict):
                         engines = data.get("search_engines", [])
                         search_meta = data.get("search", {})
-                        if isinstance(engines, list) and len(engines) > 0:
-                            return engines, search_meta
+                        if _valid_engines(engines):
+                            return engines, search_meta if isinstance(search_meta, dict) else {}
+                        elif isinstance(search_meta, dict) and _valid_engines(search_meta.get("engines")):
+                            return search_meta["engines"], search_meta
+                        elif isinstance(search_meta, dict) and search_meta and fallback_meta is None:
+                            fallback_meta = search_meta
             except Exception as e:
                 print(f"Error loading search config from {conf_path}: {e}", file=sys.stderr)
 
+    if fallback_meta is not None:
+        merged = {"default_engine": "bing", "placeholder": "Search or ask..."}
+        merged.update(fallback_meta)
+        return DEFAULT_SEARCH_ENGINES, merged
     return DEFAULT_SEARCH_ENGINES, {"default_engine": "bing", "placeholder": "Search or ask..."}

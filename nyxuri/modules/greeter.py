@@ -78,9 +78,9 @@ def _backup_path(path: Path) -> Path:
     return Path(f"{path}.nyxuri.bak")
 
 
-def _backup_file(path: Path) -> tuple[bool, bool]:
+def _backup_file(path: Path, skip_if_ours: bool = False) -> tuple[bool, bool]:
     backup = _backup_path(path)
-    if not path.is_file() or backup.exists():
+    if not path.is_file() or backup.exists() or skip_if_ours:
         return True, False
     try:
         copied = subprocess.run(
@@ -338,7 +338,7 @@ def greeter_install() -> bool:
     if not config_ok or not polkit_ok:
         print(msg("greeter_cmd_failed", "backup"))
         return False
-    config_backup_ok, config_backup_created = _backup_file(GREETER_ETC_CFG)
+    config_backup_ok, config_backup_created = _backup_file(GREETER_ETC_CFG, skip_if_ours=state_existed)
     if not config_backup_ok:
         print(msg("greeter_cmd_failed", "backup"))
         return False

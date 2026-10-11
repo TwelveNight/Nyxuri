@@ -21,6 +21,7 @@ import unicodedata
 from pathlib import Path
 
 from nyxuri.constants import CLI_CMD, PROJECT_NAME
+from nyxuri.tui import stdin_fd
 
 VERSION = "4.1"
 
@@ -87,7 +88,12 @@ HELP = f"""{PROJECT_NAME} — {t("缓存清理", "Cache sweeper")}
 # ---------- 基础工具 ----------
 
 def _w(s):
-    return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in s)
+    return sum(
+        0 if unicodedata.combining(ch) or unicodedata.category(ch) in ("Cf", "Mn", "Me")
+        else 2 if unicodedata.east_asian_width(ch) in "WF"
+        else 1
+        for ch in s
+    )
 
 
 def pad(s, width):
@@ -103,9 +109,11 @@ def human(n):
 
 
 def tilde(path):
-    s = str(path)
-    home = str(HOME)
-    return "~" + s[len(home):] if s.startswith(home) else s
+    try:
+        rel = Path(path).relative_to(HOME)
+    except ValueError:
+        return str(path)
+    return "~" if not rel.parts else "~/" + str(rel)
 
 
 def probe(cmd, timeout=600):
@@ -417,7 +425,9 @@ def _big_folders():
 # ---------- 勾选 UI（镜像 nyxuri/tui.py CheckboxList 交互） ----------
 
 def _read_key():
-    fd = sys.stdin.fileno()
+    fd = stdin_fd()
+    if fd is None:
+        return "ESC"
     ch = os.read(fd, 1)
     if ch == b"\x1b":
         r, _, _ = select.select([fd], [], [], 0.05)
@@ -457,7 +467,9 @@ def _checkbox(tasks):
     focus = 0
     if shutil.get_terminal_size((80, 24)).lines < len(tasks) + 4:
         return _numbered_picker(tasks, checked)
-    fd = sys.stdin.fileno()
+    fd = stdin_fd()
+    if fd is None:
+        return None
     old = termios.tcgetattr(fd)
     drawn = 0
     try:
@@ -490,8 +502,9 @@ def _checkbox(tasks):
             elif key in ("ESC", "q", "Q"):
                 return None
     finally:
-        sys.stdout.write("\033[?25h")
-        sys.stdout.flush()
+        if sys.stdout.isatty():
+            sys.stdout.write("\033[?25h")
+            sys.stdout.flush()
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
         if drawn:
             sys.stdout.write("\n")
@@ -516,7 +529,7 @@ def _numbered_picker(tasks, checked):
             return [x["key"] for x, c in zip(tasks, checked) if c]
         ok = True
         for part in reply.replace(",", " ").split():
-            if part.isdigit() and 1 <= int(part) <= len(tasks):
+            if part.isdecimal() and 1 <= int(part) <= len(tasks):
                 checked[int(part) - 1] = not checked[int(part) - 1]
             else:
                 ok = False

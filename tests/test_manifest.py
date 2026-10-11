@@ -154,7 +154,7 @@ class TestRealRepoManifests(unittest.TestCase):
 
     def test_niri_manifest(self):
         m = manifest.load_manifest(self.env.configs_src / "niri")
-        self.assertEqual(m.preserve, ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl"])
+        self.assertEqual(m.preserve, ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "eyecare_temp"])
         self.assertEqual(m.chmod, ["scripts/*.sh", "scripts/*.py"])
         self.assertTrue(m.is_deployable)
         self.assertIn("effects", m.parts)

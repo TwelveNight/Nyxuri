@@ -89,7 +89,7 @@ def draw_star_ring(cr, cx: float, cy: float, orbit_r: float, num_items: int, app
             if prog > 0.01:
                 app_r, app_g, app_b = app["color"]
                 ang_deg = app["center_angle"]
-                half_span = (step_deg / 2.0) - 4.0
+                half_span = max(0.0, (step_deg / 2.0) - 4.0)
                 start_rad = math.radians(ang_deg - half_span)
                 end_rad = math.radians(ang_deg + half_span)
 

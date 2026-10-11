@@ -93,7 +93,7 @@ def fcitx_backup_theme_settings() -> None:
     t, dt = "", ""
     if classicui.is_file():
         existed = 1
-        content = _parse_ini(classicui.read_text(encoding="utf-8"))
+        content = _parse_ini(classicui.read_text(encoding="utf-8-sig"))
         t = content.get("ClassicUI", "Theme", fallback="")
         dt = content.get("ClassicUI", "DarkTheme", fallback="")
 
@@ -134,7 +134,8 @@ def _edit_ini(content, section, changes):
             key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith(("#", ";")) else None
             if key in pending:
                 value = pending.pop(key)
-                edited.append(f"{key}={value}\n")
+                if value is not None:
+                    edited.append(f"{key}={value}\n")
             else:
                 edited.append(line)
         edited.extend(f"{key}={value}\n" for key, value in pending.items() if value is not None)
@@ -196,19 +197,20 @@ def _edit_flat_config(content, changes):
 
 
 def _write_config(path, content):
+    target = path.resolve()
     with tempfile.TemporaryDirectory() as directory:
-        source = Path(directory) / path.name
+        source = Path(directory) / target.name
         source.write_text(content, encoding="utf-8")
-        if path.is_file():
-            source.chmod(path.stat().st_mode & 0o777)
-        if not atomic_replace_item(source, path):
-            raise OSError(f"Could not replace {path}")
+        if target.is_file():
+            source.chmod(target.stat().st_mode & 0o777)
+        if not atomic_replace_item(source, target):
+            raise OSError(f"Could not replace {target}")
 
 def fcitx_set_theme_conf() -> None:
     """Update Theme & DarkTheme in classicui.conf."""
     _, _, _, classicui, _, _, _, _ = _fcitx_paths()
     fcitx_backup_theme_settings()
-    content = classicui.read_text(encoding="utf-8") if classicui.is_file() else ""
+    content = classicui.read_text(encoding="utf-8-sig") if classicui.is_file() else ""
     _write_config(classicui, _edit_flat_config(content, {"Theme": FCITX_THEME, "DarkTheme": FCITX_THEME}))
     print(msg("fcitx_theme_set", str(classicui)))
 
@@ -339,12 +341,26 @@ def fcitx_install(set_default: bool = True) -> bool:
 
 
 @module_action
+def _rime_owned_marker() -> Path:
+    return get_env().state_dir / f"fcitx-{FCITX_THEME}-rime.owned"
+
+
+def _read_rime_owned() -> set:
+    marker = _rime_owned_marker()
+    try:
+        names = marker.read_text(encoding="utf-8").split()
+    except (OSError, ValueError):
+        return set()
+    return {name for name in names if name}
+
+
 def setup_rime_ice() -> bool:
     """Mount rime_ice schema into user rime dir, precompile, and ensure rime in fcitx5 profile."""
     env = get_env()
     rime_dir = env.home / ".local/share/fcitx5/rime"
     rime_dir.mkdir(parents=True, exist_ok=True)
     custom_yaml = rime_dir / "default.custom.yaml"
+    owned = set()
 
     # 1. Mount rime_ice patch in default.custom.yaml
     needs_patch = True
@@ -359,6 +375,7 @@ def setup_rime_ice() -> bool:
             res = timed_run(["rime_deployer", "--add-schema", "rime_ice"], 15, cwd=str(rime_dir), check=False)
             if res is not None and res.returncode == 0:
                 patched = True
+                owned.add(custom_yaml.name)
         if not patched:
             if custom_yaml.is_file() and custom_yaml.read_text(encoding="utf-8").strip():
                 content = custom_yaml.read_text(encoding="utf-8")
@@ -371,6 +388,7 @@ def setup_rime_ice() -> bool:
                 custom_yaml.write_text(content, encoding="utf-8")
             else:
                 custom_yaml.write_text("patch:\n  schema_list:\n    - schema: rime_ice\n", encoding="utf-8")
+            owned.add(custom_yaml.name)
 
     # 2. Precompile schema with rime_deployer if available
     shared_data = Path("/usr/share/rime-data")
@@ -382,6 +400,16 @@ def setup_rime_ice() -> bool:
         user_yaml = rime_dir / "user.yaml"
         if not user_yaml.is_file():
             user_yaml.write_text("var:\n  previously_selected_schema: rime_ice\n", encoding="utf-8")
+            owned.add(user_yaml.name)
+
+    marker = _rime_owned_marker()
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        previous = _read_rime_owned()
+        marker.write_text("\n".join(sorted(previous | owned)) + ("\n" if previous or owned else ""),
+                          encoding="utf-8")
+    except OSError:
+        pass
 
     # 3. Ensure rime is registered in ~/.config/fcitx5/profile
     profile_path = env.config_dir / "fcitx5/profile"
@@ -460,7 +488,7 @@ def fcitx_status() -> None:
 
     if classicui.is_file():
         try:
-            content = _parse_ini(classicui.read_text(encoding="utf-8"))
+            content = _parse_ini(classicui.read_text(encoding="utf-8-sig"))
             t_str = content.get("ClassicUI", "Theme", fallback="")
             dt_str = content.get("ClassicUI", "DarkTheme", fallback="")
             print(msg("doctor_ok", f"classicui.conf: Theme={t_str} DarkTheme={dt_str}"))
@@ -501,27 +529,34 @@ def _restore_settings(path, state_file, section, owned):
 
 def _remove_rime_ice_patch(rime_dir: Path) -> None:
     """Remove only the Rime Ice schema selection lines managed by Nyxuri."""
-    custom = rime_dir / "default.custom.yaml"
-    if custom.is_file():
-        lines = custom.read_text(encoding="utf-8").splitlines()
-        kept = [line for line in lines if "schema: rime_ice" not in line]
-        while kept and not kept[-1].strip():
-            kept.pop()
-        if kept == ["patch:", "  schema_list:"] or not kept:
-            custom.unlink(missing_ok=True)
-        elif kept != lines:
-            custom.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    owned = _read_rime_owned()
+    marker = _rime_owned_marker()
 
-    user = rime_dir / "user.yaml"
-    if user.is_file():
-        lines = user.read_text(encoding="utf-8").splitlines()
-        kept = [line for line in lines if "previously_selected_schema: rime_ice" not in line]
-        while kept and not kept[-1].strip():
-            kept.pop()
-        if kept:
-            user.write_text("\n".join(kept) + "\n", encoding="utf-8")
-        else:
-            user.unlink(missing_ok=True)
+    if "default.custom.yaml" in owned:
+        custom = rime_dir / "default.custom.yaml"
+        if custom.is_file():
+            lines = custom.read_text(encoding="utf-8").splitlines()
+            kept = [line for line in lines if "schema: rime_ice" not in line]
+            while kept and not kept[-1].strip():
+                kept.pop()
+            if kept == ["patch:", "  schema_list:"] or not kept:
+                custom.unlink(missing_ok=True)
+            elif kept != lines:
+                custom.write_text("\n".join(kept) + "\n", encoding="utf-8")
+
+    if "user.yaml" in owned:
+        user = rime_dir / "user.yaml"
+        if user.is_file():
+            lines = user.read_text(encoding="utf-8").splitlines()
+            kept = [line for line in lines if "previously_selected_schema: rime_ice" not in line]
+            while kept and not kept[-1].strip():
+                kept.pop()
+            if kept:
+                user.write_text("\n".join(kept) + "\n", encoding="utf-8")
+            else:
+                user.unlink(missing_ok=True)
+
+    marker.unlink(missing_ok=True)
 
 
 @module_action

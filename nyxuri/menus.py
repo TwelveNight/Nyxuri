@@ -242,14 +242,14 @@ def fisher_menu_loop() -> None:
         elif choice == 3: break
 
 
-def deps_menu_loop() -> None:
+def deps_menu_loop() -> bool:
     """Dependencies & Recommended apps submenu."""
     if not sys.stdin.isatty():
         print(msg("interactive_terminal_required"), file=sys.stderr)
-        return
+        return False
     if not shutil.which("pacman"):
         print(msg("deps_menu_unsupported"))
-        return
+        return False
 
     while True:
         items = [
@@ -262,6 +262,7 @@ def deps_menu_loop() -> None:
         if choice == 0: run_dep_menu_loop(); press_any_key()
         elif choice == 1: run_optional_apps_menu_loop(); press_any_key()
         elif choice == 2: break
+    return True
 
 
 def extensions_menu_loop() -> None:
@@ -364,6 +365,11 @@ def main_menu_loop() -> None:
         elif choice == 4:
             update_result = safe_git_pull(env.repo_dir)
             if update_result is True:
+                from nyxuri.migrations import run as run_migrations
+                if not run_migrations():
+                    print(msg("migration_failed"), file=sys.stderr)
+                    press_any_key()
+                    continue
                 print(msg("updating_done"))
                 press_any_key()
                 # Re-exec first: the deploy offer must run on the freshly

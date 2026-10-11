@@ -170,8 +170,16 @@ def uninstall_nyxuri(mode: str = "") -> bool:
         archive_dir = None
         if archive_configs:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            archive_dir = env.config_dir / f"{PROJECT_NAME}_archive_{timestamp}"
-            archive_dir.mkdir(parents=True, exist_ok=True)
+            base_name = f"{PROJECT_NAME}_archive_{timestamp}"
+            archive_dir = env.config_dir / base_name
+            suffix = 1
+            while True:
+                try:
+                    archive_dir.mkdir(parents=True, exist_ok=False)
+                    break
+                except FileExistsError:
+                    archive_dir = env.config_dir / f"{base_name}_{suffix}"
+                    suffix += 1
         for item in items:
             p = env.config_dir / item
             if p.exists() or p.is_symlink():
@@ -237,6 +245,15 @@ def uninstall_nyxuri(mode: str = "") -> bool:
         if legacy_bin.is_symlink() and (is_nyxuri_cli_symlink(legacy_bin) or is_nyxniri_cli_symlink(legacy_bin)):
             legacy_bin.unlink(missing_ok=True)
             clear_nyxniri_cli_symlink_marker()
+        shell_bin = env.home / ".local/bin" / "nyxuri-shell"
+        if shell_bin.is_symlink():
+            try:
+                resolved = str(shell_bin.resolve(strict=False))
+            except (OSError, ValueError):
+                resolved = ""
+            if resolved.endswith("/shell/nyxuri-shell") or resolved.endswith("/shell/bin/nyxuri-shell"):
+                shell_bin.unlink(missing_ok=True)
+                print(msg("uninstall_removed", str(shell_bin)))
 
     # 7. state_dir — AFTER module uninstallers (.prev lives here). §8.6
     if "state" in selected:

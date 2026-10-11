@@ -121,13 +121,18 @@ def _run_git_transfer(command: List[str], **kwargs: Any) -> subprocess.Completed
     """Run a Git network command with native TTY progress and quiet automation output."""
     progress_command, show_progress = _with_git_progress(command)
     kwargs.setdefault("timeout", 120)
-    return subprocess.run(
-        progress_command,
-        capture_output=not show_progress,
-        text=True,
-        check=False,
-        **kwargs,
-    )
+    try:
+        return subprocess.run(
+            progress_command,
+            capture_output=not show_progress,
+            text=True,
+            check=False,
+            **kwargs,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(progress_command, 124, "", "git command timed out")
+    except OSError as exc:
+        return subprocess.CompletedProcess(progress_command, 127, "", str(exc))
 
 
 def git_clone_timeout(url: str, target_dir: Path, cancellable: bool = False) -> bool:

@@ -10,6 +10,24 @@ import signal
 import fcntl
 
 
+_PICKER_ENTRY_NAMES = {"wallpaper-picker.py"}
+
+
+def _is_picker_process(pid: int) -> bool:
+    """True only for a live wallpaper picker instance owned by this user."""
+    if pid <= 1:
+        return False
+    proc = f"/proc/{pid}"
+    try:
+        if os.stat(proc).st_uid != os.getuid():
+            return False
+        with open(f"{proc}/cmdline", "rb") as cf:
+            argv = [a.decode("utf-8", "replace") for a in cf.read().split(b"\0") if a]
+    except OSError:
+        return False
+    return any(os.path.basename(arg) in _PICKER_ENTRY_NAMES for arg in argv)
+
+
 def acquire_instance_lock(lock_path: str, pid_path: str) -> int:
     """Acquire single-instance file lock. Toggle-close existing instance if detected."""
     lock_fd = None
@@ -26,14 +44,14 @@ def acquire_instance_lock(lock_path: str, pid_path: str) -> int:
             try:
                 with open(pid_path, "r") as pf:
                     old_pid = int(pf.read().strip())
-                os.kill(old_pid, signal.SIGTERM)
-                # Poll to wait for old instance to clean up and exit (up to 500ms)
-                for _ in range(50):
-                    time.sleep(0.01)
-                    try:
-                        os.kill(old_pid, 0)
-                    except OSError:
-                        break
+                if _is_picker_process(old_pid):
+                    os.kill(old_pid, signal.SIGTERM)
+                    for _ in range(50):
+                        time.sleep(0.01)
+                        try:
+                            os.kill(old_pid, 0)
+                        except OSError:
+                            break
             except Exception:
                 pass
         sys.exit(0)

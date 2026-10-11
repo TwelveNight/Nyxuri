@@ -71,7 +71,7 @@ if [ -z "$connector" ] && [ "$has_backlight" = true ]; then
 fi
 
 noctalia_ddc=false
-conf="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/noctalia-config.toml"
+conf="$HOME/.config/noctalia/noctalia-config.toml"
 if [ -f "$conf" ] && grep -E '^[[:space:]]*enable_ddcutil[[:space:]]*=[[:space:]]*true\b' "$conf" >/dev/null 2>&1; then
     noctalia_ddc=true
 fi

@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from nyxuri.core import get_env
+from nyxuri.core import get_env, log_msg
 
 _MANIFEST_NAME = ".module.toml"
 _OPTIONAL_APPS_NAME = ".optional-apps.toml"
@@ -89,6 +89,28 @@ def _is_deployable(app_src: Path) -> bool:
     return False
 
 
+def _as_str_list(value) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple)):
+        return [item for item in value if isinstance(item, str)]
+    return []
+
+
+def _as_dict_list(value) -> List[dict]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _as_parts_dict(value) -> Dict[str, dict]:
+    if not isinstance(value, dict):
+        return {}
+    return {key: cfg for key, cfg in value.items() if isinstance(cfg, dict)}
+
+
 def load_manifest(app_src: Path, is_optional: bool = False) -> ModuleManifest:
     """Load a manifest for an app source (dir or file); defaults derived from name.
 
@@ -111,8 +133,8 @@ def load_manifest(app_src: Path, is_optional: bool = False) -> ModuleManifest:
     if pkg_repo is None:
         pkg_repo = [name]
 
-    manifest_preserve = list(packages.get("preserve", []))
-    manifest_parts = dict(data.get("parts", {}) or {})
+    manifest_preserve = _as_str_list(packages.get("preserve"))
+    manifest_parts = _as_parts_dict(data.get("parts"))
     for slot_cfg in manifest_parts.values():
         if isinstance(slot_cfg, dict):
             target = slot_cfg.get("target")
@@ -121,11 +143,11 @@ def load_manifest(app_src: Path, is_optional: bool = False) -> ModuleManifest:
 
     return ModuleManifest(
         name=name,
-        packages_repo=list(pkg_repo),
-        packages_aur=list(packages.get("aur", [])),
-        packages_flatpak=list(packages.get("flatpak", [])),
+        packages_repo=_as_str_list(pkg_repo),
+        packages_aur=_as_str_list(packages.get("aur")),
+        packages_flatpak=_as_str_list(packages.get("flatpak")),
         preserve=manifest_preserve,
-        chmod=list(packages.get("chmod", [])),
+        chmod=_as_str_list(packages.get("chmod")),
         label=packages.get("label", name),
         category=packages.get("category", ""),
         detect=packages.get("detect", name),
@@ -133,11 +155,11 @@ def load_manifest(app_src: Path, is_optional: bool = False) -> ModuleManifest:
         is_optional=is_optional,
         post_install=str(packages.get("post_install", "")),
         preset_inherit=bool(presets.get("inherit", packages.get("preset_inherit", False))),
-        preset_allow=list(presets.get("allow", packages.get("preset_allow", []))),
-        preset_standalone=list(presets.get("standalone", packages.get("preset_standalone", []))),
-        preset_include=list(presets.get("include", packages.get("preset_include", []))),
-        preset_exclude=list(presets.get("exclude", packages.get("preset_exclude", []))),
-        preset_reload=list(presets.get("reload", packages.get("reload", []))),
+        preset_allow=_as_str_list(presets.get("allow", packages.get("preset_allow"))),
+        preset_standalone=_as_str_list(presets.get("standalone", packages.get("preset_standalone"))),
+        preset_include=_as_str_list(presets.get("include", packages.get("preset_include"))),
+        preset_exclude=_as_str_list(presets.get("exclude", packages.get("preset_exclude"))),
+        preset_reload=_as_str_list(presets.get("reload", packages.get("reload"))),
         parts=manifest_parts,
     )
 
@@ -155,12 +177,16 @@ def load_optional_apps() -> Dict[str, dict]:
     path = _optional_toml_path()
     if not path.is_file():
         return {}
-    with open(path, "rb") as f:
-        data = tomllib.load(f)
+    try:
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        log_msg("WARN", f"Ignoring {_OPTIONAL_APPS_NAME}: {exc}")
+        return {}
     result: Dict[str, dict] = {}
-    for entry in data.get("app", []) or []:
+    for entry in _as_dict_list(data.get("app")):
         name = entry.get("name")
-        if name:
+        if isinstance(name, str) and name:
             result[name] = entry
     return result
 
@@ -169,9 +195,9 @@ def _manifest_from_optional(name: str, entry: dict) -> ModuleManifest:
     """Build a manifest for a toml-only optional app (no config dir)."""
     return ModuleManifest(
         name=name,
-        packages_repo=list(entry.get("repo", [name])),
-        packages_aur=list(entry.get("aur", [])),
-        packages_flatpak=list(entry.get("flatpak", [])),
+        packages_repo=_as_str_list(entry.get("repo", [name])),
+        packages_aur=_as_str_list(entry.get("aur")),
+        packages_flatpak=_as_str_list(entry.get("flatpak")),
         preserve=[],
         chmod=[],
         label=entry.get("label", name),
@@ -192,9 +218,9 @@ def _merge_optional_entry(m: ModuleManifest, entry: dict) -> ModuleManifest:
     """
     return ModuleManifest(
         name=m.name,
-        packages_repo=list(entry.get("repo", m.packages_repo)),
-        packages_aur=list(entry.get("aur", m.packages_aur)),
-        packages_flatpak=list(entry.get("flatpak", m.packages_flatpak)),
+        packages_repo=_as_str_list(entry.get("repo", m.packages_repo)),
+        packages_aur=_as_str_list(entry.get("aur", m.packages_aur)),
+        packages_flatpak=_as_str_list(entry.get("flatpak", m.packages_flatpak)),
         preserve=m.preserve,
         chmod=m.chmod,
         label=entry.get("label", m.label),
@@ -208,6 +234,8 @@ def _merge_optional_entry(m: ModuleManifest, entry: dict) -> ModuleManifest:
         preset_standalone=m.preset_standalone,
         preset_include=m.preset_include,
         preset_exclude=m.preset_exclude,
+        preset_reload=m.preset_reload,
+        parts=m.parts,
     )
 
 
@@ -266,8 +294,9 @@ def discover_manifest_apps() -> List[Tuple[str, ModuleManifest]]:
             m = load_manifest(p, is_optional=(p.name in optional))
             if p.name in optional:
                 m = _merge_optional_entry(m, optional[p.name])
-        except Exception:
+        except Exception as exc:
             # A malformed manifest must not break discovery of other apps.
+            log_msg("WARN", f"Skipping app '{p.name}': malformed manifest ({exc})")
             continue
         apps.append((p.name, m))
         seen.add(p.name)

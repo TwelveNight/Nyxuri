@@ -24,6 +24,33 @@ class TestThemeSync(unittest.TestCase):
             self.assertEqual(parser["Settings"]["gtk-application-prefer-dark-theme"], "false")
             self.assertEqual(parser["Settings"]["gtk-theme-name"], "adw-gtk3")
 
+    def test_toggle_follows_daemon_mode_instead_of_inverting_it_again(self):
+        from nyxuri.theme import sync
+
+        for daemon_mode in ("dark", "light"):
+            with patch("nyxuri.theme._propagate", return_value="noctalia"), \
+                 patch("nyxuri.theme._mode_from_system", return_value=daemon_mode), \
+                 patch("nyxuri.theme._nyxuri_shell_ipc", return_value=None), \
+                 patch("nyxuri.theme.shutil.which", return_value=None), \
+                 patch("nyxuri.theme._sync_glow_layout") as glow:
+                self.assertEqual(sync("toggle"), 0)
+            glow.assert_called_once_with(daemon_mode)
+            parser = configparser.ConfigParser()
+            parser.read(self.ctx.home / ".config" / "gtk-3.0" / "settings.ini")
+            expected = "true" if daemon_mode == "dark" else "false"
+            self.assertEqual(parser["Settings"]["gtk-application-prefer-dark-theme"], expected)
+
+    def test_toggle_inverts_locally_when_no_channel_handles_it(self):
+        from nyxuri.theme import sync
+
+        with patch("nyxuri.theme._propagate", return_value="none"), \
+             patch("nyxuri.theme._mode_from_system", return_value="dark"), \
+             patch("nyxuri.theme._nyxuri_shell_ipc", return_value=None), \
+             patch("nyxuri.theme.shutil.which", return_value=None), \
+             patch("nyxuri.theme._sync_glow_layout") as glow:
+            self.assertEqual(sync("toggle"), 0)
+        glow.assert_called_once_with("light")
+
     def test_status_returns_zero(self):
         from nyxuri.theme import status
 

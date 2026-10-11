@@ -27,7 +27,7 @@ def is_modifier_or_nav_key(keyval: int) -> bool:
     """Check if keyval is a modifier or special system key that should never trigger search."""
     if 0xffe1 <= keyval <= 0xffee:
         return True
-    if 0xfe00 <= keyval <= 0xfeff:
+    if 0xfe00 <= keyval <= 0xfeff and keyval != Gdk.KEY_ISO_Left_Tab:
         return True
     if Gdk.KEY_F1 <= keyval <= Gdk.KEY_F35:
         return True
@@ -360,7 +360,14 @@ class OrbitLauncher(Gtk.Window):
         # 3. Local Scratchpad / App Command
         script_path = os.path.expanduser("~/.config/niri/scripts/niri-scratch-toggle.sh")
         if not os.path.isfile(script_path):
-            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "niri-scratch-toggle.sh")
+            script_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..", "..", "..", "niri", "scripts", "niri-scratch-toggle.sh",
+            )
+        if not os.path.isfile(script_path):
+            print(f"Error launching scratchpad: script not found at {script_path}", file=sys.stderr)
+            self.dismiss_menu()
+            return
         try:
             subprocess.Popen(["/bin/bash", script_path, cmd])
         except Exception as e:
@@ -456,7 +463,9 @@ class OrbitLauncher(Gtk.Window):
             self.set_anchor_center(mx, my)
 
         if self.keyboard_selected is not None:
-            if self.keyboard_nav_pos and math.hypot(mx - self.keyboard_nav_pos[0], my - self.keyboard_nav_pos[1]) > 15.0:
+            if self.keyboard_nav_pos is None:
+                self.keyboard_selected = None
+            elif math.hypot(mx - self.keyboard_nav_pos[0], my - self.keyboard_nav_pos[1]) > 15.0:
                 self.keyboard_selected = None
                 self.keyboard_nav_pos = None
             else:
@@ -587,7 +596,15 @@ class OrbitLauncher(Gtk.Window):
         if self.is_dismissing:
             return False
 
-        step = 1 if event.direction == Gdk.ScrollDirection.DOWN else (-1 if event.direction == Gdk.ScrollDirection.UP else 0)
+        if event.direction == Gdk.ScrollDirection.DOWN:
+            step = 1
+        elif event.direction == Gdk.ScrollDirection.UP:
+            step = -1
+        elif event.direction == Gdk.ScrollDirection.SMOOTH:
+            delta = getattr(event, "delta_y", 0.0) or 0.0
+            step = 1 if delta > 0 else (-1 if delta < 0 else 0)
+        else:
+            step = 0
         if step == 0:
             return False
 

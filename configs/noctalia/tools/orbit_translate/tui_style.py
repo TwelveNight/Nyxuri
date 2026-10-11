@@ -77,6 +77,8 @@ def load_terminal_style() -> TerminalStyle:
         )
     except (AttributeError, curses.error, TypeError, ValueError):
         return TerminalStyle(palette)
+
+
 def _nearest_color(value: str, available: list[tuple[int, int, int]]) -> int:
     rgb = _parse_rgb(value)
     return min(
@@ -88,6 +90,8 @@ def _nearest_color(value: str, available: list[tuple[int, int, int]]) -> int:
 def _parse_rgb(value: str) -> tuple[int, int, int]:
     try:
         if len(value) != 7 or not value.startswith("#"):
+            raise ValueError
+        if not all(char in "0123456789abcdefABCDEF" for char in value[1:]):
             raise ValueError
         return int(value[1:3], 16), int(value[3:5], 16), int(value[5:7], 16)
     except (TypeError, ValueError):

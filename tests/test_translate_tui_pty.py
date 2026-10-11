@@ -52,17 +52,29 @@ class TerminalApp:
     def send(self, value: str) -> None:
         os.write(self.master, value.encode("utf-8"))
 
-    def wait_for(self, value: str) -> None:
+    def wait_for(self, value: str, timeout: float = 4.0) -> None:
         wanted = value.encode("utf-8")
-        deadline = time.monotonic() + 4
-        while wanted not in self.output and time.monotonic() < deadline:
+        start = len(self.output)
+        deadline = time.monotonic() + timeout
+        while wanted not in self.output[start:] and time.monotonic() < deadline:
             if select.select([self.master], [], [], 0.05)[0]:
                 try:
                     self.output.extend(os.read(self.master, 65536))
                 except OSError:
                     break
-        if wanted not in self.output:
+        if wanted not in self.output[start:]:
             raise AssertionError(f"Terminal did not reach expected fixture state: {value}")
+
+    def send_until(self, value: str, keys: str, timeout: float = 4.0) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.send(keys)
+            try:
+                self.wait_for(value, timeout=0.5)
+                return
+            except AssertionError:
+                continue
+        raise AssertionError(f"Terminal did not reach expected fixture state: {value}")
 
     def close(self) -> None:
         if self.process.poll() is None:
@@ -109,15 +121,22 @@ class TerminalAcceptanceTests(unittest.TestCase):
         self.assertEqual(self.config.read_text(encoding="utf-8"), _FIXTURE)
 
     def test_cancelled_masked_input_survives_resize_without_echo(self) -> None:
-        self.app.send("K")
-        self.app.wait_for("固定掩码")
+        self.app.send_until("Enter 确认 · Esc 取消", "K")
         marker = "fixture-key-never-store"
         self.app.send(marker)
         self.app.resize(8, 35)
         self.app.send("\x1b")
         time.sleep(0.05)
-        self.app.resize(24, 100)
-        self.app.wait_for("已取消")
+        deadline = time.monotonic() + 4
+        while True:
+            self.app.resize(24, 100)
+            self.app.send("\t")
+            try:
+                self.app.wait_for("已取消", timeout=0.5)
+                break
+            except AssertionError:
+                if time.monotonic() >= deadline:
+                    raise
         # ncurses remains in noecho mode after leaving the masked prompt.
         deadline = time.monotonic() + 1
         while termios.tcgetattr(self.app.master)[3] & termios.ECHO and time.monotonic() < deadline:

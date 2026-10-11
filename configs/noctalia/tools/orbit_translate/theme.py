@@ -336,10 +336,6 @@ def _collect_strings(value: object, target: dict[str, str]) -> None:
 def _pick(values: dict[str, str], *keys: str, fallback: str) -> str:
     for key in keys:
         value = values.get(key, "").strip()
-        if len(value) == 7 and value.startswith("#"):
-            try:
-                int(value[1:], 16)
-            except ValueError:
-                continue
+        if len(value) == 7 and value.startswith("#") and all(char in "0123456789abcdefABCDEF" for char in value[1:]):
             return value
     return fallback

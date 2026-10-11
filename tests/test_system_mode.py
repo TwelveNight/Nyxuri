@@ -5,6 +5,7 @@ PATH occlusion warning, safe_git_pull system branch, and ensure_nyxuri_symlink
 no-op in system mode.
 """
 
+import io
 import os
 import sys
 import tempfile
@@ -312,12 +313,22 @@ class TestRawInputMode(unittest.TestCase):
     """raw_input_mode no-ops on non-tty stdin (tests rely on this); drain discards bytes."""
 
     def test_noop_on_non_tty_stdin(self):
-        # Real stdin in tests isn't a tty; raw_input_mode must not call tcsetattr
-        # and must not raise. PresetSwitcher/Menu tests depend on this (they mock
-        # isatty=True + read_key, and the real fd fails tcgetattr → silent skip).
-        with tui.raw_input_mode(sys.stdin.fileno()):
+        with tui.raw_input_mode(tui.stdin_fd()):
             pass
-        # reaching here without raising is the contract
+        self.assertTrue(True)
+
+    def test_noop_on_stdin_without_fileno(self):
+        class NoFileno:
+            def isatty(self):
+                return True
+
+            def fileno(self):
+                raise io.UnsupportedOperation("redirected stdin is pseudofile")
+
+        with patch.object(sys, "stdin", NoFileno()):
+            self.assertIsNone(tui.stdin_fd())
+            with tui.raw_input_mode(tui.stdin_fd()):
+                pass
         self.assertTrue(True)
 
     def test_drain_pending_discards_pipe_bytes(self):

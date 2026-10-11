@@ -21,17 +21,31 @@ def _matches_pattern(rel_str: str, is_dir: bool, patterns: List[str]) -> bool:
         pat = pat.strip()
         if not pat:
             continue
-        if "/" not in pat:
-            name = rel_str.split("/")[-1]
-            if fnmatch.fnmatch(name, pat):
+        if fnmatch.fnmatch(rel_str, pat):
+            return True
+        name = rel_str.split("/")[-1]
+        if fnmatch.fnmatch(name, pat):
+            return True
+        if pat.startswith("**/") and fnmatch.fnmatch(name, pat[3:]):
+            return True
+        parts = rel_str.split("/")
+        base_pat = pat.rstrip("/*")
+        for index in range(1, len(parts)):
+            if fnmatch.fnmatch("/".join(parts[:index]), base_pat):
                 return True
-        else:
-            if fnmatch.fnmatch(rel_str, pat):
-                return True
-            if is_dir:
-                base_pat = pat.rstrip("/*")
-                if base_pat == rel_str or pat.startswith(rel_str + "/"):
-                    return True
+    return False
+
+
+def _include_could_match(rel_str: str, patterns: List[str]) -> bool:
+    for pat in patterns:
+        pat = pat.strip()
+        if not pat:
+            continue
+        if "/" not in pat or pat.startswith("**/"):
+            return True
+        prefix = pat.rstrip("/*")
+        if rel_str == prefix or prefix.startswith(rel_str + "/") or rel_str.startswith(prefix + "/"):
+            return True
     return False
 
 
@@ -66,8 +80,9 @@ def _base_deploy_ignore_factory(
 
             # 1. Whitelist (include)
             if inc and not _matches_pattern(rel_str, is_dir, inc):
-                skip.add(name)
-                continue
+                if not is_dir or not _include_could_match(rel_str, inc):
+                    skip.add(name)
+                    continue
 
             # 2. Blacklist (exclude)
             if exc and _matches_pattern(rel_str, is_dir, exc):
@@ -210,9 +225,18 @@ def atomic_replace_item(
         # state — e.g. niri/effects.kdl → effects_normal.kdl|effects_eyecare.kdl,
         # whose target encodes the EyeCare on/off state — survives deploys.
         if preserve and dest.is_dir():
+            dest_root = dest.resolve()
+            new_root = tmp_new.resolve()
             for rel in preserve:
+                if not rel or os.path.isabs(rel):
+                    continue
                 src_p = dest / rel
                 tgt_p = tmp_new / rel
+                try:
+                    src_p.resolve(strict=False).relative_to(dest_root)
+                    tgt_p.resolve(strict=False).relative_to(new_root)
+                except ValueError:
+                    continue
                 tgt_p.parent.mkdir(parents=True, exist_ok=True)
                 if src_p.is_symlink():
                     tgt_p.unlink(missing_ok=True)

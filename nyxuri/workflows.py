@@ -137,6 +137,9 @@ def install_configs_workflow(mode: str = "full") -> bool:
     cur_step += 1
     print(msg("install_step_wallpapers", f"{cur_step}/{steps}"))
     wallpaper_result = deploy_wallpapers(do_download=do_wallpapers)
+    if do_wallpapers and not wallpaper_result.downloaded and not wallpaper_result.pack_present:
+        print(msg("msg_wallpapers_download_failed"))
+        return False
 
     # 4. Fcitx5
     if do_fcitx:

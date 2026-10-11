@@ -95,7 +95,12 @@ def _check_matugen(env) -> None:
     """Palette extraction engine — optional by contract, loud when absent."""
     if shutil.which("matugen"):
         res = timed_run(["matugen", "--version"], 5, capture_output=True, text=True, check=False)
-        version = res.stdout.strip() if res is not None and res.returncode == 0 else "unknown"
+        if res is None or res.returncode != 0:
+            print(msg("doctor_warn", text(
+                "取色引擎: matugen 存在但 --version 探测失败",
+                "Color engine: matugen is present but its --version probe failed")))
+            return
+        version = res.stdout.strip()
         print(msg("doctor_ok", text(f"取色引擎: matugen {version}", f"Color engine: matugen {version}")))
         return
     print(msg("doctor_warn", text(
@@ -126,7 +131,13 @@ def _check_scripts(env) -> None:
                 print(msg("doctor_ok", text(f"脚本可执行: {name}", f"Script is executable: {name}")))
             else:
                 print(msg("doctor_warn", text(f"脚本缺少执行权限，正在修复: {name}", f"Script was not executable; fixing: {name}")))
-                full_path.chmod(0o755)
+                try:
+                    full_path.chmod(0o755)
+                except OSError as exc:
+                    print(msg("doctor_warn", text(f"无法修复执行权限: {name} ({exc})",
+                                                 f"Could not fix execute permission: {name} ({exc})")))
+        else:
+            print(msg("doctor_warn", text(f"脚本缺失，未部署: {name}", f"Script is missing (not deployed): {name}")))
 
 def _check_eyecare(env) -> None:
     if shutil.which("wlsunset"):
@@ -227,6 +238,9 @@ def _check_portal_config(env) -> None:
     portal_conf2 = env.config_dir / "xdg-desktop-portal" / "portals.conf"
     if portal_conf.is_file() or portal_conf2.is_file():
         print(msg("doctor_ok", text("桌面门户: niri-portals.conf 路由已配置", "Desktop Portal: niri-portals.conf routing is configured")))
+    else:
+        print(msg("doctor_warn", text("桌面门户: 缺少 niri-portals.conf 路由配置",
+                                     "Desktop Portal: niri-portals.conf routing is not configured")))
 
 _MIN_HOME_FREE_KIB = 10 * 1024 * 1024  # 10 GiB expressed in KiB
 _GIB_KIB = 1024 * 1024
@@ -399,6 +413,9 @@ def run_doctor() -> bool:
                 except subprocess.TimeoutExpired:
                     # One stalled probe must not kill the whole diagnosis.
                     print(msg("doctor_warn", msg("check_probe_timeout")))
+                except Exception as exc:
+                    print(msg("doctor_warn", text(f"检查项异常: {check.__name__} ({exc})",
+                                                 f"Check raised: {check.__name__} ({exc})")))
     finally:
         sys.stdout = orig_stdout
 

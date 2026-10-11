@@ -170,7 +170,7 @@ def hex_to_rgb(hex_str, default=None):
     """Convert '#RRGGBB' to normalized float RGB tuple, or `default`."""
     try:
         s = hex_str.strip().lstrip("#")
-        if len(s) == 6:
+        if len(s) == 6 and all(c in "0123456789abcdefABCDEF" for c in s):
             return tuple(int(s[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
     except Exception:
         pass

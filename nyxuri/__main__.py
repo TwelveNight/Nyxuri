@@ -7,7 +7,7 @@ def _run() -> int:
     try:
         from nyxuri.cli import main
         main()
-    except ModuleNotFoundError as e:
+    except ImportError as e:
         # A missing nyxuri.* module means the engine tree is mixed or partial
         # (typically an update interrupted mid-checkout). Fail with one clear
         # line instead of a traceback; anything else is a real bug — re-raise.

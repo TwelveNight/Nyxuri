@@ -128,7 +128,7 @@ def _resolve_backup_arg(target_arg: str, backups: List[Path]) -> Optional[Path]:
     value = target_arg.strip()
     if not value:
         return None
-    if value.isdigit():
+    if value.isdecimal():
         idx = int(value) - 1
         return backups[idx] if 0 <= idx < len(backups) else None
     try:

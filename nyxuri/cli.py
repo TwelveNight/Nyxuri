@@ -120,19 +120,18 @@ def _cmd_deps(sub_args: List[str]) -> int:
     if len(sub_args) > 1 or sub not in ("", "core", "apps", "opt", "optional"):
         exit_usage(f"{CLI_CMD} deps [core|apps]")
     if sub == "core":
-        run_dep_menu_loop()
+        ok = run_dep_menu_loop()
     elif sub in ("apps", "opt", "optional"):
-        run_optional_apps_menu_loop()
+        ok = run_optional_apps_menu_loop()
     else:
-        deps_menu_loop()
-    return 0
+        ok = deps_menu_loop()
+    return 0 if ok else 1
 
 
 def _cmd_apps(sub_args: List[str]) -> int:
     if sub_args:
         exit_usage(f"{CLI_CMD} apps")
-    run_optional_apps_menu_loop()
-    return 0
+    return 0 if run_optional_apps_menu_loop() else 1
 
 
 def _cmd_wallpapers(sub_args: List[str]) -> int:
@@ -302,9 +301,8 @@ def _cmd_shell(sub_args: List[str]) -> int:
             if len(sub_args) < 2 or len(sub_args) > 3:
                 exit_usage(usage)
             raw_target = sub_args[1].lower()
-            try:
-                target = normalize_shell_name(raw_target)
-            except ValueError:
+            target = normalize_shell_name(raw_target)
+            if target not in ("noctalia", "nyxuri-shell"):
                 exit_usage(usage)
             bin_path = sub_args[2] if len(sub_args) > 2 else None
 
@@ -332,7 +330,7 @@ def _cmd_update(sub_args: List[str]) -> int:
     for cur in it:
         if cur == "--to":
             to_ref = next(it, "")
-            if not to_ref:
+            if not to_ref or to_ref.startswith("-"):
                 exit_usage(usage)
         elif cur in ("--force", "--deploy", "--no-deploy"):
             if flag:

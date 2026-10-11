@@ -581,6 +581,9 @@ class WallpaperPickerWindow(Gtk.Window):
 
     def on_chip_toggled(self, btn, idx):
         if not btn.get_active():
+            btn.handler_block_by_func(self.on_chip_toggled)
+            btn.set_active(True)
+            btn.handler_unblock_by_func(self.on_chip_toggled)
             return
         for i, b in enumerate(self.chip_buttons):
             if i != idx and b.get_active():

@@ -12,7 +12,7 @@ set -euo pipefail
 RED=$'\033[1;31m'; GRN=$'\033[1;32m'; YEL=$'\033[1;33m'; BLU=$'\033[1;34m'; OFF=$'\033[0m'
 
 # --- Bilingual helper: bootstrap runs before Python i18n, so sniff $LANG/$LC_ALL ---
-_lang_is_zh() { [[ "${LANG:-}${LC_ALL:-}" == *zh* ]]; }
+_lang_is_zh() { local _src="${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}"; [[ "${_src,,}" == *zh* ]]; }
 # say "zh text" "en text" -> prints zh when locale is Chinese, else en.
 say() { if _lang_is_zh; then printf '%s' "$1"; else printf '%s' "${2:-$1}"; fi; }
 
@@ -115,8 +115,9 @@ engine_is_complete() {
     local module
     [ -f "$target_dir/install.sh" ] || return 1
     [ -f "$target_dir/nyxuri/translations.toml" ] || return 1
+    [ -f "$target_dir/nyxuri/migrations/__init__.py" ] || return 1
     # Top-level engine modules (infrastructure + entrypoints, §13)
-    for module in __init__ __main__ clean cli constants core deps doctor i18n menus network template_registry theme tui workflows; do
+    for module in __init__ __main__ clean cli constants core deps doctor i18n menus network shell_switcher template_registry theme tui workflows; do
         [ -f "$target_dir/nyxuri/$module.py" ] || return 1
     done
     # deploy/ subpackage (atomic · manifest · templates · assets · hardware · preset · deploy)

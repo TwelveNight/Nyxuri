@@ -26,12 +26,16 @@ def _read() -> dict:
 def run() -> bool:
     env = get_env()
     ledger = _read()
-    if int(ledger.get("migration_level", 0) or 0) >= MIGRATION_LEVEL:
+    try:
+        level = int(ledger.get("migration_level", 0) or 0)
+    except (ValueError, TypeError):
+        level = 0
+    if level >= MIGRATION_LEVEL:
         return True
     for relative in TOMBSTONES:
         target = env.home / relative
         try:
-            target.resolve().relative_to(env.home.resolve())
+            target.parent.resolve().relative_to(env.home.resolve())
         except ValueError:
             return False
         try:

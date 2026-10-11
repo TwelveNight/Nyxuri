@@ -1642,6 +1642,14 @@ en = "  {Colors.BOLD_YELLOW}[!]{Colors.RESET} No {0} config to save yet"
 zh = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} 已保存 {0} 用户预设: {1}"
 en = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} Saved {0} user preset: {1}"
 
+[preset_save_failed]
+zh = "  {Colors.BOLD_RED}[✗]{Colors.RESET} 保存 {0} 预设 '{1}' 失败（原有预设未被改动）"
+en = "  {Colors.BOLD_RED}[✗]{Colors.RESET} Failed to save preset '{1}' for {0} (existing preset left untouched)"
+
+[log_part_reconcile_failed]
+zh = "  {Colors.BOLD_RED}[✗]{Colors.RESET} {0}: 已记录的部件变体未能落盘（{1}）"
+en = "  {Colors.BOLD_RED}[✗]{Colors.RESET} {0}: recorded part variant could not be realized ({1})"
+
 [preset_delete_official_denied]
 zh = "  {Colors.BOLD_YELLOW}[!]{Colors.RESET} 预设 '{0}' 是官方预设，无法删除"
 en = "  {Colors.BOLD_YELLOW}[!]{Colors.RESET} Preset '{0}' is official, cannot be deleted"

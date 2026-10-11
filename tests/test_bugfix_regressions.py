@@ -1,0 +1,812 @@
+"""Regression tests for upstream defects fixed during the bug-hunt rounds.
+
+Each test reproduces a concrete failure that shipped in v4.0.0-alpha.1 and
+asserts the corrected behavior, so the defect cannot silently return.
+"""
+
+import contextlib
+import io
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import tomllib
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from tests.utils import TempEnv
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestMigrationsResilience(unittest.TestCase):
+
+    def test_symlink_tombstone_pointing_outside_home_is_removed(self):
+        from nyxuri import migrations
+        with TempEnv() as ctx:
+            outside = Path(tempfile.mkdtemp()) / "nyxniri.fish"
+            outside.write_text("x", encoding="utf-8")
+            link = ctx.home / ".config/fish/completions/nyxniri.fish"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(outside)
+            with patch.object(migrations, "TOMBSTONES", (".config/fish/completions/nyxniri.fish",)):
+                self.assertTrue(_quiet(migrations.run))
+                self.assertTrue(_quiet(migrations.run))
+            self.assertFalse(link.is_symlink())
+
+    def test_corrupt_migration_level_does_not_raise(self):
+        from nyxuri import migrations
+        with TempEnv() as ctx:
+            path = migrations._ledger_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('{"migration_level": "abc"}', encoding="utf-8")
+            self.assertTrue(_quiet(migrations.run))
+            self.assertEqual(migrations._read()["migration_level"], migrations.MIGRATION_LEVEL)
+
+    def test_traversal_tombstone_is_rejected(self):
+        from nyxuri import migrations
+        with TempEnv() as ctx:
+            victim = ctx.home.parent / "nyxuri-outside-victim.txt"
+            victim.write_text("keep", encoding="utf-8")
+            with patch.object(migrations, "TOMBSTONES", ("../nyxuri-outside-victim.txt",)):
+                self.assertFalse(_quiet(migrations.run))
+            self.assertTrue(victim.exists())
+            victim.unlink()
+
+
+class TestGitTimeoutDegrades(unittest.TestCase):
+
+    def _repo(self, ctx):
+        repo = ctx.env.repo_dir
+        repo.mkdir(parents=True, exist_ok=True)
+        (repo / ".git").mkdir(exist_ok=True)
+        return repo
+
+    def test_safe_git_pull_timeout_returns_falsy(self):
+        import nyxuri.network as net
+        with TempEnv() as ctx:
+            repo = self._repo(ctx)
+
+            def fake_run(cmd, **kwargs):
+                if "pull" in cmd or "fetch" in cmd:
+                    raise subprocess.TimeoutExpired(cmd, 120)
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch("shutil.which", return_value="/usr/bin/git"), \
+                 patch("subprocess.run", side_effect=fake_run):
+                self.assertFalse(_quiet(net.safe_git_pull, repo))
+
+    def test_safe_git_checkout_ref_timeout_returns_falsy(self):
+        import nyxuri.network as net
+        with TempEnv() as ctx:
+            repo = self._repo(ctx)
+
+            def fake_run(cmd, **kwargs):
+                if "fetch" in cmd or "checkout" in cmd:
+                    raise subprocess.TimeoutExpired(cmd, 120)
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch("shutil.which", return_value="/usr/bin/git"), \
+                 patch("subprocess.run", side_effect=fake_run):
+                self.assertFalse(_quiet(net.safe_git_checkout_ref, repo, "v1"))
+
+
+class TestTemplateRegistryHeaders(unittest.TestCase):
+
+    def test_commented_header_is_found_by_set_section_key(self):
+        from nyxuri.template_registry import set_section_key
+        content = '[package]  # main\nname = "test"\n'
+        updated = set_section_key(content, "package", "version", "1")
+        self.assertNotEqual(updated, content)
+        self.assertEqual(tomllib.loads(updated)["package"]["version"], "1")
+
+    def test_add_section_does_not_duplicate_commented_header(self):
+        from nyxuri.template_registry import add_section
+        content = '[package]  # main\nname = "test"\n'
+        updated = add_section(content, "package", {"version": "3.0.5"})
+        self.assertEqual(updated.count("[package]"), 1)
+        self.assertEqual(tomllib.loads(updated)["package"]["name"], "test")
+
+    def test_write_atomic_preserves_destination_mode(self):
+        from nyxuri.template_registry import write_atomic
+        with TempEnv() as ctx:
+            target = ctx.home / "sample.toml"
+            target.write_text("[a]\nb = 1\n", encoding="utf-8")
+            target.chmod(0o644)
+            write_atomic(target, "[a]\nb = 2\n")
+            self.assertEqual(target.stat().st_mode & 0o777, 0o644)
+
+
+class TestGtkThemeUninstall(unittest.TestCase):
+
+    def test_partial_registration_is_still_unregistered(self):
+        from nyxuri.modules import gtktheme
+        with TempEnv() as ctx:
+            conf = ctx.env.config_dir / "noctalia" / "noctalia-config.toml"
+            conf.parent.mkdir(parents=True, exist_ok=True)
+            conf.write_text('[theme.templates.user.nyxuri_gtk3]\ncss = "x"\n', encoding="utf-8")
+            self.assertFalse(gtktheme.gtktheme_registered())
+            self.assertTrue(gtktheme.gtktheme_any_registered())
+            self.assertTrue(_quiet(gtktheme.gtktheme_uninstall))
+            self.assertNotIn("theme.templates.user.nyxuri_gtk3", conf.read_text(encoding="utf-8"))
+
+
+class TestDeployAssets(unittest.TestCase):
+
+    def test_pack_requires_a_real_video(self):
+        from nyxuri.deploy import assets
+        root = Path(tempfile.mkdtemp())
+        (root / "video").mkdir(parents=True)
+        (root / "video" / "README.md").write_text("docs", encoding="utf-8")
+        self.assertFalse(assets._wallpaper_pack_present_at(root))
+        (root / "video" / "clip.mp4").write_text("v", encoding="utf-8")
+        self.assertTrue(assets._wallpaper_pack_present_at(root))
+
+    def test_existing_user_wallpaper_is_not_claimed_as_managed(self):
+        from nyxuri.deploy import assets
+        with TempEnv() as ctx:
+            wp = ctx.home / "Pictures" / "Wallpapers"
+            wp.mkdir(parents=True)
+            user_file = wp / "lawson_fuji.webp"
+            user_file.write_text("USER", encoding="utf-8")
+            _quiet(assets.deploy_wallpapers, do_download=False)
+            marker = wp / ".nyxuri-managed.json"
+            managed = json.loads(marker.read_text(encoding="utf-8")) if marker.exists() else []
+            self.assertNotIn("lawson_fuji.webp", managed)
+            self.assertEqual(user_file.read_text(encoding="utf-8"), "USER")
+
+
+class TestManifestCoercion(unittest.TestCase):
+
+    def _sandbox(self, ctx):
+        ctx.env.configs_src = Path(tempfile.mkdtemp())
+        return ctx.env.configs_src
+
+    def test_scalar_package_fields_become_single_element_lists(self):
+        from nyxuri.deploy.manifest import load_manifest
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx) / "demo"
+            src.mkdir(parents=True)
+            (src / ".module.toml").write_text(
+                '[packages]\nrepo = "kitty"\naur = "foo-bar"\npreserve = "single.conf"\n',
+                encoding="utf-8",
+            )
+            m = _quiet(load_manifest, src)
+            self.assertEqual(m.packages_repo, ["kitty"])
+            self.assertEqual(m.packages_aur, ["foo-bar"])
+            self.assertEqual(m.preserve, ["single.conf"])
+
+    def test_scalar_parts_entry_is_dropped(self):
+        from nyxuri.deploy.manifest import load_manifest
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx) / "demo2"
+            src.mkdir(parents=True)
+            (src / ".module.toml").write_text(
+                '[parts]\ngood = { target = "a.conf" }\nbad = "oops"\n', encoding="utf-8"
+            )
+            m = _quiet(load_manifest, src)
+            self.assertEqual(sorted(m.parts), ["good"])
+
+    def test_wrong_shaped_optional_apps_does_not_break_discovery(self):
+        from nyxuri.deploy.manifest import discover_manifest_apps, load_optional_apps
+        with TempEnv() as ctx:
+            self._sandbox(ctx).joinpath(".optional-apps.toml").write_text('app = "nope"\n', encoding="utf-8")
+            self.assertEqual(_quiet(load_optional_apps), {})
+            self.assertIsInstance(_quiet(discover_manifest_apps), list)
+
+    def test_corrupt_optional_apps_is_ignored(self):
+        from nyxuri.deploy.manifest import load_optional_apps
+        with TempEnv() as ctx:
+            self._sandbox(ctx).joinpath(".optional-apps.toml").write_text("not = = toml\n", encoding="utf-8")
+            self.assertEqual(_quiet(load_optional_apps), {})
+
+
+class TestDepsMenuReportsFailure(unittest.TestCase):
+
+    def test_failed_install_propagates(self):
+        import nyxuri.deps as deps
+        with TempEnv():
+            with patch.object(deps.CheckboxList, "run", return_value=["fish"]), \
+                 patch.object(deps, "install_selected_deps", return_value=False), \
+                 patch.object(deps.sys.stdin, "isatty", return_value=True):
+                self.assertFalse(_quiet(deps.run_dep_menu_loop))
+
+    def test_empty_selection_is_success(self):
+        import nyxuri.deps as deps
+        with TempEnv():
+            with patch.object(deps.CheckboxList, "run", return_value=[]), \
+                 patch.object(deps.sys.stdin, "isatty", return_value=True):
+                self.assertTrue(_quiet(deps.run_dep_menu_loop))
+
+
+class TestGenDepsQuoting(unittest.TestCase):
+
+    def _load(self):
+        import importlib.util
+        path = Path(__file__).resolve().parent.parent / "nyxuri" / "packaging" / "gen-deps.py"
+        spec = importlib.util.spec_from_file_location("gen_deps_under_test", path)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except SystemExit:
+            pass
+        return mod
+
+    def test_apostrophe_in_label_is_shell_quoted(self):
+        mod = self._load()
+        rendered = mod._render(["kitty"], [("mpvpaper", "Foo's App")])
+        with tempfile.NamedTemporaryFile("w", suffix=".bash", delete=False) as handle:
+            handle.write(rendered)
+            script = handle.name
+        try:
+            result = subprocess.run(["bash", "-n", script], capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        finally:
+            os.unlink(script)
+
+
+class TestOrbitConfigValidation(unittest.TestCase):
+
+    def _config(self):
+        import importlib.util
+        path = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools" / "orbit" / "config.py"
+        spec = importlib.util.spec_from_file_location("orbit_config_under_test", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_string_engine_list_is_rejected(self):
+        mod = self._config()
+        directory = tempfile.mkdtemp()
+        path = os.path.join(directory, "cfg.toml")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write('search_engines = ["bing", "google"]\n')
+        with patch.object(mod, "CONFIG_PATHS", [path]):
+            engines, meta = _quiet(mod.load_search_config)
+        self.assertTrue(all(isinstance(entry, dict) for entry in engines))
+        self.assertIsInstance(meta, dict)
+
+    def test_string_items_are_rejected(self):
+        mod = self._config()
+        directory = tempfile.mkdtemp()
+        path = os.path.join(directory, "cfg.toml")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write('items = ["oops", 42]\n')
+        with patch.object(mod, "CONFIG_PATHS", [path]):
+            tree = _quiet(mod.load_menu_tree)
+        self.assertTrue(all(isinstance(entry, dict) for entry in tree))
+
+    def test_search_metadata_without_engines_is_kept(self):
+        mod = self._config()
+        directory = tempfile.mkdtemp()
+        path = os.path.join(directory, "cfg.toml")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write('[search]\ndefault_engine = "google"\nplaceholder = "Ask anything"\n')
+        with patch.object(mod, "CONFIG_PATHS", [path]):
+            _engines, meta = _quiet(mod.load_search_config)
+        self.assertEqual(meta.get("default_engine"), "google")
+        self.assertEqual(meta.get("placeholder"), "Ask anything")
+
+
+class TestHexParsingRejectsMalformed(unittest.TestCase):
+
+    def _module(self, relative, name):
+        import importlib.util
+        path = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools" / relative
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_orbit_palette_falls_back(self):
+        mod = self._module(Path("orbit") / "palette.py", "orbit_palette_hex")
+        for bad in ("#-1FFFF", "#+FFFFF", "#12 345", "# FF FF"):
+            self.assertEqual(mod.hex_to_rgb(bad), (0.5, 0.5, 0.5))
+        self.assertEqual(mod.hex_to_rgb("#FF0000"), (1.0, 0.0, 0.0))
+
+    def test_wallpaper_theme_falls_back(self):
+        mod = self._module(Path("wallpaper_picker") / "theme.py", "wp_theme_hex")
+        for bad in ("#-1FFFF", "#+FFFFF", "#12 345"):
+            self.assertIsNone(mod.hex_to_rgb(bad))
+        self.assertEqual(mod.hex_to_rgb("#00FF00"), (0.0, 1.0, 0.0))
+
+
+class TestNaturalSort(unittest.TestCase):
+
+    def test_numeric_runs_sort_numerically(self):
+        import importlib.util
+        path = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools" / "wallpaper_picker" / "scanner.py"
+        source = path.read_text(encoding="utf-8")
+        namespace = {"re": re}
+        start = source.index("_NATURAL_SPLIT")
+        end = source.index("class WallpaperItem")
+        exec(compile(source[start:end], str(path), "exec"), namespace)
+        key = namespace["_natural_key"]
+        names = ["10.jpg", "2.jpg", "a.png", "b.jpg"]
+        self.assertEqual(sorted(names, key=lambda n: key(os.path.splitext(n)[0])),
+                         ["2.jpg", "10.jpg", "a.png", "b.jpg"])
+
+
+class TestLedgerResilience(unittest.TestCase):
+
+    def test_unhashable_active_shell_falls_back_to_default(self):
+        from nyxuri.state import ledger
+        with TempEnv():
+            for bad in ([], {}, ["a"], 5, None, "weird"):
+                ledger.update_ledger(active_shell=bad)
+                self.assertEqual(ledger.active_shell(), "noctalia")
+
+    def test_concurrent_updates_do_not_lose_keys(self):
+        from nyxuri.state import ledger
+        with TempEnv():
+            ledger.update_ledger(seed="x")
+            read_fd, write_fd = os.pipe()
+            pids = []
+            for index in range(6):
+                pid = os.fork()
+                if pid == 0:
+                    try:
+                        os.read(read_fd, 1)
+                        ledger.update_ledger(**{f"k{index}": index})
+                    finally:
+                        os._exit(0)
+                pids.append(pid)
+            os.close(read_fd)
+            for _ in range(6):
+                os.write(write_fd, b"g")
+            os.close(write_fd)
+            for pid in pids:
+                os.waitpid(pid, 0)
+            data = ledger.read_ledger()
+            self.assertEqual([data.get(f"k{i}") for i in range(6)], list(range(6)))
+
+
+class TestFisherCompletion(unittest.TestCase):
+
+    def test_incomplete_install_is_not_reported_installed(self):
+        from nyxuri.modules import fisher
+        with TempEnv():
+            with patch.object(fisher.shutil, "which", return_value="/usr/bin/fish"), \
+                 patch.object(fisher, "fetch_raw_with_fallback", return_value=True), \
+                 patch.object(fisher.subprocess, "run", return_value=type("R", (), {"returncode": 1})()):
+                self.assertFalse(_quiet(fisher.fisher_install))
+            self.assertFalse(fisher.fisher_installed())
+
+
+class TestShellSwitcherClassification(unittest.TestCase):
+
+    def test_third_party_quickshell_is_not_nyxuri_shell(self):
+        from nyxuri import shell_switcher
+        with TempEnv():
+            cmdline = b"quickshell\x00-p\x00/home/u/.config/quickshell\x00"
+            real_read = Path.read_bytes
+            with patch.object(shell_switcher, "find_pids",
+                              side_effect=lambda pat: [4242] if pat in ("qs", "quickshell") else []), \
+                 patch.object(Path, "read_bytes",
+                              lambda self: cmdline if str(self) == "/proc/4242/cmdline" else real_read(self)):
+                self.assertEqual(shell_switcher.probe_running_shells(), [])
+
+    def test_already_active_keeps_the_running_bin(self):
+        from nyxuri import shell_switcher
+        from nyxuri.state.ledger import custom_shell_bin, set_shell
+        with TempEnv():
+            old_bin = str(Path(tempfile.mkdtemp()) / "old-shell")
+            new_bin = str(Path(tempfile.mkdtemp()) / "new-shell")
+            Path(old_bin).write_text("#!/bin/sh\n", encoding="utf-8")
+            Path(new_bin).write_text("#!/bin/sh\n", encoding="utf-8")
+            set_shell("nyxuri-shell", old_bin)
+            with patch.dict(os.environ, {"WAYLAND_DISPLAY": "wayland-test"}), \
+                 patch.object(shell_switcher, "probe_running_shells", return_value=[("nyxuri-shell", 111)]), \
+                 patch.object(shell_switcher, "preflight_shell", return_value=(True, new_bin, "")), \
+                 patch.object(shell_switcher, "spawn_shell") as spawn, \
+                 patch.object(shell_switcher, "ensure_compositor_gateway_scripts"), \
+                 patch.object(shell_switcher, "is_shell_locked", return_value=False):
+                ok, _ = shell_switcher.hot_switch_shell("nyxuri-shell", new_bin)
+            self.assertTrue(ok)
+            self.assertFalse(spawn.called)
+            self.assertEqual(custom_shell_bin(), old_bin)
+
+    def test_failed_restore_returns_tuple_instead_of_raising(self):
+        from nyxuri import shell_switcher
+        with TempEnv():
+            attempts = {"n": 0}
+
+            def flaky(name, bin_path):
+                attempts["n"] += 1
+                if attempts["n"] == 1:
+                    raise FileExistsError(17, "File exists")
+                raise OSError(13, "Permission denied")
+
+            with patch.dict(os.environ, {"WAYLAND_DISPLAY": "wayland-test"}), \
+                 patch.object(shell_switcher, "probe_running_shells", return_value=[("noctalia", 1234)]), \
+                 patch.object(shell_switcher, "preflight_shell", return_value=(True, "/bin/sh", "")), \
+                 patch.object(shell_switcher, "spawn_shell", side_effect=flaky), \
+                 patch.object(shell_switcher, "ensure_compositor_gateway_scripts"), \
+                 patch.object(shell_switcher, "stop_shell_process", return_value=True), \
+                 patch.object(shell_switcher, "stop_all_shell_instances", return_value=True), \
+                 patch.object(shell_switcher, "is_shell_locked", return_value=False), \
+                 patch.object(shell_switcher.shutil, "which", return_value="/usr/bin/noctalia"):
+                ok, message = shell_switcher.hot_switch_shell("nyxuri-shell", "/bin/sh")
+            self.assertFalse(ok)
+            self.assertIn("also failed", message)
+
+
+class TestPresetDurability(unittest.TestCase):
+
+    def _sandbox(self, ctx):
+        ctx.env.configs_src = Path(tempfile.mkdtemp())
+        import nyxuri.deploy.manifest as manifest
+        manifest._MANIFEST_CACHE = None
+        return ctx.env.configs_src
+
+    def _app(self, src, name, module_toml, files):
+        root = src / name
+        for rel, content in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        (root / ".module.toml").write_text(module_toml, encoding="utf-8")
+        return root
+
+    def test_failed_save_keeps_the_existing_preset(self):
+        from nyxuri.deploy import preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "kitty", "[packages]\n", {"kitty.conf": "# conf"})
+            dest = ctx.env.config_dir / "kitty"
+            dest.mkdir(parents=True)
+            (dest / "kitty.conf").write_text("# live", encoding="utf-8")
+            os.mkfifo(dest / "ipc.fifo")
+            old = ctx.env.presets_dir / "kitty" / "mine"
+            old.mkdir(parents=True)
+            (old / "old.conf").write_text("OLD-PRESET", encoding="utf-8")
+            self.assertFalse(_quiet(preset.save_preset, "kitty", "mine"))
+            self.assertEqual((old / "old.conf").read_text(encoding="utf-8"), "OLD-PRESET")
+            self.assertEqual(sorted(p.name for p in (ctx.env.presets_dir / "kitty").iterdir()), ["mine"])
+
+    def test_deleting_the_active_preset_resets_to_default(self):
+        from nyxuri.deploy import preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "kitty", "[packages]\n", {"kitty.conf": "# base"})
+            user = ctx.env.presets_dir / "kitty" / "mine"
+            user.mkdir(parents=True)
+            (user / "kitty.conf").write_text("# mine", encoding="utf-8")
+            self.assertTrue(_quiet(preset.apply_preset, "kitty", "mine"))
+            self.assertEqual(preset.read_active_preset("kitty"), "mine")
+            self.assertTrue(_quiet(preset.delete_preset, "kitty", "mine"))
+            self.assertEqual(preset.read_active_preset("kitty"), "default")
+
+    def test_official_guard_uses_the_resolved_official_dir(self):
+        from nyxuri.deploy import preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(src, "kitty", "[packages]\n", {"kitty.conf": "# base"})
+            official = root / "__presets__" / "shared"
+            official.mkdir(parents=True)
+            (official / "kitty.conf").write_text("# official", encoding="utf-8")
+            shadow = ctx.env.presets_dir / "kitty" / "shared"
+            shadow.mkdir(parents=True)
+            (shadow / "kitty.conf").write_text("# shadow", encoding="utf-8")
+            self.assertFalse(_quiet(preset.delete_preset, "kitty", "shared"))
+            self.assertFalse(_quiet(preset.edit_preset, "kitty", "shared"))
+            self.assertTrue(shadow.is_dir())
+
+    def test_active_file_is_authoritative_and_syncs_the_ledger(self):
+        from nyxuri.deploy import preset
+        from nyxuri.state.ledger import read_ledger
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "demo", "[packages]\n", {"config.kdl": "// b"})
+            preset.write_active_preset("demo", "A")
+            self.assertEqual(preset.read_active_preset("demo"), "A")
+            (ctx.env.presets_dir / "demo.active").write_text("B", encoding="utf-8")
+            self.assertEqual(preset.read_active_preset("demo"), "B")
+            self.assertEqual(read_ledger().get("presets", {}).get("demo"), "B")
+
+    def test_non_string_part_target_returns_false(self):
+        from nyxuri.deploy import preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(src, "demo", '[parts.x]\ntarget = ["a.kdl"]\nsource_dir = "x"\n',
+                             {"config.kdl": "// b"})
+            slot = root / "__presets__" / "x"
+            slot.mkdir(parents=True)
+            (slot / "default.kdl").write_text("// v", encoding="utf-8")
+            self.assertFalse(_quiet(preset.apply_part, "demo", "x", "default"))
+
+    def test_preset_include_keeps_directory_and_double_star_matches(self):
+        from nyxuri.deploy import preset
+        cases = (
+            ('["scripts"]', {"a.kdl", "scripts/run.sh"}),
+            ('["**/*.kdl"]', {"a.kdl", "sub/x.kdl"}),
+            ('["*.kdl"]', {"a.kdl", "sub/x.kdl"}),
+        )
+        for include, expected in cases:
+            with TempEnv() as ctx:
+                src = self._sandbox(ctx)
+                self._app(
+                    src, "demo",
+                    f"[presets]\ninherit = true\ninclude = {include}\n",
+                    {"config.kdl": "// c", "scripts/run.sh": "#!/bin/sh\n",
+                     "sub/x.kdl": "// x", "a.kdl": "// a"},
+                )
+                root = src / "demo" / "__presets__" / "A"
+                root.mkdir(parents=True)
+                (root / "a.kdl").write_text("// a", encoding="utf-8")
+                self.assertTrue(_quiet(preset.apply_preset, "demo", "A"))
+                dest = ctx.env.config_dir / "demo"
+                got = {str(p.relative_to(dest)) for p in dest.rglob("*") if p.is_file()}
+                self.assertTrue(expected <= got, f"{include}: missing {sorted(expected - got)}")
+
+    def test_apply_preset_applies_manifest_chmod(self):
+        from nyxuri.deploy import preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(src, "demo",
+                             '[packages]\nchmod = ["scripts/*.sh"]\n[presets]\ninherit = true\n',
+                             {"config.kdl": "// c", "scripts/run.sh": "#!/bin/sh\n"})
+            os.chmod(root / "scripts" / "run.sh", 0o644)
+            slot = root / "__presets__" / "A"
+            slot.mkdir(parents=True)
+            (slot / "a.kdl").write_text("// a", encoding="utf-8")
+            self.assertTrue(_quiet(preset.apply_preset, "demo", "A"))
+            script = ctx.env.config_dir / "demo" / "scripts" / "run.sh"
+            self.assertTrue(script.is_file())
+            self.assertEqual(script.stat().st_mode & 0o777, 0o755)
+
+
+class TestMultibyteInput(unittest.TestCase):
+
+    def test_read_key_decodes_multibyte_utf8(self):
+        import pty
+        import time
+        from nyxuri import tui
+        for text in ("中", "é", "😀", "日"):
+            master, slave = pty.openpty()
+            saved = sys.stdin
+            sys.stdin = os.fdopen(os.dup(slave), "r", buffering=1, errors="replace")
+            os.write(master, text.encode("utf-8"))
+            time.sleep(0.15)
+            try:
+                self.assertEqual(tui.read_key(), text)
+            finally:
+                sys.stdin.close()
+                sys.stdin = saved
+                os.close(master)
+                os.close(slave)
+
+
+class TestDeployRobustness(unittest.TestCase):
+
+    def _sandbox(self, ctx):
+        ctx.env.configs_src = Path(tempfile.mkdtemp())
+        import nyxuri.deploy.manifest as manifest
+        import nyxuri.deploy.deploy as deploy
+        manifest._MANIFEST_CACHE = None
+        deploy._CONFIG_ITEMS_CACHE = []
+        return ctx.env.configs_src
+
+    def _app(self, src, name, module_toml, files):
+        root = src / name
+        for rel, content in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        (root / ".module.toml").write_text(module_toml, encoding="utf-8")
+        return root
+
+    def test_unrealizable_part_variant_is_reported(self):
+        import nyxuri.deploy.deploy as deploy
+        from nyxuri.state.ledger import update_ledger
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(
+                src, "demo",
+                '[packages]\npreserve = ["part.kdl"]\n[parts.effects]\ntarget = "part.kdl"\n'
+                'source_dir = "effects"\ndefault = "default"\n',
+                {"part.kdl": "// default-part\n"},
+            )
+            slot = root / "__presets__" / "effects"
+            slot.mkdir(parents=True)
+            (slot / "default.kdl").write_text("// default-part\n", encoding="utf-8")
+            update_ledger(parts={"demo:effects": "ghost"})
+            with patch.object(deploy, "_phase_post_install_services"):
+                failed = _quiet(deploy.deploy_selected_configs, items_to_deploy=["demo"], preserved_log=[])
+            self.assertEqual(failed, ["demo"])
+
+    def test_absolute_or_empty_chmod_pattern_does_not_abort(self):
+        import nyxuri.deploy.deploy as deploy
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "demo", '[packages]\nchmod = ["/etc/*", ""]\n', {"config.kdl": "// c\n"})
+            with patch.object(deploy, "_phase_post_install_services"):
+                failed = _quiet(deploy.deploy_selected_configs, items_to_deploy=["demo"], preserved_log=[])
+            self.assertEqual(failed, [])
+            self.assertTrue((ctx.env.config_dir / "demo" / "config.kdl").is_file())
+
+    def test_scalar_items_to_deploy_is_treated_as_one_item(self):
+        import nyxuri.deploy.deploy as deploy
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "demo", "[packages]\n", {"config.kdl": "// c\n"})
+            with patch.object(deploy, "_phase_post_install_services"):
+                failed = _quiet(deploy.deploy_selected_configs, items_to_deploy="demo", preserved_log=[])
+            self.assertEqual(failed, [])
+            self.assertTrue((ctx.env.config_dir / "demo" / "config.kdl").is_file())
+
+
+class TestPackageArgv(unittest.TestCase):
+
+    def test_scalar_packages_is_not_split_into_characters(self):
+        from nyxuri import pkg
+        with patch.object(pkg, "preferred_manager", return_value="pacman"):
+            argv = pkg.command("install", "fish")
+        self.assertEqual(argv[-1], "fish")
+        self.assertNotIn("f", argv)
+        with patch.object(pkg, "preferred_manager", return_value="pacman"), \
+             patch.object(pkg, "run", return_value=type("R", (), {"returncode": 0})()) as runner:
+            pkg.install("fish")
+        self.assertEqual(runner.call_args.args[0][-1], "fish")
+
+    def test_shelly_aur_search_passes_the_separator(self):
+        from nyxuri.pkg import cli
+        with patch.object(cli, "preferred_manager", return_value="shelly"), \
+             patch.object(cli, "run", return_value=type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})()) as runner:
+            cli.search("aur --regex")
+        argv = runner.call_args.args[0]
+        self.assertIn("--", argv)
+        self.assertEqual(argv[-1], "--regex")
+
+    def test_shelly_remove_classifies_aur_operands(self):
+        from nyxuri.pkg import cli
+        with patch.object(cli, "preferred_manager", return_value="shelly"), \
+             patch.object(cli, "run") as runner:
+            runner.side_effect = [
+                type("R", (), {"returncode": 0, "stdout": "repo-pkg\n", "stderr": ""})(),
+                type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+            ]
+            rc = cli.main(["remove", "aur-pkg"])
+            calls = [call.args[0] for call in runner.call_args_list]
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls[-1][:3], ["shelly", "remove", "aur"])
+
+
+class TestEntryPointImportGuard(unittest.TestCase):
+
+    def test_partial_tree_import_error_is_reported_without_traceback(self):
+        import shutil
+        root = Path(tempfile.mkdtemp()) / "tree"
+        shutil.copytree(Path(__file__).resolve().parent.parent / "nyxuri", root / "nyxuri")
+        cli = root / "nyxuri" / "cli.py"
+        cli.write_text("from nyxuri.constants import NYXURI_MISSING_SYMBOL\n" + cli.read_text(encoding="utf-8"),
+                       encoding="utf-8")
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "nyxuri", "help"],
+                cwd=str(root), capture_output=True, text=True,
+                env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(root)},
+            )
+        finally:
+            shutil.rmtree(root.parent, ignore_errors=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("Traceback", result.stderr)
+
+
+class TestScriptContracts(unittest.TestCase):
+
+    def _niri_scripts(self):
+        return Path(__file__).resolve().parent.parent / "configs" / "niri" / "scripts"
+
+    def test_scripts_read_the_config_root_the_deployer_writes(self):
+        for name in ("niri-brightness.sh", "shell-action.sh"):
+            source = (self._niri_scripts() / name).read_text(encoding="utf-8")
+            self.assertNotIn("XDG_CONFIG_HOME", source, name)
+
+    def test_mpvpaper_reads_the_assignments_envelope(self):
+        script = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "mpvpaper-sync.sh"
+        source = script.read_text(encoding="utf-8")
+        self.assertIn(".assignments // .", source)
+
+    def test_thumbnail_temp_file_keeps_an_image_suffix(self):
+        script = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "mpvpaper-sync.sh"
+        source = script.read_text(encoding="utf-8")
+        self.assertIn("${THUMB_PATH%.jpg}.tmp.$$.jpg", source)
+
+    def test_eyecare_temp_is_preserved_across_deploys(self):
+        manifest = Path(__file__).resolve().parent.parent / "configs" / "niri" / ".module.toml"
+        self.assertIn("eyecare_temp", manifest.read_text(encoding="utf-8"))
+
+    def test_set_temp_rejects_out_of_range_values(self):
+        import shutil
+        script = self._niri_scripts() / "toggle-eyecare.sh"
+        if not shutil.which("bash"):
+            self.skipTest("bash unavailable")
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, HOME=home)
+            for value in ("abc", "99999999", "999"):
+                result = subprocess.run(["bash", str(script), "set-temp", value],
+                                        capture_output=True, text=True, env=env)
+                self.assertEqual(result.returncode, 2, value)
+
+
+class TestOrbitRendererGeometry(unittest.TestCase):
+
+    def test_accent_half_span_never_goes_negative(self):
+        for count in (12, 45, 46, 60, 120):
+            step_deg = 360.0 / count
+            self.assertGreaterEqual(max(0.0, step_deg / 2.0 - 4.0), 0.0)
+
+
+class TestTerminalStyleColorParsing(unittest.TestCase):
+
+    def _parse_rgb(self):
+        import importlib
+        tools = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools"
+        if str(tools) not in sys.path:
+            sys.path.insert(0, str(tools))
+        return importlib.import_module("orbit_translate.tui_style")._parse_rgb
+
+    def test_valid_hex_is_decoded(self):
+        parse = self._parse_rgb()
+        self.assertEqual(parse("#1a2b3c"), (0x1A, 0x2B, 0x3C))
+        self.assertEqual(parse("#FFFFFF"), (255, 255, 255))
+
+    def test_signed_and_spaced_hex_digits_fall_back(self):
+        parse = self._parse_rgb()
+        fallback = (128, 136, 152)
+        for value in ("#+12345", "# 12345", "#-12345", "#12345 ", "#12g345", "nothex"):
+            self.assertEqual(parse(value), fallback, value)
+
+    def test_non_string_input_falls_back(self):
+        parse = self._parse_rgb()
+        self.assertEqual(parse(None), (128, 136, 152))
+
+
+class TestTranslateConfigErrors(unittest.TestCase):
+
+    def _module(self, name):
+        import importlib
+        tools = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools"
+        if str(tools) not in sys.path:
+            sys.path.insert(0, str(tools))
+        return importlib.import_module(f"orbit_translate.{name}")
+
+    def test_non_ai_provider_bad_base_url_raises_config_error(self):
+        config = self._module("config")
+        for provider_type in ("google", "libretranslate", "mymemory", "deepl", "bing",
+                              "bing_dict", "cambridge_dict", "lingva", "yandex",
+                              "ecdict", "transmart", "tatoeba"):
+            with self.assertRaises(config.ConfigError, msg=provider_type):
+                config.parse_config({"providers": [{"id": "x", "type": provider_type,
+                                                    "base_url": "http://[::1"}]})
+
+    def test_non_utf8_config_raises_config_error(self):
+        config = self._module("config")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "c.toml"
+            path.write_bytes(b'source = "en"\n# \xff\xfe not utf-8\ntarget = "zh-CN"\n')
+            with self.assertRaises(config.ConfigError):
+                config.load_config(path)
+
+    def test_save_round_trip_failure_raises_settings_error(self):
+        settings = self._module("settings")
+        text = 'name = "a\\u007Fb"\n\n[[providers]]\nid = "x"\ntype = "google"\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "s.toml"
+            path.write_text(text, encoding="utf-8")
+            document = settings.SettingsDocument(path)
+            document.toggle(0)
+            with self.assertRaises(settings.SettingsError):
+                document.save()
+            self.assertEqual(path.read_text(encoding="utf-8"), text)
+
+
+if __name__ == "__main__":
+    unittest.main()

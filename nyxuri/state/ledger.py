@@ -1,5 +1,6 @@
 """Small atomic JSON ledger for runtime selections and module state."""
 
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -23,20 +24,34 @@ def read_ledger() -> dict[str, Any]:
 def update_ledger(**changes: Any) -> dict[str, Any]:
     path = ledger_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = read_ledger()
-    for key, value in changes.items():
-        if isinstance(value, dict) and isinstance(data.get(key), dict):
-            data[key] = {**data[key], **value}
-        else:
-            data[key] = value
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    lock_handle = None
+    try:
+        lock_handle = open(path.with_name(f".{path.name}.lock"), "a+")
+        fcntl.flock(lock_handle, fcntl.LOCK_EX)
+    except OSError:
+        if lock_handle is not None:
+            lock_handle.close()
+        lock_handle = None
+    try:
+        data = read_ledger()
+        for key, value in changes.items():
+            if isinstance(value, dict) and isinstance(data.get(key), dict):
+                data[key] = {**data[key], **value}
+            else:
+                data[key] = value
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        if lock_handle is not None:
+            lock_handle.close()
     return data
 
 
 def active_shell(default: str = "noctalia") -> str:
     value = read_ledger().get("active_shell", default)
+    if not isinstance(value, str):
+        return default
     if value in {"nyxuri-shell", "nyxuri", "custom"}:
         return "nyxuri-shell"
     if value == "noctalia":

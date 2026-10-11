@@ -6,6 +6,7 @@ assets (wallpapers), manifest (app discovery), preset
 (active variant). Modules/state/deps are lazy-imported to avoid cycles.
 """
 
+import os
 import shutil
 import sys
 import time
@@ -116,6 +117,8 @@ def _phase_atomic_deployment(
 
         # Executable permissions — manifest chmod globs, relative to app dir
         for pattern in manifest.chmod:
+            if not pattern or os.path.isabs(pattern):
+                continue
             for p in dest.glob(pattern):
                 if p.is_file():
                     try:
@@ -123,7 +126,10 @@ def _phase_atomic_deployment(
                     except OSError:
                         pass
 
-        _reconcile_active_parts(item, manifest)
+        reconcile_failures = _reconcile_active_parts(item, manifest)
+        if reconcile_failures:
+            failed_items.append(item)
+            print(msg("log_part_reconcile_failed", item, ", ".join(reconcile_failures)), file=sys.stderr)
 
         print(msg("log_deploy_config_item", item))
         log_msg("INFO", f"Deployed config ~/.config/{item}")
@@ -131,19 +137,22 @@ def _phase_atomic_deployment(
     return failed_items
 
 
-def _reconcile_active_parts(app: str, manifest: ModuleManifest) -> None:
+def _reconcile_active_parts(app: str, manifest: ModuleManifest) -> List[str]:
     """Ensure ledger-recorded active parts are realized in dest."""
     if not manifest.parts:
-        return
+        return []
     from nyxuri.state.ledger import read_ledger
     from nyxuri.deploy.preset import apply_part
     parts_state = read_ledger().get("parts", {})
     if not isinstance(parts_state, dict):
-        return
+        return []
+    failures: List[str] = []
     for slot, cfg in manifest.parts.items():
         var = parts_state.get(f"{app}:{slot}")
         if var and var != cfg.get("default", "default"):
-            apply_part(app, slot, var)
+            if not apply_part(app, slot, var):
+                failures.append(f"{app}:{slot}={var}")
+    return failures
 
 def run_user_hooks() -> List[str]:
     """Run user-owned scripts and return non-blocking diagnostics."""
@@ -325,6 +334,8 @@ def deploy_selected_configs(
     preserved_log: Optional[List[str]] = None,
 ) -> List[str]:
     """Deploy selected dotfile items with optional backup and template rendering."""
+    if isinstance(items_to_deploy, str):
+        items_to_deploy = [items_to_deploy]
     if items_to_deploy is None:
         items_to_deploy = discover_config_items()
     if preserved_log is None:

@@ -164,9 +164,12 @@ def sync(mode: str = "sync") -> int:
         lock.parent.mkdir(parents=True, exist_ok=True)
         lock_handle = lock.open("w")
     except OSError:
-        lock = env.state_dir / "theme-sync.lock"
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        lock_handle = lock.open("w")
+        try:
+            lock = env.state_dir / "theme-sync.lock"
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            lock_handle = lock.open("w")
+        except OSError:
+            lock_handle = open(os.devnull, "w")
     with lock_handle as handle:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -184,7 +187,7 @@ def sync(mode: str = "sync") -> int:
                 current = readback if readback in ("dark", "light") else _mode_from_system()
             else:
                 current = _mode_from_system()
-            current = "light" if current == "dark" else "dark"
+                current = "light" if current == "dark" else "dark"
         elif mode in ("dark", "light"):
             current = mode
             channel = _propagate(mode, False)

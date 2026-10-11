@@ -142,26 +142,31 @@ def _remove_tree_at(parent_fd: int, name: str) -> None:
         os.close(child_fd)
 
 
+def _ledger_active_preset(app: str) -> str:
+    from nyxuri.state.ledger import read_ledger
+    ledger_presets = read_ledger().get("presets", {})
+    if isinstance(ledger_presets, dict) and isinstance(ledger_presets.get(app), str):
+        return ledger_presets[app]
+    return "default"
+
+
 def read_active_preset(app: str) -> str:
     """Return the active preset or raise instead of silently deploying defaults."""
     if not _is_deployable_app(app):
         raise InvalidActivePresetError("invalid preset app")
     from nyxuri.state.ledger import read_ledger
-    ledger_presets = read_ledger().get("presets", {})
-    if isinstance(ledger_presets, dict) and isinstance(ledger_presets.get(app), str):
-        return ledger_presets[app]
     presets_fd: Optional[int] = None
     try:
         presets_fd = _open_presets_dir()
     except FileNotFoundError:
-        return "default"
+        return _ledger_active_preset(app)
     except OSError as exc:
         raise InvalidActivePresetError("invalid active preset state") from exc
     try:
         fd = os.open(f"{app}.active", _READ_FLAGS, dir_fd=presets_fd)
     except FileNotFoundError:
         os.close(presets_fd)
-        return "default"
+        return _ledger_active_preset(app)
     except OSError as exc:
         os.close(presets_fd)
         raise InvalidActivePresetError("invalid active preset state") from exc
@@ -601,6 +606,25 @@ def apply_preset(app: str, name: str) -> bool:
         return False
 
     _phase_render_templates(only_app=app)
+    manifest = None
+    try:
+        manifest = load_manifest_for(app)
+    except Exception:
+        manifest = None
+    if manifest is not None:
+        for pattern in manifest.chmod:
+            for path in dest.glob(pattern):
+                if path.is_file():
+                    try:
+                        path.chmod(0o755)
+                    except OSError:
+                        pass
+        try:
+            from nyxuri.deploy.deploy import _reconcile_active_parts
+            for failure in _reconcile_active_parts(app, manifest):
+                log_msg("WARN", f"Failed to reconcile active part {failure}")
+        except Exception as e:
+            log_msg("WARN", f"Failed to reconcile active parts for {app}: {e}")
     # deploy-then-write: a crash mid-flow must not leave active pointing at a
     # preset whose deploy didn't complete (would skip re-deploy next run). §3.2
     try:
@@ -627,6 +651,21 @@ def _ignore_custom_and_manifest(_src_dir, names):
     return {n for n in names if "__custom__" in n or n == ".module.toml"}
 
 
+def _discard_staging_preset(app: str, staging: str) -> None:
+    try:
+        presets_fd = _open_presets_dir()
+        try:
+            user_fd = _open_child_dir(presets_fd, app)
+            try:
+                _remove_tree_at(user_fd, staging)
+            finally:
+                os.close(user_fd)
+        finally:
+            os.close(presets_fd)
+    except OSError:
+        pass
+
+
 def save_preset(app: str, name: str) -> bool:
     """Snapshot current ~/.config/<app>/ into a user preset, minus __custom__.
 
@@ -650,6 +689,7 @@ def save_preset(app: str, name: str) -> bool:
         print(msg("preset_official_name_collision", name))
         return False
 
+    staging = f".{name}.{secrets.token_hex(8)}"
     try:
         with ExitStack() as stack:
             src_fd = os.open(dest, _DIR_FLAGS)
@@ -659,11 +699,11 @@ def save_preset(app: str, name: str) -> bool:
             user_fd = _open_child_dir(presets_fd, app, create=True)
             stack.callback(os.close, user_fd)
             try:
-                _remove_tree_at(user_fd, name)
+                _remove_tree_at(user_fd, staging)
             except FileNotFoundError:
                 pass
-            os.mkdir(name, mode=0o700, dir_fd=user_fd)
-            target_fd = os.open(name, _DIR_FLAGS, dir_fd=user_fd)
+            os.mkdir(staging, mode=0o700, dir_fd=user_fd)
+            target_fd = os.open(staging, _DIR_FLAGS, dir_fd=user_fd)
             stack.callback(os.close, target_fd)
             shutil.copytree(
                 f"/proc/self/fd/{src_fd}",
@@ -672,12 +712,19 @@ def save_preset(app: str, name: str) -> bool:
                 ignore=_ignore_custom_and_manifest,
                 dirs_exist_ok=True,
             )
-            current = os.stat(name, dir_fd=user_fd, follow_symlinks=False)
+            current = os.stat(staging, dir_fd=user_fd, follow_symlinks=False)
             bound = os.fstat(target_fd)
             if (current.st_dev, current.st_ino) != (bound.st_dev, bound.st_ino):
                 raise OSError("preset target changed while saving")
-    except OSError:
-        print(msg("preset_not_found", app, name))
+            try:
+                _remove_tree_at(user_fd, name)
+            except FileNotFoundError:
+                pass
+            os.rename(staging, name, src_dir_fd=user_fd, dst_dir_fd=user_fd)
+    except OSError as e:
+        _discard_staging_preset(app, staging)
+        print(msg("preset_save_failed", app, name))
+        log_msg("ERROR", f"Failed to save preset '{name}' for {app}: {e}")
         return False
     print(msg("preset_saved", app, name))
     return True
@@ -692,7 +739,8 @@ def delete_preset(app: str, name: str) -> bool:
         print(msg("preset_not_found", app, name))
         return False
     env = get_env()
-    official = _safe_child(env.configs_src, app, "presets", name)
+    official_dir = _find_official_presets_dir(_safe_child(env.configs_src, app))
+    official = _safe_child(official_dir, name) if official_dir else None
     if official is not None and official.is_dir() and not official.is_symlink():
         print(msg("preset_delete_official_denied", name))
         return False
@@ -709,6 +757,11 @@ def delete_preset(app: str, name: str) -> bool:
     except OSError:
         print(msg("preset_not_found", app, name))
         return False
+    try:
+        if read_active_preset(app) == name:
+            write_active_preset(app, "default")
+    except (OSError, ValueError):
+        pass
     print(msg("preset_deleted", app, name))
     return True
 
@@ -726,7 +779,8 @@ def edit_preset(app: str, name: str) -> bool:
         print(msg("preset_not_found", app, name))
         return False
     env = get_env()
-    official = _safe_child(env.configs_src, app, "presets", name)
+    official_dir = _find_official_presets_dir(_safe_child(env.configs_src, app))
+    official = _safe_child(official_dir, name) if official_dir else None
     if official is not None and official.is_dir() and not official.is_symlink():
         print(msg("preset_edit_official_denied", name))
         return False
@@ -799,7 +853,8 @@ def apply_part(app: str, slot: str, variant: str) -> bool:
 
     cfg = manifest.parts[slot]
     target_rel = cfg.get("target")
-    if not target_rel:
+    if not isinstance(target_rel, str) or not target_rel:
+        log_msg("WARN", f"Refused invalid part target for '{slot}' in {app}")
         return False
 
     env = get_env()
@@ -820,7 +875,10 @@ def apply_part(app: str, slot: str, variant: str) -> bool:
         log_msg("WARN", f"Part variant '{variant}' not found in {source_dir_name}")
         return False
 
-    dest = env.config_dir / app / target_rel
+    dest = _safe_child(env.config_dir / app, *Path(target_rel).parts)
+    if dest is None:
+        log_msg("WARN", f"Refused unsafe part target '{target_rel}' for {app}")
+        return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     if not atomic_replace_item(src_candidate, dest):
         return False

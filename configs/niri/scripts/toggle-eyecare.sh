@@ -113,13 +113,15 @@ IS_TURNING_ON=false
 case "$ACTION" in
     set-temp)
         NEW_TEMP="${2:-}"
-        if [[ "$NEW_TEMP" =~ ^[0-9]+$ ]]; then
-            echo "$NEW_TEMP" > "$TEMP_FILE"
-            EYECARE_TEMP="$NEW_TEMP"
-            if [ "$CURRENTLY_ON" = "true" ]; then
-                pkill -x wlsunset 2>/dev/null || true
-                nohup wlsunset -T 6500 -t "$EYECARE_TEMP" -d 0.3 -S 00:00 -s 00:00 >/dev/null 2>&1 9>&- &
-            fi
+        if [[ ! "$NEW_TEMP" =~ ^[0-9]+$ ]] || [ "$NEW_TEMP" -lt 1000 ] || [ "$NEW_TEMP" -gt 10000 ]; then
+            echo "Usage: $0 set-temp <1000-10000>" >&2
+            exit 2
+        fi
+        echo "$NEW_TEMP" > "$TEMP_FILE"
+        EYECARE_TEMP="$NEW_TEMP"
+        if [ "$CURRENTLY_ON" = "true" ]; then
+            pkill -x wlsunset 2>/dev/null || true
+            nohup wlsunset -T 6500 -t "$EYECARE_TEMP" -d 0.3 -S 00:00 -s 00:00 >/dev/null 2>&1 9>&- &
         fi
         exit 0
         ;;

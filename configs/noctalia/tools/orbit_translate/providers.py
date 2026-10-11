@@ -120,6 +120,15 @@ def _translate_google(provider: ProviderConfig, text: str, source: str, target: 
     return extract_google_translation(_read_json(request, timeout_ms))
 
 
+def _merge_query(base_url: str, query: str) -> str:
+    split = urllib.parse.urlsplit(base_url)
+    merged = urllib.parse.parse_qsl(split.query, keep_blank_values=True)
+    merged.extend(urllib.parse.parse_qsl(query, keep_blank_values=True))
+    return urllib.parse.urlunsplit(
+        (split.scheme, split.netloc, split.path, urllib.parse.urlencode(merged), split.fragment)
+    )
+
+
 def build_google_url(text: str, source: str, target: str, base_url: str = GOOGLE_DEFAULT_URL) -> str:
     params = [
         ("dt", "at"),
@@ -144,13 +153,13 @@ def build_google_url(text: str, source: str, target: str, base_url: str = GOOGLE
         ("kc", "7"),
         ("q", text),
     ]
-    return f"{base_url.rstrip('?&')}?{urllib.parse.urlencode(params)}"
+    return _merge_query(base_url, urllib.parse.urlencode(params))
 
 
 def extract_google_translation(payload: object) -> str:
     if not isinstance(payload, list) or not payload or not isinstance(payload[0], list):
         raise ProviderError("parse", "Google 响应格式无效")
-    if len(payload) > 1 and payload[1]:
+    if len(payload) > 1 and isinstance(payload[1], list) and payload[1]:
         dictionary: dict[str, object] = {"pronunciations": [], "explanations": [], "sentence": []}
         first = payload[0][1] if len(payload[0]) > 1 and isinstance(payload[0][1], list) else []
         if len(first) > 3 and isinstance(first[3], str) and first[3].strip():
@@ -199,7 +208,7 @@ def _translate_mymemory(provider: ProviderConfig, text: str, source: str, target
 
 def build_mymemory_url(text: str, source: str, target: str, base_url: str = MYMEMORY_DEFAULT_URL) -> str:
     query = urllib.parse.urlencode({"q": text, "langpair": f"{source}|{target}", "mt": "1"})
-    return f"{base_url.rstrip('?&')}?{query}"
+    return _merge_query(base_url, query)
 
 
 def mymemory_language_code(language: str) -> str:
@@ -546,7 +555,7 @@ def build_bing_url(text: str, source: str, target: str, base_url: str = BING_TRA
     params = [("to", bing_language_code(target)), ("api-version", "3.0"), ("includeSentenceLength", "true")]
     if source.strip().lower() != "auto":
         params.insert(0, ("from", bing_language_code(source)))
-    return f"{base_url.rstrip('?&')}?{urllib.parse.urlencode(params)}"
+    return _merge_query(base_url, urllib.parse.urlencode(params))
 
 
 def bing_language_code(language: str) -> str:
@@ -593,7 +602,7 @@ def build_bing_dict_url(text: str, base_url: str = BING_DICT_URL) -> str:
             "pname": "bingdict",
         }
     )
-    return f"{base_url.rstrip('?&')}?{query}"
+    return _merge_query(base_url, query)
 
 
 def extract_bing_dictionary_text(payload: object) -> str:
@@ -642,7 +651,7 @@ def build_cambridge_url(text: str, source: str, target: str, base_url: str = CAM
     source_code = "english" if source.lower() == "auto" else cambridge_language_code(source)
     target_code = cambridge_language_code(target)
     query = urllib.parse.urlencode({"datasetsearch": f"{source_code}-{target_code}", "q": text})
-    return f"{base_url.rstrip('?&')}?{query}"
+    return _merge_query(base_url, query)
 
 
 def cambridge_language_code(language: str) -> str:
@@ -749,7 +758,7 @@ def _translate_yandex(provider: ProviderConfig, text: str, source: str, target: 
 def build_yandex_url(base_url: str = YANDEX_DEFAULT_URL, request_id: str | None = None) -> str:
     request_id = request_id or uuid.uuid4().hex
     query = urllib.parse.urlencode({"id": request_id + "-0-0", "srv": "android"})
-    return f"{base_url.rstrip('?&')}?{query}"
+    return _merge_query(base_url, query)
 
 
 def yandex_language_code(language: str) -> str:
@@ -852,7 +861,7 @@ def build_tatoeba_url(text: str, source: str, target: str, base_url: str = TATOE
         "has_audio": "no",
         "sort": "relevance",
     }
-    return f"{base_url.rstrip('?&')}?{urllib.parse.urlencode(params)}"
+    return _merge_query(base_url, urllib.parse.urlencode(params))
 
 
 def tatoeba_language_code(language: str) -> str:
@@ -967,14 +976,14 @@ def format_dictionary_result(payload: object) -> str:
             if isinstance(explains, str):
                 values = [explains.strip()]
             elif isinstance(explains, list):
-                values = [str(value).strip() for value in explains if str(value).strip()]
+                values = [str(value).strip() for value in explains if value is not None and str(value).strip()]
             else:
                 values = []
             if values:
                 lines.append(f"{trait}：{'；'.join(values)}")
     associations = payload.get("associations")
     if isinstance(associations, list):
-        values = [str(value).strip() for value in associations if str(value).strip()]
+        values = [str(value).strip() for value in associations if value is not None and str(value).strip()]
         if values:
             lines.append("变形：" + "；".join(values))
     sentences = payload.get("sentence")

@@ -18,6 +18,8 @@ from nyxuri.core import get_env, get_pics_dir, log_msg, register_temp_path
 from nyxuri.i18n import msg
 from nyxuri.network import git_clone_timeout
 
+WALLPAPER_VIDEO_SUFFIXES = frozenset({".mp4", ".webm"})
+
 
 @dataclass(frozen=True)
 class WallpaperDeployResult:
@@ -59,7 +61,10 @@ def _wallpaper_pack_present_at(root: Path) -> bool:
     """Validate a wallpaper pack by requiring at least one deployed video file."""
     video_dir = root / "video"
     try:
-        return video_dir.is_dir() and any(path.is_file() for path in video_dir.rglob("*"))
+        return video_dir.is_dir() and any(
+            path.is_file() and path.suffix.lower() in WALLPAPER_VIDEO_SUFFIXES
+            for path in video_dir.rglob("*")
+        )
     except OSError:
         return False
 
@@ -111,12 +116,12 @@ def deploy_wallpapers(do_download: bool = False) -> WallpaperDeployResult:
                 # Copy into wp_dest (no-clobber: never overwrite existing files)
                 for item in tmp_clone.iterdir():
                     target = wp_dest / item.name
-                    if target.exists():
+                    if target.exists() or target.is_symlink():
                         continue
                     if item.is_dir():
-                        shutil.copytree(item, target, dirs_exist_ok=True)
+                        shutil.copytree(item, target, dirs_exist_ok=True, symlinks=True)
                     else:
-                        shutil.copy2(item, target)
+                        shutil.copy2(item, target, follow_symlinks=False)
                     managed.add(item.name)
                 downloaded = True
                 print(msg("msg_wallpapers_download_success"))
@@ -134,10 +139,10 @@ def deploy_wallpapers(do_download: bool = False) -> WallpaperDeployResult:
         for f in fallback_src.iterdir():
             if not f.is_file():
                 continue
-            managed.add(f.name)
             target = wp_dest / f.name
-            if not target.exists():
-                shutil.copy2(f, target)
+            if not target.exists() and not target.is_symlink():
+                shutil.copy2(f, target, follow_symlinks=False)
+                managed.add(f.name)
         fallback_synced = True
         print(msg("log_sync_wallpapers", str(wp_dest)))
 

@@ -90,8 +90,9 @@ def _install_is_current(state: dict, fish_dir: Path) -> bool:
 
 
 def fisher_installed() -> bool:
-    """True only when Nyxuri has a valid Fisher ownership record."""
-    return _load_ownership() is not None
+    """True only when Nyxuri has a valid Fisher ownership record that completed."""
+    state = _load_ownership()
+    return state is not None and state.get("complete") is not False
 
 
 def fisher_status_label() -> str:

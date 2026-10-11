@@ -28,6 +28,7 @@ complete -c nyxuri -f -n "__fish_use_subcommand" -a greeter   -d "Greeter (insta
 complete -c nyxuri -f -n "__fish_use_subcommand" -a fcitx     -d "Fcitx5 skin (install|status|uninstall)"
 complete -c nyxuri -f -n "__fish_use_subcommand" -a gtk       -d "GTK theme (install|status|uninstall)"
 complete -c nyxuri -f -n "__fish_use_subcommand" -a fisher    -d "Fisher plugins (install|status|uninstall)"
+complete -c nyxuri -f -n "__fish_use_subcommand" -a shell     -d "Shell backend (get|set|switch|status)"
 complete -c nyxuri -f -n "__fish_use_subcommand" -a update    -d "Update repo & configs"
 complete -c nyxuri -f -n "__fish_use_subcommand" -a help      -d "Show help"
 complete -c nyxuri -f -n "__fish_use_subcommand" -a -h        -d "Alias: help"
@@ -78,6 +79,9 @@ complete -c nyxuri -f -n "__fish_seen_subcommand_from fisher" -a status    -d "S
 complete -c nyxuri -f -n "__fish_seen_subcommand_from fisher" -a uninstall -d "Uninstall fisher"
 complete -c nyxuri -f -n "__fish_seen_subcommand_from fisher" -a setup     -d "Alias: install"
 complete -c nyxuri -f -n "__fish_seen_subcommand_from fisher" -a remove    -d "Alias: uninstall"
+
+complete -c nyxuri -f -n "__fish_seen_subcommand_from shell" -a "get set switch status"
+complete -c nyxuri -f -n "__fish_seen_subcommand_from shell; and __fish_seen_subcommand_from set switch" -a "noctalia nyxuri-shell"
 
 complete -c nyxuri -f -n "__fish_seen_subcommand_from update" -l force      -d "Update and force redeploy"
 complete -c nyxuri -f -n "__fish_seen_subcommand_from update" -l deploy     -d "Alias: force"
