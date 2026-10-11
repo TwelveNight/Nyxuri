@@ -1089,5 +1089,38 @@ class TestPresentationTimeoutScale(unittest.TestCase):
                 self.assertEqual(module.presentation_timeout_scale(), 1.0, value)
 
 
+class TestInstallBootstrapCacheCopy(unittest.TestCase):
+    """A leftover QML tooling link must not abort the cache copy.
+
+    Running the shell from the source tree makes Quickshell drop a .qmlls.ini
+    VFS symlink next to shell.qml; once that VFS is gone the link dangles and
+    copytree aborted with Errno 2 before the ignore list knew about the file.
+    """
+
+    def test_dangling_qmlls_link_does_not_abort_the_cache_copy(self):
+        from tests import test_install_bootstrap
+
+        with TempEnv() as env, tempfile.TemporaryDirectory() as raw:
+            repo = Path(raw) / "repo"
+            (repo / "shell").mkdir(parents=True)
+            (repo / "shell" / "shell.qml").write_text("", encoding="utf-8")
+            (repo / "shell" / ".qmlls.ini").symlink_to("/tmp/gone-quickshell-vfs/.qmlls.ini")
+            with patch.object(test_install_bootstrap, "REPO_ROOT", repo):
+                cache = test_install_bootstrap.TestInstallBootstrap()._prepare_cache(env, Path(raw))
+            self.assertTrue((cache / "shell" / "shell.qml").is_file())
+            self.assertFalse((cache / "shell" / ".qmlls.ini").exists())
+
+    def test_other_dangling_links_are_skipped_rather_than_fatal(self):
+        from tests import test_install_bootstrap
+
+        with TempEnv() as env, tempfile.TemporaryDirectory() as raw:
+            repo = Path(raw) / "repo"
+            (repo / "configs").mkdir(parents=True)
+            (repo / "configs" / "effects.kdl").symlink_to("/tmp/gone-niri-config/effects.kdl")
+            with patch.object(test_install_bootstrap, "REPO_ROOT", repo):
+                cache = test_install_bootstrap.TestInstallBootstrap()._prepare_cache(env, Path(raw))
+            self.assertFalse((cache / "configs" / "effects.kdl").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

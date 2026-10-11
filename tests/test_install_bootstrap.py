@@ -158,7 +158,8 @@ class TestInstallBootstrap(unittest.TestCase):
         shutil.copytree(
             REPO_ROOT,
             cache,
-            ignore=shutil.ignore_patterns(".git", "__pycache__"),
+            ignore=shutil.ignore_patterns(".git", "__pycache__", ".qmlls.ini"),
+            ignore_dangling_symlinks=True,
         )
         (cache / ".git").mkdir()
         return cache
