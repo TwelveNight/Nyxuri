@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
 import re
 import tomllib
@@ -75,8 +74,7 @@ class AppConfig:
 
 
 def config_path() -> Path:
-    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(config_home) / "noctalia" / "tools" / "orbit-translate__custom__.toml"
+    return Path.home() / ".config" / "noctalia" / "tools" / "orbit-translate__custom__.toml"
 
 
 def default_config() -> AppConfig:

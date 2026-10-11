@@ -23,6 +23,8 @@ Scope {
     // and takes the session lock back over, so the user can simply unlock.
     readonly property string lockMarkerPath: Paths.runtimeHome + "/lock-active"
     readonly property int lockMarkerMaxAgeMs: 15 * 60 * 1000
+    property bool markerReady: false
+    property bool startupChecked: false
 
     signal unlocked
     signal secured
@@ -73,14 +75,24 @@ Scope {
     }
 
     function writeLockMarker() {
+        if (!markerReady)
+            return;
+
         lockMarkerFile.setText((Quickshell.env("XDG_SESSION_ID") || "") + "\n" + Date.now());
     }
 
     function clearLockMarker() {
+        if (!markerReady)
+            return;
+
         lockMarkerFile.setText("");
     }
 
-    Component.onCompleted: {
+    function restoreLockAfterCrash() {
+        if (!markerReady || startupChecked)
+            return;
+
+        startupChecked = true;
         if (previousInstanceDiedLocked()) {
             console.warn("[Lock] Previous shell instance died while the session was locked;"
                          + " taking over the session lock");
@@ -88,6 +100,19 @@ Scope {
             writeLockMarker();
         } else {
             clearLockMarker();
+        }
+    }
+
+    Process {
+        id: ensureRuntimeDir
+
+        command: ["mkdir", "-p", Paths.runtimeHome]
+        running: true
+        onExited: exitCode => {
+            if (exitCode === 0)
+                root.markerReady = true;
+            else
+                console.warn("[Lock] Runtime directory unavailable; crash-recovery marker disabled");
         }
     }
 
@@ -113,9 +138,18 @@ Scope {
     FileView {
         id: lockMarkerFile
 
-        path: root.lockMarkerPath
+        path: root.markerReady ? root.lockMarkerPath : ""
         watchChanges: false
         atomicWrites: true
+        onLoaded: root.restoreLockAfterCrash()
+        onLoadFailed: error => {
+            if (error === FileViewError.FileNotFound) {
+                root.restoreLockAfterCrash();
+                return;
+            }
+            console.warn("[Lock] Cannot read crash-recovery marker:", error);
+        }
+        onSaveFailed: error => console.warn("[Lock] Cannot write crash-recovery marker:", error)
     }
 
     Scope {

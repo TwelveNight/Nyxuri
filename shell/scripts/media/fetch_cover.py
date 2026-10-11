@@ -105,10 +105,24 @@ def find_cached(directory: Path, key: str) -> Path | None:
     return None
 
 
+def parse_url(url: str) -> urllib.parse.SplitResult | None:
+    try:
+        return urllib.parse.urlsplit(url)
+    except ValueError:
+        return None
+
+
 def http_get(url: str) -> tuple[bytes, str]:
     """Returns (body, error). Body is empty on failure."""
-    parsed = urllib.parse.urlsplit(url)
-    host = parsed.hostname or ""
+    parsed = parse_url(url)
+    if parsed is None:
+        return b"", "unparsable url"
+
+    try:
+        host = parsed.hostname or ""
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return b"", "invalid host or port"
     if not host:
         return b"", "no host in url"
 
@@ -117,7 +131,6 @@ def http_get(url: str) -> tuple[bytes, str]:
         path += "?" + parsed.query
 
     encrypted = parsed.scheme == "https"
-    port = parsed.port or (443 if encrypted else 80)
     connection_type = HTTPSConnection if encrypted else HTTPConnection
 
     connection = connection_type(host, port, timeout=TIMEOUT_SECONDS)
@@ -143,7 +156,9 @@ def http_get(url: str) -> tuple[bytes, str]:
 
 
 def main() -> int:
-    argv = [a for a in sys.argv[1:] if a != "--refresh"]
+    argv = list(sys.argv[1:])
+    refresh = "--refresh" in argv
+    argv = [a for a in argv if a != "--refresh"]
     url = argv[0].strip() if argv else ""
     if not url:
         return emit("", "none", 0, "no url")
@@ -151,7 +166,9 @@ def main() -> int:
     # Only http(s) reaches the network. A file:// or bare path is already
     # local, and the palette can read it directly — echoing it back saves a
     # pointless copy and keeps this script's contract simple.
-    parsed = urllib.parse.urlsplit(url)
+    parsed = parse_url(url)
+    if parsed is None:
+        return emit("", "none", 0, "unparsable url")
     if parsed.scheme in ("", "file"):
         return emit(url, "none", 0, "already local")
 
@@ -162,11 +179,13 @@ def main() -> int:
     key = cache_key(url)
 
     cached = find_cached(directory, key)
-    if cached is not None:
+    if cached is not None and not refresh:
         return emit(str(cached), "cache", cached.stat().st_size)
 
     body, error = http_get(url)
     if not body:
+        if cached is not None:
+            return emit(str(cached), "cache", cached.stat().st_size)
         return emit("", "none", 0, error)
 
     extension = sniff_extension(body)

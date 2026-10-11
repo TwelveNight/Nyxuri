@@ -808,5 +808,131 @@ class TestTranslateConfigErrors(unittest.TestCase):
             self.assertEqual(path.read_text(encoding="utf-8"), text)
 
 
+class TestRuntimeHomeContract(unittest.TestCase):
+
+    def test_shell_and_python_resolve_the_same_runtime_home(self):
+        import shutil
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash is not available")
+        lib = Path(__file__).resolve().parent.parent / "shell" / "scripts" / "lib"
+        with tempfile.TemporaryDirectory() as temporary:
+            env = {"HOME": temporary, "PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+            shell = subprocess.run(
+                [bash, "-c", 'source "%s"\nnyxuri_paths_init\nprintf "%%s" "$NYXURI_SHELL_RUNTIME_HOME"'
+                 % (lib / "nyxuri-paths.sh")],
+                capture_output=True, text=True, env=env)
+            self.assertEqual(shell.returncode, 0, shell.stderr)
+            python = subprocess.run(
+                [sys.executable, "-c",
+                 'import sys; sys.path.insert(0, "%s")\n'
+                 'from nyxuri_paths import NyxuriPaths\n'
+                 'sys.stdout.write(str(NyxuriPaths.from_environment().runtime_home))' % lib],
+                capture_output=True, text=True, env=env)
+            self.assertEqual(python.returncode, 0, python.stderr)
+        self.assertEqual(shell.stdout, python.stdout)
+        self.assertTrue(shell.stdout.endswith("/nyxuri/runtime/nyxuri"), shell.stdout)
+
+
+class TestLockMarkerDirectory(unittest.TestCase):
+
+    def test_lock_creates_the_runtime_directory_before_writing_the_marker(self):
+        lock = Path(__file__).resolve().parent.parent / "shell" / "modules" / "lock" / "Lock.qml"
+        source = lock.read_text(encoding="utf-8")
+        self.assertIn('command: ["mkdir", "-p", Paths.runtimeHome]', source)
+        self.assertIn('path: root.markerReady ? root.lockMarkerPath : ""', source)
+        self.assertIn("onLoaded: root.restoreLockAfterCrash()", source)
+
+
+class TestFetchCoverContract(unittest.TestCase):
+
+    def _run(self, url, *flags, cache_home):
+        script = Path(__file__).resolve().parent.parent / "shell" / "scripts" / "media" / "fetch_cover.py"
+        return subprocess.run(
+            [sys.executable, str(script), url, *flags],
+            capture_output=True, text=True,
+            env={"HOME": str(cache_home), "XDG_CACHE_HOME": str(cache_home),
+                 "PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+
+    def test_malformed_urls_still_emit_one_json_document(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            for url in ("http://[::1/x.jpg", "http://host:99999/x.jpg", "http://host:abc/x.jpg",
+                        "http://host:-1/x.jpg", "http:///x.jpg", "ftp://host/x.jpg", ""):
+                with self.subTest(url=url):
+                    result = self._run(url, cache_home=cache)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(json.loads(result.stdout)["path"], "")
+
+    def test_refresh_refetches_and_falls_back_to_the_cache(self):
+        import http.server
+        import socketserver
+        import threading
+        payload = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+        requests = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                requests.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def log_message(self, *args):
+                pass
+
+        server = socketserver.TCPServer(("127.0.0.1", 0), Handler)
+        self.addCleanup(server.server_close)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        url = "http://127.0.0.1:%d/cover.jpg" % server.server_address[1]
+
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            first = json.loads(self._run(url, cache_home=cache).stdout)
+            self.assertEqual(first["source"], "network")
+            self.assertEqual(len(requests), 1)
+
+            cached = json.loads(self._run(url, cache_home=cache).stdout)
+            self.assertEqual(cached["source"], "cache")
+            self.assertEqual(len(requests), 1)
+
+            refreshed = json.loads(self._run(url, "--refresh", cache_home=cache).stdout)
+            self.assertEqual(refreshed["source"], "network")
+            self.assertEqual(len(requests), 2)
+
+            server.shutdown()
+            server.server_close()
+            fallback = json.loads(self._run(url, "--refresh", cache_home=cache).stdout)
+            self.assertEqual(fallback["source"], "cache")
+            self.assertEqual(fallback["path"], first["path"])
+
+
+class TestToolConfigRoot(unittest.TestCase):
+
+    def test_scratch_menu_wrapper_ignores_a_divergent_xdg_config_home(self):
+        script = (Path(__file__).resolve().parent.parent / "configs" / "niri" / "scripts"
+                  / "niri-scratch-menu.py")
+        self.assertNotIn("XDG_CONFIG_HOME", script.read_text(encoding="utf-8"))
+
+    def test_translate_config_path_follows_the_deployer(self):
+        tools = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools"
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            result = subprocess.run(
+                [sys.executable, "-c",
+                 'import sys; sys.path.insert(0, "%s")\n'
+                 'from orbit_translate.config import config_path\n'
+                 'print(config_path())' % tools],
+                capture_output=True, text=True,
+                env={"HOME": str(home), "XDG_CONFIG_HOME": str(home / "elsewhere"),
+                     "PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(Path(result.stdout.strip()),
+                         home / ".config" / "noctalia" / "tools" / "orbit-translate__custom__.toml")
+
+
 if __name__ == "__main__":
     unittest.main()
