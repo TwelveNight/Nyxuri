@@ -455,7 +455,10 @@ ShellRoot {
     def wait_for(self, method, expected):
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and self.process.poll() is None:
-            result = self.call(method)
+            try:
+                result = self.call(method)
+            except subprocess.TimeoutExpired:
+                continue
             if result.returncode == 0 and result.stdout.strip() == expected:
                 return
             time.sleep(0.05)

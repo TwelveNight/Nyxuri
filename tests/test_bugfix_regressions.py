@@ -934,5 +934,73 @@ class TestToolConfigRoot(unittest.TestCase):
                          home / ".config" / "noctalia" / "tools" / "orbit-translate__custom__.toml")
 
 
+class TestShellModuleImports(unittest.TestCase):
+
+    def _shell(self):
+        return Path(__file__).resolve().parent.parent / "shell"
+
+    def test_files_declaring_desktop_action_import_quickshell(self):
+        offenders = []
+        for path in sorted(self._shell().rglob("*.qml")):
+            source = path.read_text(encoding="utf-8")
+            if "property DesktopAction" not in source:
+                continue
+            if not any(line.startswith("import Quickshell") for line in source.splitlines()):
+                offenders.append(str(path.relative_to(self._shell())))
+        self.assertEqual(offenders, [])
+
+
+class TestShellLauncherConfigRoot(unittest.TestCase):
+
+    def _launcher(self):
+        return Path(__file__).resolve().parent.parent / "shell" / "nyxuri-shell"
+
+    def test_launcher_ignores_a_divergent_xdg_config_home(self):
+        self.assertNotIn("XDG_CONFIG_HOME", self._launcher().read_text(encoding="utf-8"))
+
+    def test_radial_launcher_runs_the_deployed_tool_despite_divergent_xdg(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            tool = home / ".config" / "noctalia" / "tools" / "orbit-launcher.py"
+            tool.parent.mkdir(parents=True)
+            tool.write_text('#!/bin/sh\nprintf "ORBIT-LAUNCHER-STARTED\\n"\n', encoding="utf-8")
+            tool.chmod(0o755)
+            result = subprocess.run(
+                ["bash", str(self._launcher()), "--action", "radial-launcher"],
+                capture_output=True, text=True,
+                env={"HOME": str(home), "XDG_CONFIG_HOME": str(home / "elsewhere"),
+                     "PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ORBIT-LAUNCHER-STARTED", result.stdout)
+
+
+class TestDesktopCardHostStructure(unittest.TestCase):
+
+    def _source(self):
+        return (Path(__file__).resolve().parent.parent / "shell" / "modules" / "desktopcards"
+                / "DesktopCardHost.qml").read_text(encoding="utf-8")
+
+    def test_no_property_change_signal_is_redeclared(self):
+        source = self._source()
+        declared = re.findall(r"^\s*property\s+[A-Za-z_][\w.]*\s+(\w+)\s*:", source, re.MULTILINE)
+        self.assertTrue(declared)
+        for name in sorted(set(declared)):
+            self.assertNotIn("signal %sChanged" % name, source, name)
+
+    def test_wallpaper_analyzer_is_not_a_variants_delegate_child(self):
+        source = self._source()
+        self.assertIn("property QtObject wallpaperAnalyzer", source)
+        self.assertNotIn("id: wallpaperAnalyzer", source)
+
+
+class TestTrayMenuScreenContract(unittest.TestCase):
+
+    def test_tray_menu_does_not_shadow_the_window_screen(self):
+        source = (Path(__file__).resolve().parent.parent / "shell" / "modules" / "bar" / "tray"
+                  / "TrayMenu.qml").read_text(encoding="utf-8")
+        self.assertNotIn("property var screen", source)
+        self.assertIn("screen: root.screen", source)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -12,10 +12,8 @@ import "../systemcards/SystemCardPlacement.js" as Placement
 Variants {
     id: variants
 
-    QtObject {
-        id: wallpaperAnalyzer
+    property QtObject wallpaperAnalyzer: QtObject {
         property int pendingCount: 0
-        signal pendingCountChanged
         signal analysisReady(string requestKey, int generation, var result)
 
         function release(requestKey) {

@@ -97,7 +97,7 @@ if [ -n "$ACTION" ]; then
             exec qs -p "${SHELL_DIR}" ipc call control-center toggle "wallpaper"
             ;;
         radial-launcher)
-            tools_dir="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/tools"
+            tools_dir="${HOME}/.config/noctalia/tools"
             if [ -x "$tools_dir/orbit-launcher.py" ]; then
                 exec "$tools_dir/orbit-launcher.py"
             fi

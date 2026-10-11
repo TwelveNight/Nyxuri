@@ -15,7 +15,6 @@ PopupWindow {
     property string trayItemId: ""
     property Item anchorItem: null
     property var barVisualItem: null
-    property var screen: null
     property string edge: "top"
     property real padding: 10
     property bool opened: false
