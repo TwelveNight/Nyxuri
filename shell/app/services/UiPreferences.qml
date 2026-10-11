@@ -20,7 +20,15 @@ Singleton {
     property string spotlightAppStyle: "list"
     property string spotlightClipboardStyle: "default"
     property bool dndEnabled: false
-    property bool darkMode: false
+    property bool darkMode: PersonalizationConfig.themeMode === "dark"
+
+    Connections {
+        target: PersonalizationConfig
+
+        function onThemeModeChanged() {
+            root.darkMode = PersonalizationConfig.themeMode === "dark";
+        }
+    }
 
     // Emitted when the system scheme poller observes an out-of-band mode
     // change (nyxuri theme CLI without shell IPC). ThemeService closes the
@@ -669,10 +677,15 @@ Singleton {
 
         stdout: StdioCollector {
             onStreamFinished: {
-                if (!systemThemeWriter.running && !root.systemThemeWriteQueued) {
-                    root.darkMode = this.text.toLowerCase().includes("prefer-dark");
-                    root.systemThemeModeObserved(root.darkMode ? "dark" : "light");
-                }
+                if (systemThemeWriter.running || root.systemThemeWriteQueued)
+                    return;
+                const observed = this.text.toLowerCase();
+                const prefersDark = observed.includes("prefer-dark");
+                const prefersLight = observed.includes("prefer-light");
+                if (!prefersDark && !prefersLight)
+                    return;
+                root.darkMode = prefersDark;
+                root.systemThemeModeObserved(prefersDark ? "dark" : "light");
             }
         }
     }

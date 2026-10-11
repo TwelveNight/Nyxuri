@@ -14,6 +14,27 @@ from tests.utils import TempEnv
 
 SHELL = Path(__file__).resolve().parents[1] / "shell"
 
+PRESENTATION_TIMEOUT_SCALE = 1.0
+
+
+def presentation_timeout_scale():
+    """Multiplier for presentation budgets, for hardware slower than CI."""
+    for key in ("NYXURI_PRESENTATION_TIMEOUT_SCALE", "CLAVIS_PRESENTATION_TIMEOUT_SCALE"):
+        raw = os.environ.get(key, "").strip()
+        if not raw:
+            continue
+        try:
+            value = float(raw)
+        except ValueError:
+            continue
+        if value >= 1:
+            return value
+    return PRESENTATION_TIMEOUT_SCALE
+
+
+def presentation_budget(seconds):
+    return seconds * presentation_timeout_scale()
+
 
 class ShellLauncherTests(unittest.TestCase):
     def setUp(self):
@@ -449,11 +470,12 @@ ShellRoot {
     def call(self, method, *args):
         return subprocess.run(
             [self.qs, "-p", str(self.shell), "ipc", "call", "presentation-test", method, *args],
-            env=self.environment, capture_output=True, text=True, timeout=5,
+            env=self.environment, capture_output=True, text=True,
+            timeout=presentation_budget(5),
         )
 
     def wait_for(self, method, expected):
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + presentation_budget(10)
         while time.monotonic() < deadline and self.process.poll() is None:
             try:
                 result = self.call(method)
@@ -492,7 +514,7 @@ ShellRoot {
         """The render queue must drain: a stuck renderingId swallows every
         later renderAll silently (FileView.setText no-ops on identical
         content, so an onSaved-only completion never fires)."""
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + presentation_budget(20)
         while time.monotonic() < deadline and self.process.poll() is None:
             state = json.loads(self.call("templateState").stdout)
             if state["rendering"] == "" and state["queue"] == 0:
@@ -530,7 +552,7 @@ ShellRoot {
         self.wait_for("palette", "#abcdef")
         replacement.write_text("invalid JSON")
         replacement.replace(self.palette)
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + presentation_budget(5)
         while time.monotonic() < deadline:
             if self.call("error").stdout.strip():
                 break
@@ -603,7 +625,7 @@ ShellRoot {
                     return False
             return True
 
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + presentation_budget(30)
         while time.monotonic() < deadline and self.process.poll() is None:
             if outputs_ready():
                 break
@@ -634,7 +656,7 @@ ShellRoot {
         replacement.replace(self.palette_modes)
         switched = self._template_outputs("switched")
 
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + presentation_budget(20)
         while time.monotonic() < deadline and self.process.poll() is None:
             if all(path.is_file() and marker in path.read_text(encoding="utf-8")
                    for path, marker in switched.values()):
@@ -667,7 +689,7 @@ ShellRoot {
         replacement.write_text(self._palette_modes_fixture())
         replacement.replace(self.palette_modes)
         restored = self._template_outputs("first")
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + presentation_budget(20)
         while time.monotonic() < deadline and self.process.poll() is None:
             if all(path.is_file() and marker in path.read_text(encoding="utf-8")
                    for path, marker in restored.values()):
@@ -703,7 +725,7 @@ ShellRoot {
         return json.loads(result.stdout.strip())
 
     def _wait_sampling(self, predicate, timeout=15):
-        deadline = time.monotonic() + timeout
+        deadline = time.monotonic() + presentation_budget(timeout)
         state = {}
         while time.monotonic() < deadline and self.process.poll() is None:
             state = self._sampling_state()
@@ -781,7 +803,7 @@ ShellRoot {
 
         # 3. The export writes the same sanitized document into the cache.
         self.assertEqual(self.call("diagExport").stdout.strip(), "OK")
-        deadline = time.monotonic() + 8
+        deadline = time.monotonic() + presentation_budget(8)
         state = {"path": "", "error": ""}
         while time.monotonic() < deadline:
             result = self.call("diagExportState")

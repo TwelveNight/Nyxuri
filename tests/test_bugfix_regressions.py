@@ -1002,5 +1002,92 @@ class TestTrayMenuScreenContract(unittest.TestCase):
         self.assertIn("screen: root.screen", source)
 
 
+class TestSystemThemeProbeGuard(unittest.TestCase):
+    """The poller must only adopt a mode the system actually reported.
+
+    `gsettings get ... color-scheme` exits 0 with 'default' wherever GNOME has
+    no scheme configured, and the unguarded parse turned that into a "light"
+    observation that overwrote the user's saved dark theme.
+    """
+
+    def _poller(self):
+        source = (Path(__file__).resolve().parent.parent / "shell" / "app" / "services"
+                  / "UiPreferences.qml").read_text(encoding="utf-8")
+        start = source.index("id: themePoller")
+        return source[start:source.index("id: systemThemeWriter", start)]
+
+    def test_poller_requires_an_explicit_scheme_preference(self):
+        poller = self._poller()
+        self.assertIn("prefer-dark", poller)
+        self.assertIn("prefer-light", poller)
+        guard = poller.index("if (!prefersDark && !prefersLight)")
+        emit = poller.index("root.systemThemeModeObserved(")
+        self.assertLess(guard, emit, "the observation must be emitted behind the guard")
+
+    def test_poller_does_not_infer_light_from_unrecognized_output(self):
+        poller = self._poller()
+        self.assertNotIn('systemThemeModeObserved(root.darkMode ? "dark" : "light")', poller)
+        self.assertIn('systemThemeModeObserved(prefersDark ? "dark" : "light")', poller)
+
+
+class TestUiPreferencesDarkModeMirror(unittest.TestCase):
+    """darkMode drives per-mode wallpaper selection, so it cannot start stale.
+
+    It is not persisted and was only written by setDarkMode, which ThemeService
+    calls on an actual mode change, leaving it false for the whole first run.
+    """
+
+    def _source(self):
+        return (Path(__file__).resolve().parent.parent / "shell" / "app" / "services"
+                / "UiPreferences.qml").read_text(encoding="utf-8")
+
+    def test_dark_mode_initializes_from_the_theme_mode(self):
+        self.assertIn('property bool darkMode: PersonalizationConfig.themeMode === "dark"',
+                      self._source())
+
+    def test_dark_mode_follows_later_theme_mode_changes(self):
+        source = self._source()
+        self.assertIn("target: PersonalizationConfig", source)
+        self.assertIn("function onThemeModeChanged()", source)
+
+    def test_dark_mode_is_still_writable_for_set_dark_mode(self):
+        source = self._source()
+        self.assertNotIn("readonly property bool darkMode", source)
+        self.assertIn("root.darkMode = enabled;", source)
+
+
+class TestPresentationTimeoutScale(unittest.TestCase):
+    """Slow hardware must be able to run the presentation harness at all."""
+
+    def _module(self):
+        from tests import test_shell_runtime
+
+        return test_shell_runtime
+
+    def test_default_scale_preserves_the_shipped_budgets(self):
+        module = self._module()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("NYXURI_PRESENTATION_TIMEOUT_SCALE", None)
+            os.environ.pop("CLAVIS_PRESENTATION_TIMEOUT_SCALE", None)
+            self.assertEqual(module.presentation_timeout_scale(), 1.0)
+            for original in (5, 8, 10, 15, 20, 30):
+                self.assertEqual(module.presentation_budget(original), float(original))
+
+    def test_scale_multiplies_every_budget(self):
+        module = self._module()
+        with patch.dict(os.environ, {"NYXURI_PRESENTATION_TIMEOUT_SCALE": "12"}):
+            self.assertEqual(module.presentation_budget(10), 120.0)
+            self.assertEqual(module.presentation_budget(30), 360.0)
+
+    def test_legacy_variable_is_honored_and_invalid_values_ignored(self):
+        module = self._module()
+        with patch.dict(os.environ, {"CLAVIS_PRESENTATION_TIMEOUT_SCALE": "4"}):
+            os.environ.pop("NYXURI_PRESENTATION_TIMEOUT_SCALE", None)
+            self.assertEqual(module.presentation_timeout_scale(), 4.0)
+        for value in ("0.1", "0", "-3", "abc", ""):
+            with patch.dict(os.environ, {"NYXURI_PRESENTATION_TIMEOUT_SCALE": value}):
+                self.assertEqual(module.presentation_timeout_scale(), 1.0, value)
+
+
 if __name__ == "__main__":
     unittest.main()
