@@ -124,7 +124,7 @@ journalctl --user -b -u skwd-walld.service
 - 搜索列表中 Ctrl+J 选择下一项，Ctrl+K 选择上一项，方向键仍可用；同样适用于 Noctalia 的其他内置列表。
 - Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。
 - Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。
-- Mod+Tab：Nyxuri Orbit；Mod+S / A / B：Noctalia 控制中心。
+- Mod+Tab：Nyxuri Orbit；Mod+S：控制中心首页；Mod+A：音频；Mod+B：蓝牙；Mod+D：网络／Wi-Fi。
 - Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
 - Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；原 OCR 菜单键打开截图编辑，不提供 OCR。

@@ -27,7 +27,10 @@ class PersonalPreferencesTests(unittest.TestCase):
             self.assertIn('Mod+N repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down;', binds)
             self.assertIn('Alt+N hotkey-overlay-title="Focus right" { focus-column-or-monitor-right;', binds)
             self.assertIn('screenshot-annotate', binds)
-            self.assertEqual(binds.count('"control-center"'), 3)
+            self.assertEqual(binds.count('"control-center"'), 4)
+            for key, page in (("S", "home"), ("A", "audio"), ("B", "bluetooth"), ("D", "network")):
+                line = next(line for line in binds.splitlines() if line.strip().startswith(f"Mod+{key} "))
+                self.assertIn(f'"panel-toggle" "control-center" "{page}"', line)
             self.assertTrue((source / "niri/scripts/niri-actions.py").is_file())
 
     def test_inir_defaults_and_free_super_x_survive_redeployment(self):

@@ -12,8 +12,8 @@ binds {
     // System
     // ═══════════════════════════════════════════════════════════════════════
 
-    // Hyprland custom frees Super+D; suppress the inherited maximize action.
-    Mod+D repeat=false hotkey-overlay-title=null { spawn "/usr/bin/true"; }
+    // Open the network / Wi-Fi page directly.
+    Mod+D repeat=false hotkey-overlay-title="Network / Wi-Fi" { spawn "noctalia" "msg" "panel-toggle" "control-center" "network"; }
 
     // Niri Overview.
     Mod+Space repeat=false hotkey-overlay-title="Niri Overview" { toggle-overview; }
@@ -44,7 +44,7 @@ binds {
     Mod+Tab repeat=false hotkey-overlay-title="Orbit" { spawn "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh" "radial-launcher"; }
 
     // Toggle the Noctalia Control Center.
-    Mod+S repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+    Mod+S repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center" "home"; }
 
     // Power menu.
     Ctrl+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session"; }
@@ -52,11 +52,11 @@ binds {
     // Lock screen.
     Mod+BackSpace repeat=false hotkey-overlay-title="Lock screen" { spawn "noctalia" "msg" "session" "lock"; }
 
-    // Open Control Center (personal left-sidebar key).
-    Mod+A repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+    // Open the audio page directly.
+    Mod+A repeat=false hotkey-overlay-title="Audio" { spawn "noctalia" "msg" "panel-toggle" "control-center" "audio"; }
 
-    // Open Control Center (personal right-sidebar key).
-    Mod+B repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+    // Open the Bluetooth page directly.
+    Mod+B repeat=false hotkey-overlay-title="Bluetooth" { spawn "noctalia" "msg" "panel-toggle" "control-center" "bluetooth"; }
 
     // Toggle bar.
     Mod+Shift+Alt+J repeat=false hotkey-overlay-title="Toggle bar" { spawn "noctalia" "msg" "bar-toggle"; }
