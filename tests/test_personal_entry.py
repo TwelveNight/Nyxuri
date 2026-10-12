@@ -22,7 +22,7 @@ class PersonalEntryTests(unittest.TestCase):
             self.assertFalse((ctx.home / ".config/nyxuri-desktop").exists())
             self.assertFalse((ctx.home / ".local/bin/nyxuri").exists())
 
-    def test_default_installs_privately_and_registers_session_once(self):
+    def test_explicit_install_registers_session_once(self):
         with TempEnv() as ctx:
             kitty = ctx.home / ".config/kitty"
             kitty.mkdir()
@@ -32,7 +32,7 @@ class PersonalEntryTests(unittest.TestCase):
             (inir / "config.kdl").write_text("// original iNiR\n")
             target = ctx.home / "sessions/nyxuri.desktop"
             with patch.object(entry, "GDM_ENTRY", target), patch.object(entry.sys.stdin, "isatty", return_value=True), patch("builtins.input", return_value="y"), patch.object(entry.subprocess, "run", return_value=Mock(returncode=0)) as run, patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
-                self.assertEqual(entry.dispatch([]), 0)
+                self.assertEqual(entry.dispatch(["install"]), 0)
             self.assertEqual([call.args[0] for call in run.call_args_list], [
                 ["sudo", "-v"], ["systemctl", "--user", "daemon-reload"],
                 ["sudo", "install", "-Dm644", str(ctx.home / ".config/nyxuri-desktop/nyxuri.desktop"), str(target)]])
@@ -70,15 +70,23 @@ class PersonalEntryTests(unittest.TestCase):
                 self.assertEqual(result.exception.code, 2)
             deploy.assert_not_called()
 
-    def test_unconfirmed_default_does_not_authenticate_or_deploy(self):
+    def test_noninteractive_menu_does_not_deploy(self):
         with TempEnv() as ctx:
             kitty = ctx.home / ".config/kitty"
             kitty.mkdir()
             (kitty / "kitty.conf").write_text("shell zsh\n")
             with patch.object(entry.sys.stdin, "isatty", return_value=False), patch.object(entry.subprocess, "run") as run, patch("personal.install.shutil.which", return_value="/usr/bin/tool"):
-                self.assertEqual(entry.dispatch([]), 2)
+                self.assertEqual(entry.dispatch([]), 0)
             run.assert_not_called()
             self.assertFalse((ctx.home / ".config/nyxuri-desktop").exists())
+
+    def test_menu_routes_install_and_update_through_private_bootstrap(self):
+        with TempEnv(), patch("nyxuri.tui.Menu.run", side_effect=[0, 1, 6]), patch("nyxuri.tui.press_any_key"), patch.object(entry.subprocess, "run", return_value=Mock(returncode=0)) as run:
+            self.assertEqual(entry.dispatch([]), 0)
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                [str(install.ROOT / "install.sh"), "install"],
+                [str(install.ROOT / "install.sh"), "update"]])
+            self.assertTrue(all(call.kwargs == {"cwd": install.ROOT} for call in run.call_args_list))
 
     def test_update_yes_reenters_standard_installer(self):
         with TempEnv(), patch.object(update, "git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", ""]), patch.object(update.subprocess, "run", return_value=Mock(returncode=0)) as run:

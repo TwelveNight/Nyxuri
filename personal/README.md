@@ -12,8 +12,8 @@
 
 ```bash
 cd ~/Template/github/niri-dots/Nyxuri
-./install.sh --plan
-./install.sh
+./install.sh install --plan
+./install.sh install
 ```
 
 入口先列出变更，再确认。自动化已审阅清单后可用 `--yes`。
@@ -26,6 +26,7 @@ cd ~/Template/github/niri-dots/Nyxuri
 不会启动当前桌面之外的会话。登录项已匹配时不需要 sudo；需要新增或更新时，
 在确认清单后、写入任何配置前验证 sudo 权限，非交互运行使用 `sudo -n`。
 成功后沿用官方规则让 `~/.local/bin/nyxuri` 指向本仓库入口。
+运行 `nyxuri` 打开快捷管理菜单；部署请用 `nyxuri install`，同步更新用 `nyxuri update`。
 
 注销后选择 Nyxuri。不要在当前图形会话中手动启动它的 Niri 服务。
 此前的 `personal/install.py` 曾部署到公共 Niri 目录；新版不会搬迁或删除
@@ -40,7 +41,7 @@ cd ~/Template/github/niri-dots/Nyxuri
 更新要求干净的个人分支和官方 `origin`。它 fetch 官方 `main`，merge 到
 `night/personal-overlay`，然后用新进程运行 `./install.sh install`，再列清单确认。
 不 push，不丢弃本地提交。官方已改写过 main 历史，首次合并可能需要人工解决冲突。遇到冲突立即停止，解决冲突并完成 Git 合并后，
-重新运行 `./install.sh`。只更新源码可用 `--no-deploy`，已审阅的自动化可用 `--yes`。
+重新运行 `./install.sh install`。只更新源码可用 `--no-deploy`，已审阅的自动化可用 `--yes`。
 本仓库的 `nyxuri install/update` 也会进入个人部署；其他仓库、官方远程安装和系统包
 仍使用各自入口，不会因为本机的安装标记切换到个人适配。
 
@@ -124,7 +125,7 @@ journalctl --user -b -u skwd-walld.service
 - 搜索列表中 Ctrl+J 选择下一项，Ctrl+K 选择上一项，方向键仍可用；同样适用于 Noctalia 的其他内置列表。
 - Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。
 - Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。
-- Mod+Tab：Nyxuri Orbit；Mod+S：控制中心首页；Mod+A：音频；Mod+B：蓝牙；Mod+D：网络／Wi-Fi。
+- Mod+Tab：Nyxuri Orbit；Mod+S：控制中心首页；Mod+A：Star-Ring 星环（直接输入或按 Tab 进入多引擎／AI 搜索）；Mod+B：蓝牙；Mod+D：网络／Wi-Fi。
 - Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
 - Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；原 OCR 菜单键打开截图编辑，不提供 OCR。

@@ -52,8 +52,33 @@ def install_desktop(arguments):
         core.release_lock()
 
 
+def management_menu():
+    from nyxuri.i18n import text
+    from nyxuri.tui import Menu, MenuItem, press_any_key
+
+    actions = (
+        (text("部署个人桌面", "Deploy personal desktop"), ["install"]),
+        (text("同步上游并更新", "Sync upstream and update"), ["update"]),
+        (text("系统诊断", "System diagnostics"), ["doctor"]),
+        (text("查看已安装软件", "List installed packages"), ["pkg", "installed"]),
+        (text("预览缓存清理", "Preview cache cleanup"), ["clean", "-n"]),
+        (text("命令帮助", "Command help"), ["help"]),
+    )
+    items = [MenuItem(label=label) for label, _ in actions]
+    items.append(MenuItem(label=text("退出", "Exit"), style="subtle"))
+    while True:
+        choice = Menu("menu_title", items).run()
+        if choice < 0 or choice >= len(actions):
+            return 0
+        # Fresh processes release command locks and load updated code separately.
+        subprocess.run([str(install.ROOT / "install.sh"), *actions[choice][1]], cwd=install.ROOT)
+        press_any_key()
+
+
 def dispatch(arguments):
-    if not arguments or arguments[0] in ("--plan", "--yes"):
+    if not arguments:
+        return management_menu()
+    if arguments[0] in ("--plan", "--yes"):
         return install_desktop(arguments)
     command, *rest = arguments
     if command.lower() in ("install", "deploy"):
@@ -64,7 +89,8 @@ def dispatch(arguments):
         if rest:
             raise ValueError("Usage: ./install.sh help")
         print("Nyxuri personal overlay (nyxuri)\n"
-              "  ./install.sh [install|deploy] [full|config] [--plan] [--yes]\n"
+              "  nyxuri                         Open the management menu\n"
+              "  nyxuri [install|deploy] [full|config] [--plan] [--yes]\n"
               "  ./install.sh update [--no-deploy] [--yes]\n"
               "  ./install.sh doctor | test | pkg ...\n\n"
               "Install and deploy use the same private desktop scope.\n"
