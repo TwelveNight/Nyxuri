@@ -142,7 +142,10 @@ class PersonalIsolationTests(unittest.TestCase):
             helper = handoff_helper()
             unit = (install.ROOT / "personal/nyxuri-shell.service").read_text()
             cleared = next(line.split("=", 1)[1].split() for line in unit.splitlines() if line.startswith("UnsetEnvironment="))
-            self.assertTrue(set(helper.GPU).issubset(cleared))
+            explicit = {"__NV_PRIME_RENDER_OFFLOAD", "__GLX_VENDOR_LIBRARY_NAME", "__VK_LAYER_NV_optimus"}
+            self.assertTrue((set(helper.GPU) - explicit).issubset(cleared))
+            self.assertTrue(explicit.isdisjoint(cleared))
+            self.assertIn("Environment=__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only", unit)
             self.assertNotIn("WAYLAND_DISPLAY", cleared)
             self.assertNotIn("NIRI_SOCKET", cleared)
 

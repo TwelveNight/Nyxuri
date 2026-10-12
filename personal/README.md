@@ -157,3 +157,10 @@ Super+V 打开个人 Fuzzel 历史选择器，选中后复制，再用 Ctrl+V �
 Noctalia 原生面板使用另一份历史，个人配置将其关闭；原生历史文件保留，
 不会把旧 Noctalia 条目自动合入 cliphist。重复按 Super+V 不打开第二个选择器。
 
+
+### 显示器与显卡
+
+显示器持久设置在 `~/.config/nyxuri-desktop/niri/monitor.kdl`，安装更新会保留。
+首次部署沿用当前外屏 144 Hz、内屏关闭的布局。个人显卡配置与 iNiR 一致，
+由 NVIDIA 渲染 Niri，并为 Noctalia 启动的应用设置 NVIDIA 选择变量；重新登录生效。
+Niri Displays 插件的调整仍只临时生效。

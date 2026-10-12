@@ -42,6 +42,14 @@ class TestPersonalSession(unittest.TestCase):
                 niri = (private / "niri/config.kdl").read_text()
                 self.assertIn(str(private / "kitty-nyxuri"), niri)
                 self.assertNotIn('"~/.config/niri/', niri)
+                self.assertLess(niri.index('include "personal-gpu.kdl"'), niri.index('include "__custom__.kdl"'))
+                self.assertIn('pci-0000:01:00.0-render', (private / "niri/personal-gpu.kdl").read_text())
+                self.assertIn('2560x1440@143.995', (private / "niri/monitor.kdl").read_text())
+                shell = (config / "systemd/user/nyxuri-shell.service").read_text()
+                self.assertIn('Environment=__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only', shell)
+                unset = next(line for line in shell.splitlines() if line.startswith('UnsetEnvironment='))
+                self.assertNotIn('__NV_PRIME_RENDER_OFFLOAD', unset)
+                self.assertIn('DRI_PRIME', unset)
                 custom = private / "niri/__custom__.kdl"
                 custom.write_text('// my custom binding\n')
                 colors = private / "kitty-nyxuri/colors__custom__.conf"

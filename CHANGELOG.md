@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+- 个人分支沿用 iNiR 的 NVIDIA 显卡设置，并保存外屏 144 Hz、内屏关闭的默认布局。
+
 - 个人分支的 Super+V 与 iNiR、ii 共用文字和图片剪贴板历史。
 
 - 个人分支的 Nyxuri 光标与 iNiR、ii 一致，使用黑色 Bibata 光标。

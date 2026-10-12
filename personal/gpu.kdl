@@ -1,0 +1,10 @@
+// 与个人 iNiR 共用 NVIDIA 渲染；PCI 路径不受 card 编号变化影响。
+debug {
+    render-drm-device "/dev/dri/by-path/pci-0000:01:00.0-render"
+}
+
+environment {
+    __NV_PRIME_RENDER_OFFLOAD "1"
+    __GLX_VENDOR_LIBRARY_NAME "nvidia"
+    __VK_LAYER_NV_optimus "NVIDIA_only"
+}

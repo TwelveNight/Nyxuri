@@ -1,0 +1,11 @@
+// 当前个人屏幕布局；实机 monitor.kdl 后续修改仍由 manifest 保留。
+output "HDMI-A-1" {
+    mode "2560x1440@143.995"
+    scale 1.0
+    transform "normal"
+    position x=-2560 y=80
+}
+
+output "eDP-2" {
+    off
+}

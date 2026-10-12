@@ -101,3 +101,15 @@ II 配色监听保持停止，共享 skwd 服务仍 enabled。自定义选择器
 核对 8,109 个原桌面配置文件内容未变，528 项测试通过（6 项跳过），
 沙箱部署、Niri／Noctalia 配置、Fuzzel 配置及三个服务依赖校验通过。
 实际注销后在三套桌面往返登录尚未执行。
+
+## 个人屏幕与显卡配置复核
+
+2026-10-12，读取运行中 Nyxuri 的 Niri IPC，将 HDMI-A-1 的
+2560×1440 @ 143.995 Hz、缩放 1、位置 (-2560, 80)，以及 eDP-2 关闭状态
+原样保存到私有 monitor.kdl。按原子替换写入，并备份至私有 manager/backups。
+写入后 IPC 状态完全一致，Niri PID 4380 与 shell runtime PID 4476 未变。
+
+个人 GPU 配置沿用 iNiR 的 NVIDIA PCI render 路径与三项应用选择变量，
+私有 shell 单元显式设置同样的值。只重载服务定义，未重启桌面；当前渲染节点
+仍是 AMD renderD128，NVIDIA 是否实际用于 Niri／Noctalia 须重新登录后验证。
+528 项测试通过（6 项跳过），静态检查、沙箱部署及私有 Niri 配置校验通过。

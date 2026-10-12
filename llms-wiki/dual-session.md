@@ -55,7 +55,7 @@ Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart
 托盘与 IPC 就绪后启动 wallpaper.py watch，只把 skwd 当前状态同步给 Noctalia。
 返回 iNiR／Hyprland 时，它们原有 helper 会恢复 II 配色监听；共享服务的启用链接不改。
 旧 display／GPU 变量在启动 compositor 时清除，私有 shell 单元也用 UnsetEnvironment
-清除未被 Niri 重新发布的旧 GPU 变量。helper 的锁、pidfd watcher 和会话记录与现有
+清除旧 GPU 变量，个人 NVIDIA 三项选择由单元显式设置（见下节）。helper 的锁、pidfd watcher 和会话记录与现有
 Hyprland helper 共用 `$XDG_RUNTIME_DIR/inir`，防止旧会话清理伤及新会话。
 Noctalia 会在 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME` 后自行追加 `noctalia`。
 配置根变量设为 `~/.config/nyxuri-desktop`，实际读取其 `noctalia/*.toml`。
@@ -136,3 +136,16 @@ Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选�
 让当前 Nyxuri 启动事务中的应用等托盘就绪；没有 Wants/Requires，不会在其他桌面
 拉起 Nyxuri。它们同时沿用既有 iNiR 的 compositor ready ExecStartPre。
 
+
+## 个人屏幕与显卡
+
+个人部署副本加入 `personal-gpu.kdl`，沿用 iNiR 的稳定 NVIDIA PCI render 路径
+`/dev/dri/by-path/pci-0000:01:00.0-render`，并为 GLX／Vulkan 应用声明 NVIDIA
+选择变量。私有 shell 单元显式设置相同三项变量，不继承旧会话选择；不使用
+iNiR 专属的 shell 变量，不改变公共默认配置或系统驱动。渲染设备在重新登录后生效。
+
+`personal/monitor.kdl` 是首次部署的个人屏幕默认值：HDMI-A-1 为
+2560×1440 @ 143.995 Hz、缩放 1、位置 (-2560, 80)，eDP-2 关闭。
+已有私有 `niri/monitor.kdl` 继续由 manifest 保留，后续安装不强制恢复这套默认值。
+持久修改使用 `~/.config/nyxuri-desktop/niri/monitor.kdl`；Niri Displays 插件
+只通过 IPC 临时调整。`nwg-displays` 默认重载公共配置，不能直接用于本隔离会话。
