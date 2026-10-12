@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+- 个人分支的应用搜索和其他 Noctalia 列表支持 Ctrl+J/K 上下选择。
+
 - 个人分支按 Super+Q 或 Alt+Q 隐藏 Folia 到托盘，继续播放音乐。
 
 - 个人分支沿用 iNiR 的 NVIDIA 显卡设置，并保存外屏 144 Hz、内屏关闭的默认布局。

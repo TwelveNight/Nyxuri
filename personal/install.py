@@ -32,6 +32,7 @@ SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inot
 def prepare_sources(destination: Path) -> None:
     for item in CONFIGS:
         shutil.copytree(ROOT / "configs" / item, destination / item, symlinks=True)
+    shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")
     # Rewrite the copied templates, never the upstream sources or live iNiR tree.
     for path in destination.rglob("*"):
         if path.is_symlink() or not path.is_file():

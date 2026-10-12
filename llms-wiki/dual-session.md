@@ -118,6 +118,9 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 不把个人键位内容塞进上游 binds 或仅存在实机的文件中。
 75-personal-binds 在 personal-binds 之后加载，补齐 iNiR 默认层的居中、列宽、
 显示器／工作区移动、原生 Alt+Tab 与媒体键；Alt+Space 调用 Noctalia 搜索。
+`personal/noctalia-keybinds.toml` 复制为私有 Noctalia 的 `zz-personal-keybinds.toml`，
+通过原生 `[keybinds]` 给 down/up 添加 Ctrl+J/Ctrl+K，保留方向键；搜索和其他
+使用通用上下导航的内置列表均生效，不注册 compositor 全局键位。
 部署副本移除默认 Super+X，使其可供应用使用；电源菜单改用 Super+Alt+Delete，
 Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署更新，
 实机覆盖写入最后加载且受 Dunder 保留的 __custom__.kdl。
