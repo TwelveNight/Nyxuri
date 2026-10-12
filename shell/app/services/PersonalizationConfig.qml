@@ -2307,8 +2307,8 @@ Singleton {
                             root.toJson().keystone) || JSON.stringify(parsed.desktopCards || {})
                         !== JSON.stringify(root.toJson().desktopCards);
             } catch (error) {
-                console.warn("PersonalizationConfig failed to load:", error);
-                shouldRepair = true;
+                console.warn("PersonalizationConfig failed to load; leaving the existing config untouched:", error);
+                shouldRepair = false;
             }
             root.loading = false;
             root.loaded = true;
@@ -2316,14 +2316,18 @@ Singleton {
             if (shouldRepair)
                 root.save();
         }
-        onLoadFailed: {
+        onLoadFailed: error => {
             root.loading = true;
             root.loadFromObject({});
             root.loading = false;
             root.loaded = true;
             root.settingsLoaded();
-            root.save();
+            if (error === FileViewError.FileNotFound)
+                root.save();
+            else
+                console.warn("PersonalizationConfig could not be read; leaving the existing config untouched:", error);
         }
+        onSaveFailed: error => console.warn("PersonalizationConfig could not be saved:", error)
     }
 
     Component.onDestruction: {

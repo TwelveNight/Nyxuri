@@ -1190,5 +1190,49 @@ class TestConfigSectionHardening(unittest.TestCase):
         self.assertNotIn('theme.iconTheme || ""', loader)
 
 
+class TestConfigStoreFailureHandling(unittest.TestCase):
+    """An unreadable store must be reported, never repaired by overwriting it.
+
+    The catch-all in onLoaded used to set shouldRepair, and onLoadFailed reset
+    every field to its default before saving, so one syntax error replaced the
+    whole user config with defaults. Both handlers now consult the FileViewError
+    the way DockService, DisplayColor and NotificationService already do.
+    """
+
+    def _source(self, name="PersonalizationConfig.qml"):
+        return (Path(__file__).resolve().parent.parent / "shell" / "app" / "services"
+                / name).read_text(encoding="utf-8")
+
+    def _handler(self, source, signal, following):
+        start = source.index(signal)
+        return source[start:source.index(following, start)]
+
+    def test_personalization_keeps_the_file_when_parsing_fails(self):
+        source = self._source()
+        catch = source[source.index("} catch (error) {", source.index("onLoaded:")):]
+        self.assertIn("shouldRepair = false;", catch[:catch.index("onLoadFailed")])
+        self.assertNotIn("shouldRepair = true;", catch[:catch.index("onLoadFailed")])
+
+    def test_personalization_only_seeds_a_missing_store(self):
+        handler = self._handler(self._source(), "onLoadFailed:", "onSaveFailed:")
+        self.assertIn("error === FileViewError.FileNotFound", handler)
+        self.assertIn("root.save();", handler)
+        self.assertIn("console.warn", handler)
+
+    def test_personalization_reports_save_failures(self):
+        handler = self._handler(self._source(), "onSaveFailed:", "Component.onDestruction")
+        self.assertIn("console.warn", handler)
+
+    def test_ui_preferences_only_seeds_a_missing_store(self):
+        handler = self._handler(self._source("UiPreferences.qml"), "onLoadFailed:", "onSaveFailed:")
+        self.assertIn("error === FileViewError.FileNotFound", handler)
+        self.assertIn("root.save();", handler)
+        self.assertIn("console.warn", handler)
+
+    def test_ui_preferences_reports_save_failures(self):
+        handler = self._handler(self._source("UiPreferences.qml"), "onSaveFailed:", "Timer {")
+        self.assertIn("console.warn", handler)
+
+
 if __name__ == "__main__":
     unittest.main()

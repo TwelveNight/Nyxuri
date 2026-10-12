@@ -821,5 +821,131 @@ ShellRoot {
         self.assertEqual(json.loads(content)["schemaVersion"], 1)
 
 
+class ShellConfigStoreTests(unittest.TestCase):
+    """A config store that cannot be read must survive, and a first run must create it."""
+
+    CONFIG_RELATIVE = ".config/nyxuri/config.json"
+
+    def setUp(self):
+        self.ctx = TempEnv()
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__)
+        self.qs = shutil.which("qs")
+        weston = shutil.which("weston")
+        if not self.qs or not weston:
+            self.skipTest("Quickshell and Weston required for config store tests")
+        self.shell = self.ctx.home / "preview"
+        shutil.copytree(SHELL, self.shell, ignore=shutil.ignore_patterns(
+            "native", "build", "wiki", "tests", ".qmlls.ini", "__pycache__"))
+        runtime = self.ctx.home / "runtime"
+        runtime.mkdir(mode=0o700)
+        fallback = str(SHELL / "fallback")
+        self.environment = {
+            key: value for key, value in os.environ.items()
+            if not key.startswith(("CLAVIS_", "QS_", "NYXURI_"))
+            and key not in {"NIRI_SOCKET", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS"}
+        }
+        self.environment.update(
+            QT_QPA_PLATFORM="wayland", QT_QUICK_BACKEND="software",
+            XDG_RUNTIME_DIR=str(runtime), XDG_DATA_HOME=str(self.ctx.home / "data"),
+            WAYLAND_DISPLAY="config-store-wayland",
+            QML_IMPORT_PATH=fallback, QML2_IMPORT_PATH=fallback,
+        )
+        compositor_log = open(self.ctx.home / "compositor.log", "w+")
+        self.addCleanup(compositor_log.close)
+        compositor = subprocess.Popen(
+            [weston, "--backend=headless", "--renderer=pixman", "--no-config",
+             "--socket=config-store-wayland", "--idle-time=0"],
+            env=self.environment, stdout=compositor_log, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        self.addCleanup(self.stop_process, compositor)
+        deadline = time.monotonic() + 10
+        while not (runtime / "config-store-wayland").exists():
+            if compositor.poll() is not None or time.monotonic() >= deadline:
+                compositor_log.seek(0)
+                self.fail("Private compositor did not start:\n" + compositor_log.read())
+            time.sleep(0.05)
+        (self.shell / "shell.qml").write_text(self._harness_qml())
+        self.output = open(self.ctx.home / "preview.log", "w+")
+        self.addCleanup(self.output.close)
+        self.process = subprocess.Popen(
+            [self.qs, "-p", str(self.shell), "--no-duplicate"],
+            env=self.environment, stdout=self.output, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        self.addCleanup(self.stop_process, self.process)
+
+    def _harness_qml(self):
+        return '''import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.app
+import qs.app.services
+
+ShellRoot {
+    IpcHandler {
+        target: "configStore"
+        function themeMode(): string { return String(PersonalizationConfig.themeMode); }
+    }
+}
+'''
+
+    def stop_process(self, process):
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+
+    @property
+    def config_path(self):
+        return self.ctx.home / self.CONFIG_RELATIVE
+
+    def log_text(self):
+        self.output.flush()
+        self.output.seek(0)
+        return self.output.read()
+
+    def wait_until_ready(self):
+        deadline = time.monotonic() + presentation_budget(300)
+        while time.monotonic() < deadline:
+            if self.process.poll() is not None:
+                break
+            try:
+                done = subprocess.run(
+                    [self.qs, "-p", str(self.shell), "ipc", "call", "configStore", "themeMode"],
+                    env=self.environment, capture_output=True, text=True, timeout=10)
+            except subprocess.TimeoutExpired:
+                continue
+            if done.returncode == 0 and done.stdout.strip():
+                return
+            time.sleep(1)
+        self.fail("Shell never reported readiness:\n" + self.log_text())
+
+    def test_corrupt_config_is_left_untouched(self):
+        """A parse failure must be reported, not repaired by overwriting the user's file."""
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        corrupt = '{"theme":{"mode":"light"},"sidebar":{"keepLoaded":false},"pad":"'
+        self.config_path.write_text(corrupt, encoding="utf-8")
+        self.wait_until_ready()
+        time.sleep(25)
+        self.assertEqual(self.config_path.read_text(encoding="utf-8"), corrupt)
+        self.assertIn("leaving the existing config untouched", self.log_text())
+
+    def test_missing_config_is_created_with_defaults(self):
+        """The first run still has to materialise the store."""
+        self.assertFalse(self.config_path.exists())
+        self.wait_until_ready()
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and not self.config_path.exists():
+            time.sleep(0.5)
+        self.assertTrue(self.config_path.exists(), "the store was never created")
+        parsed = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertIn("theme", parsed)
+        self.assertIn(parsed["theme"]["mode"], ("dark", "light"))
+
+
 if __name__ == "__main__":
     unittest.main()

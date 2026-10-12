@@ -655,10 +655,14 @@ Singleton {
             }
             root.preferencesReady = true;
         }
-        onLoadFailed: {
+        onLoadFailed: error => {
             root.preferencesReady = true;
-            root.save();
+            if (error === FileViewError.FileNotFound)
+                root.save();
+            else
+                console.warn("UiPreferences could not be read; leaving the existing file untouched:", error);
         }
+        onSaveFailed: error => console.warn("UiPreferences could not be saved:", error)
     }
 
     Timer {
