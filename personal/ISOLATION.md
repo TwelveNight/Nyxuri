@@ -8,10 +8,11 @@ Nyxuri (niri + Noctalia)。同一用户同时开启多个图形会话不在隔�
 | compositor 配置 | `~/.config/nyxuri-desktop/niri` | `~/.config/niri` | `~/.config/hypr` |
 | shell 配置 | `~/.config/nyxuri-desktop/noctalia` | `~/.config/inir`、`~/.config/quickshell/inir` | `~/.config/illogical-impulse`、`~/.config/quickshell/ii` |
 | shell 生命周期 | `nyxuri-shell.service` 跟随 `nyxuri-niri.service` | `inir.service` 跟随 `niri.service` | Hyprland 启动钩子 |
+| 剪贴板历史 | 私有服务记录共享 cliphist，Super+V 打开 Fuzzel | 原监听和面板使用 cliphist | 原监听和面板使用 cliphist |
 | 配色写入 | 私有 Kitty、Niri 和色板缓存 | 沿用已有主题机制 | 沿用已有主题机制 |
 | 壁纸 | skwd 直接切换，Noctalia 单向预览 | skwd-wall | skwd-wall |
 
-Nyxuri 的两个服务没有绑定 default.target 或公共 niri.service；其 Niri 单元与
+Nyxuri 的三个服务没有绑定 default.target 或公共 niri.service；其 Niri 单元与
 公共 niri.service 互斥。登录项、服务文件、部署文件和配置解析均已检查。
 审计时当前运行的是 iNiR，Nyxuri 的两个服务均 inactive，托盘总线由当前 iNiR 进程拥有。
 
@@ -87,3 +88,16 @@ II 配色监听保持停止，共享 skwd 服务仍 enabled。自定义选择器
 592／779 ms。这些是日志和状态观测，不是屏幕首帧计时；测试后恢复原图。
 519 项契约测试通过（6 项跳过），沙箱部署、Niri 与 Noctalia 配置校验通过。
 动态壁纸和快速连续点击的视觉表现仍需验收。
+
+## 共享剪贴板实机复核
+
+2026-10-12，通过标准安装入口部署个人剪贴板适配，当前 Nyxuri 的私有记录服务
+已启动，使用与 iNiR／ii 相同的原生 cliphist 配置和历史库。服务是 static，
+没有启用到公共 target；Noctalia 有效配置关闭原生独立历史面板。
+
+实际通过个人 clipboard 网关打开 Fuzzel，并选回临时文字与 PNG：文字原始换行、
+图片字节和 image/png MIME 均一致。测试条目已删除，原剪贴板图片恢复；原历史保留。
+停止私有服务后确认其三个工作进程全部退出，随后重新启动；Niri／Shell PID 未变。
+核对 8,109 个原桌面配置文件内容未变，528 项测试通过（6 项跳过），
+沙箱部署、Niri／Noctalia 配置、Fuzzel 配置及三个服务依赖校验通过。
+实际注销后在三套桌面往返登录尚未执行。

@@ -1,0 +1,13 @@
+[Unit]
+Description=Nyxuri shared cliphist history and clipboard persistence
+PartOf=nyxuri-niri.service
+BindsTo=nyxuri-niri.service
+Requisite=nyxuri-shell.service
+After=nyxuri-niri.service nyxuri-shell.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.config/nyxuri-desktop/niri/scripts/clipboard.py watch
+KillMode=control-group
+Restart=on-failure
+RestartSec=2

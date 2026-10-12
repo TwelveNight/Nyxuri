@@ -14,6 +14,8 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
 供 Noctalia 启动的应用继承；Nyxuri 登录时停止 II 配色监听，返回其他桌面时恢复。
 个人部署通过 `nyxuri-shell.service` 调用 runtime：先交接会话环境并重启 skwd，再启动 Noctalia 和单向预览监听；
 主配置不重复 spawn shell。应用的排序 drop-in 等 Noctalia 托盘总线就绪。
+`nyxuri-clipboard.service` 在私有 Shell 就绪后记录共用 cliphist 历史，只跟随私有 Niri；
+Super+V 使用个人 Fuzzel 选择器，Noctalia 原生历史面板关闭，见 [personal-clipboard](personal-clipboard.md)。
 私有目录、独立 Niri 单元和壁纸桥接见 [dual-session](dual-session.md)。
 
 ```
@@ -21,6 +23,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
   │
   ├── 1. 启动阶段 (spawn-at-startup)
   │     ├── nyxuri-shell.service ────► 个人 runtime / Noctalia / skwd 单向预览 (After compositor)
+  │     ├── nyxuri-clipboard.service ► 私有 wl-paste / wl-clip-persist，共用 cliphist (After shell)
   │     ├── XDG autostart        ────► Fcitx5 / 1Password / Clash Verge / KDE Connect
   │     └── toggle-eyecare.sh --sync ─► 同步护眼模式状态与色温
   │
@@ -29,6 +32,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
   │     │     ├── launcher (Alt+Space)       ───────► Noctalia 面板: noctalia msg panel-toggle launcher
   │     │     ├── radial-launcher (Mod+Tab) ────► Orbit 星环: orbit-launcher.py (~/.config/nyxuri-desktop/noctalia/tools/)
   │     │     ├── wallpaper-picker ────────────► 壁纸选择器: wallpaper-picker.py (~/.config/nyxuri-desktop/noctalia/tools/)
+  │     │     ├── clipboard (Super+V) ──────────► clipboard.py pick / Fuzzel / cliphist decode / wl-copy
   │     │     └── session (Mod+Alt+Delete) / 等 ────────► 分发至 Shell IPC (noctalia msg / 未来自研 Shell)
   │     ├── Super + ~          ───────► niri-scratch-toggle.sh (Kitty 浮动终端切换)
   │     ├── Super + N          ───────► toggle-eyecare.sh (护眼色温与着色器切换)
@@ -60,6 +64,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
 |---|---|---|---|
 | **`niri`** | Wayland 合成器内核 | 登录管理器 (greetd / tty) | 根进程；退出即结束会话 |
 | **`noctalia`** | 状态栏、桌面部件、调色引擎、OSD | `nyxuri-shell.service` | PartOf=nyxuri-niri.service，托盘总线就绪后应用启动 |
+| **个人剪贴板记录** | 共用 cliphist 历史与当前内容保留 | `nyxuri-clipboard.service` | 仅私有 Niri Wants，退出后清理自己的子进程 |
 | **`fcitx5`** | 中文与多语言输入法框架 | 系统 XDG autostart 条目 | 图形会话服务生命周期 |
 | **`xdg-desktop-portal`** | 桌面 Portal（文件、截图、色彩外观） | D-Bus 按需激活 / session 激活 | 由 `configs/xdg-desktop-portal/portals.conf` 分流路由 |
 | **`skwd-walld`** | 三套桌面共用壁纸渲染 | 当前桌面 helper 交接显示环境并重启 | Nyxuri 单向同步 Noctalia，不改启用关系 |

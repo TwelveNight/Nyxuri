@@ -3,7 +3,7 @@ Description=Nyxuri private Niri session
 Conflicts=niri.service
 BindsTo=graphical-session.target
 Before=graphical-session.target xdg-desktop-autostart.target
-Wants=graphical-session-pre.target xdg-desktop-autostart.target nyxuri-shell.service
+Wants=graphical-session-pre.target xdg-desktop-autostart.target nyxuri-shell.service nyxuri-clipboard.service
 After=graphical-session-pre.target
 
 [Service]

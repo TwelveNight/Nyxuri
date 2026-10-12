@@ -18,7 +18,7 @@ cd ~/Template/github/niri-dots/Nyxuri
 
 入口先列出变更，再确认。自动化已审阅清单后可用 `--yes`。
 配置部署到 `~/.config/nyxuri-desktop/{niri,noctalia,kitty-nyxuri}`，
-独立用户服务为 `nyxuri-niri.service` 和 `nyxuri-shell.service`；只随 Nyxuri 登录启动。
+独立用户服务为 `nyxuri-niri.service`、`nyxuri-shell.service` 和 `nyxuri-clipboard.service`；只随 Nyxuri 登录启动。
 `~/.config/niri` 和 `niri.service` 继续属于 iNiR。
 
 同一入口支持 `./install.sh install`、`deploy` 以及兼容的 `full` / `config` 参数，
@@ -102,7 +102,7 @@ journalctl --user -b -u skwd-walld.service
 
 撤回独立入口时，在已退出 Nyxuri 的情况下删除
 `/usr/share/wayland-sessions/nyxuri.desktop` 和
-`~/.config/systemd/user/nyxuri-niri.service`、`nyxuri-shell.service` 及个人应用
+`~/.config/systemd/user/nyxuri-niri.service`、`nyxuri-shell.service`、`nyxuri-clipboard.service` 及个人应用
 `.service.d/50-nyxuri-shell.conf`，再 `systemctl --user daemon-reload`。
 私有配置可留作备份；保留共享 skwd 服务及 iNiR 的全部文件。
 
@@ -130,7 +130,7 @@ journalctl --user -b -u skwd-walld.service
 
 Noctalia 没有对应的 iNiR 十字准星、面板家族切换和 OCR／搜索截图；
 截图菜单键映射截图编辑，录屏插件未启用，Super+Shift+R 暂保留重新加载配置。
-屏幕键盘键暂为空操作；原 iNiR 的剪贴板监听不迁入，Noctalia 管理自己的历史。
+屏幕键盘键暂为空操作；Super+V 使用三套桌面共用的 cliphist 历史，详见下节。
 `personal/startup.kdl` 启动现有的可选 `niri-zoomd`，缺失时跳过。
 
 `personal/autostart/` 记录 1Password、Clash Verge 的 XDG 条目，安装只补齐缺失文件，
@@ -140,3 +140,20 @@ XDG 条目，不额外 spawn；CC Switch 继续手动启动。
 X-GNOME-Autostart-enabled 设为 false，保留其他字段；缺失时安装禁用条目。
 共享 XDG 选择对该用户的所有桌面生效。排序 drop-in 只有 Nyxuri shell 被安排
 启动时参与等待；其他桌面不会因此启动 Nyxuri。
+
+## 共享剪贴板
+
+Super+V 打开个人 Fuzzel 历史选择器，选中后复制，再用 Ctrl+V 粘贴；Esc 取消。
+它读取 iNiR、ii 使用的原生 cliphist 配置和数据库（默认 `~/.cache/cliphist/db`），
+不导入、复制或清空现有历史。文字和图片都能恢复，图片在列表中显示格式与尺寸，
+暂不提供缩略图。普通文本与换行保留，浏览器 HTML 按 iNiR 的规则转成纯文字。
+
+`nyxuri-clipboard.service` 在私有 shell 完成显示连接交接后启动，记录文字和图片，
+并用 wl-clip-persist 保留应用关闭后的当前内容。退出私有 Niri 时自动停止，
+只清理自己启动的进程，不停止 iNiR／ii 的监听；不 enable 到公共用户 target。
+安装与更新会部署服务及脚本，依赖 cliphist、wl-clipboard、wl-clip-persist 和 fuzzel，
+缺失时安装预检会列出，不在安装时启动监听。
+
+Noctalia 原生面板使用另一份历史，个人配置将其关闭；原生历史文件保留，
+不会把旧 Noctalia 条目自动合入 cliphist。重复按 Super+V 不打开第二个选择器。
+

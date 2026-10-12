@@ -25,6 +25,7 @@
 - [runtime-topology](runtime-topology.md): 运行时进程树与 IPC 拓扑（会话启动、守护进程、脚本层、信号广播流）
 - [dual-session](dual-session.md): 个人分支的 Hyprland / iNiR / Nyxuri 共存、skwd 接管与私有安装更新入口
 - [personal-cursor](personal-cursor.md): 个人光标、私有 Niri 覆盖与会话环境
+- [personal-clipboard](personal-clipboard.md): 三套桌面共用的 cliphist 历史、私有监听与 Super+V
 
 ## Decoupled modules
 

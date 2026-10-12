@@ -34,7 +34,7 @@ fetch `origin main` 后 merge `FETCH_HEAD`，失败不部署，不自动 stash/r
 
 ## 会话
 
-部署 `nyxuri-niri.service`、`nyxuri-shell.service` 和带目标 HOME 的
+部署 `nyxuri-niri.service`、`nyxuri-shell.service`、`nyxuri-clipboard.service` 和带目标 HOME 的
 `nyxuri-desktop/nyxuri.desktop`。
 标准入口在清单确认后，若 GDM 条目缺失或不同，先执行 sudo -v（非交互为 sudo -n -v）。
 认证失败不部署配置。文件部署成功后执行 systemctl --user daemon-reload，再用 sudo install
@@ -130,7 +130,9 @@ Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署
 ToDesk 是明确的禁用策略：`personal/autostart.py` 在原条目中仅更新 Hidden=true 和
 X-GNOME-Autostart-enabled=false；缺失时用禁用模板。此选择对所有桌面生效。
 Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选放大镜由 startup.kdl
-启动，Noctalia 使用自己的剪贴板，不复制 iNiR 的监听器。
+启动；剪贴板历史使用与 iNiR／ii 相同的 cliphist，生命周期与界面见
+[personal-clipboard](personal-clipboard.md)。不启动其他桌面的 shell 或调用它们的 IPC。
 四个启用应用单元的 `50-nyxuri-shell.conf` 仅声明 After=nyxuri-shell.service，
 让当前 Nyxuri 启动事务中的应用等托盘就绪；没有 Wants/Requires，不会在其他桌面
 拉起 Nyxuri。它们同时沿用既有 iNiR 的 compositor ready ExecStartPre。
+

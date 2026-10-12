@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+- 个人分支的 Super+V 与 iNiR、ii 共用文字和图片剪贴板历史。
+
 - 个人分支的 Nyxuri 光标与 iNiR、ii 一致，使用黑色 Bibata 光标。
 
 - 个人分支的 Nyxuri 支持鼠标移入窗口自动聚焦，也可推向左右屏幕边缘进入相邻窗口。

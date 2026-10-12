@@ -26,7 +26,7 @@ AUTOSTART_UNITS = (
     "app-org.fcitx.Fcitx5@autostart.service",
     "app-org.kde.kdeconnect.daemon@autostart.service",
 )
-SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify")
+SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify", "cliphist", "wl-paste", "wl-copy", "wl-clip-persist", "fuzzel")
 
 
 def prepare_sources(destination: Path) -> None:
@@ -76,7 +76,7 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/overview.kdl", destination / "niri/personal-overview.kdl")
     shutil.copy2(ROOT / "personal/cursor.kdl", destination / "niri/personal-cursor.kdl")
     scripts = destination / "niri/scripts"
-    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py"):
+    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "clipboard-fuzzel.ini"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)
     shutil.copy2(ROOT / "personal/niri_actions.py", scripts / "niri-actions.py")
     (scripts / "session-shell.sh").write_text(
@@ -90,6 +90,8 @@ def prepare_sources(destination: Path) -> None:
     end = content.index('case "$action" in')
     content = content[:start] + content[end:]
     content = content.replace("exec noctalia msg wallpaper-random", 'exec skwd-helm random')
+    content = content.replace("exec noctalia msg panel-toggle clipboard",
+                              'exec python3 "$(dirname "$0")/clipboard.py" pick')
     action.write_text(content)
     orbit = scripts / "niri-scratch-menu.py"
     orbit.write_text(orbit.read_text().replace('os.path.join(CONFIG_HOME, "noctalia",',
@@ -106,7 +108,7 @@ def prepare_sources(destination: Path) -> None:
     conf.write_text(text)
     # Reassert the personal output boundary against fresh upstream defaults.
     data = tomllib.loads(text)
-    policy = ['[theme.templates]', 'builtin_ids = []', 'community_ids = []',
+    policy = ['[shell]', 'clipboard_enabled = false', '[theme.templates]', 'builtin_ids = []', 'community_ids = []',
               '[theme.templates.user.nyxuri_kitty]', 'index = 7',
               'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/kitty-nyxuri.conf"',
               'output_path = "/home/user/.config/nyxuri-desktop/kitty-nyxuri/colors__custom__.conf"',
@@ -129,10 +131,11 @@ def main(argv=None, preflight=None) -> int:
     env = core.get_env()
     private = env.config_dir / "nyxuri-desktop"
     print(f"Deploy: {private}/{{niri,noctalia,kitty-nyxuri}}")
-    print(f"User services: {env.config_dir}/systemd/user/nyxuri-{{niri,shell}}.service")
+    print(f"User services: {env.config_dir}/systemd/user/nyxuri-{{niri,shell,clipboard}}.service")
     print("Personal shortcuts and startup; create absent XDG entries: 1Password, Clash Verge; disable ToDesk in all desktops")
     print("Startup ordering: 1Password, Clash Verge, Fcitx5, KDE Connect wait for the private shell")
     print("Wallpaper: direct skwd switching; one-way Noctalia preview and private colors.")
+    print("Clipboard: share iNiR/ii text and image history; Super+V opens the shared picker.")
     if preflight is not None:
         print("Register: Nyxuri GDM login entry; reload user service definitions.")
     if args.plan:
@@ -174,7 +177,7 @@ def main(argv=None, preflight=None) -> int:
         # Wallpaper assets keep the upstream no-clobber contract.
         core._ENV = env
         deploy_wallpapers(do_download=False)
-        for name in ("nyxuri-niri.service", "nyxuri-shell.service"):
+        for name in ("nyxuri-niri.service", "nyxuri-shell.service", "nyxuri-clipboard.service"):
             if not atomic_replace_item(ROOT / "personal" / name, env.config_dir / "systemd/user" / name):
                 return 1
         for unit in AUTOSTART_UNITS:

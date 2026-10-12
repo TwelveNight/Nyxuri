@@ -100,6 +100,7 @@ class TestPersonalSession(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             config = tomllib.loads(result.stdout)
             self.assertFalse(config["wallpaper"]["enabled"])
+            self.assertFalse(config["shell"]["clipboard_enabled"])
             self.assertEqual(config["hooks"]["wallpaper_changed"],
                              [])
             self.assertIn("bar", config["bar"])
