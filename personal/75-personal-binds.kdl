@@ -1,6 +1,7 @@
 // Complete the iNiR default layer without changing upstream Nyxuri bindings.
 // Loaded after personal-binds.kdl; __custom__.kdl remains the final override.
 binds {
+    Mod+Q repeat=false allow-inhibiting=false hotkey-overlay-title="Close window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "close"; }
     Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
     Mod+Shift+V { switch-focus-between-floating-and-tiling; }
     Mod+R { switch-preset-column-width; }

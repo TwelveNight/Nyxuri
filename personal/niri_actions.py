@@ -82,8 +82,70 @@ def toggle_hud_focus():
         action("focus-window", "--id", target["id"])
 
 
+def bus_call(*args):
+    result = subprocess.check_output([
+        "busctl", "--user", "--json=short", "--timeout=2", *map(str, args),
+    ], text=True, timeout=3)
+    return json.loads(result)["data"] if result.strip() else []
+
+
+def hide_folia(window_id):
+    window = next((w for w in query("windows") if w["id"] == int(window_id)), None)
+    if window is None:
+        return
+    if window.get("app_id") != "folia-major" or window.get("title") != "Folia":
+        raise RuntimeError("Refusing to hide a window other than the Folia player")
+    pid = window.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        raise RuntimeError("Folia window has no valid process ID")
+    dbus = ("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus")
+    names = bus_call("call", *dbus, "ListNames")[0]
+    services = [name for name in names
+                if name.startswith(f"org.freedesktop.StatusNotifierItem-{pid}-")]
+    if len(services) != 1:
+        raise RuntimeError("Cannot identify Folia's tray; leaving the player running")
+    # Pin the unique owner so a restarted/replaced service cannot receive the event.
+    owner = bus_call("call", *dbus, "GetNameOwner", "s", services[0])[0]
+    if bus_call("call", *dbus, "GetConnectionUnixProcessID", "s", owner)[0] != pid:
+        raise RuntimeError("Folia tray process does not match the captured window")
+    menu = bus_call("get-property", owner, "/StatusNotifierItem",
+                    "org.kde.StatusNotifierItem", "Menu")
+    target = (owner, menu, "com.canonical.dbusmenu")
+    layout = bus_call("call", *target, "GetLayout", "iias", 0, 1, 3,
+                      "label", "enabled", "visible")
+    hide_labels = {"隐藏窗口", "Hide Window", "Sembunyikan Jendela"}
+    show_labels = {"显示窗口", "Show Window", "Tampilkan Jendela"}
+    for item in layout[1][2]:
+        item_id, properties, _children = item["data"]
+        label = properties.get("label", {}).get("data")
+        if label in show_labels:
+            return  # Already hidden: repeated requests must not toggle it back open.
+        if label in hide_labels:
+            if (not properties.get("enabled", {}).get("data", True)
+                    or not properties.get("visible", {}).get("data", True)):
+                break
+            bus_call("call", *target, "Event", "isvu", item_id, "clicked", "s", "", 0)
+            return
+    # Never replace a failed tray operation with a close request.
+    raise RuntimeError("Folia's hide menu is unavailable; leaving the player running")
+
+
+def close_window():
+    window = query("focused-window")
+    if window is None:
+        return
+    # Capture once: delayed tray calls must never close a newly focused window.
+    if ((window.get("app_id") or "").lower() == "folia-major"
+            and window.get("title") == "Folia"):
+        hide_folia(window["id"])
+        return
+    action("close-window", "--id", window["id"])
+
+
 def main(command, *args):
-    if command == "empty-move":
+    if command == "close":
+        close_window()
+    elif command == "empty-move":
         empty_workspace(True)
     elif command == "empty-focus":
         empty_workspace()
