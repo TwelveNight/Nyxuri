@@ -109,6 +109,39 @@ class TestManifestOverrides(unittest.TestCase):
         self.assertEqual(m.label, "XDG Portals")
         self.assertEqual(m.detect, "xdg-desktop-portal")
 
+    def test_preserve_values_parsed(self):
+        app = self.root / "noctalia"
+        app.mkdir()
+        (app / ".module.toml").write_text(
+            '[packages]\n'
+            'preserve_values = { "noctalia-config.toml" = ["enable_ddcutil"] }\n'
+        )
+        m = manifest.load_manifest(app)
+        self.assertEqual(m.preserve_values, {"noctalia-config.toml": ["enable_ddcutil"]})
+        self.assertEqual(m.preserve, [])
+
+    def test_preserve_values_defaults_to_empty(self):
+        app = self.root / "kitty"
+        app.mkdir()
+        (app / "kitty.conf").write_text("conf")
+        self.assertEqual(manifest.load_manifest(app).preserve_values, {})
+
+    def test_preserve_values_rejects_hostile_shapes(self):
+        app = self.root / "weird"
+        app.mkdir()
+        (app / ".module.toml").write_text(
+            '[packages]\n'
+            'preserve_values = { "a.toml" = [], "b.toml" = "k", "c.toml" = [1, "k"] }\n'
+        )
+        self.assertEqual(manifest.load_manifest(app).preserve_values,
+                         {"b.toml": ["k"], "c.toml": ["k"]})
+
+    def test_preserve_values_non_table_falls_back(self):
+        app = self.root / "odd"
+        app.mkdir()
+        (app / ".module.toml").write_text('[packages]\npreserve_values = "nope"\n')
+        self.assertEqual(manifest.load_manifest(app).preserve_values, {})
+
     def test_aur_packages(self):
         app = self.root / "fcitx5-rime"
         app.mkdir()
@@ -161,6 +194,12 @@ class TestRealRepoManifests(unittest.TestCase):
         self.assertIn("glow", m.parts)
         # dir name = package = binary → no [packages] override needed
         self.assertEqual(m.packages_repo, ["niri"])
+
+    def test_noctalia_manifest_preserves_ddcutil(self):
+        m = manifest.load_manifest(self.env.configs_src / "noctalia")
+        self.assertEqual(m.preserve_values,
+                         {"noctalia-config.toml": ["enable_ddcutil"]})
+        self.assertEqual(m.preserve, [])
 
     def test_starship_sidecar(self):
         m = manifest.load_manifest(self.env.configs_src / "starship.toml")

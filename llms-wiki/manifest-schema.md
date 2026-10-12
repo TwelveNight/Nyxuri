@@ -12,6 +12,7 @@
 | `repo` | `[<目录名>]` | pacman 包名 |
 | `aur` | `[]` | AUR 包名 |
 | `preserve` | `[]` | 跨部署保留的文件（按名声明，如 `monitor.kdl`；与 Dunder 不同机制） |
+| `preserve_values` | `{}` | 跨部署保留指定文本配置里的个别键，形如 `{ "noctalia-config.toml" = ["enable_ddcutil"] }`。旧文件里存在的键按原样带入新文件，缺失的键不携带，沿用新模板的值 |
 | `chmod` | `[]` | 部署后设 +x 的 glob（相对 app 目录，如 `scripts/*.sh`） |
 | `label` | `<目录名>` | 菜单显示名 |
 | `detect` | `<目录名>` | 检测是否安装的命令名（纯名字，无 `binary:` 前缀 DSL） |

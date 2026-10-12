@@ -586,8 +586,11 @@ def apply_preset(app: str, name: str) -> bool:
     # Preserve the same manifest-declared files the full deploy would; a preset
     # switch is otherwise indistinguishable to runtime state like effects.kdl.
     preserve = None
+    preserve_values = None
     try:
-        preserve = load_manifest_for(app).preserve or None
+        preset_manifest = load_manifest_for(app)
+        preserve = preset_manifest.preserve or None
+        preserve_values = preset_manifest.preserve_values or None
     except Exception:
         pass
 
@@ -598,6 +601,7 @@ def apply_preset(app: str, name: str) -> bool:
         dest,
         preserved_log=preserved_log,
         preserve=preserve,
+        preserve_values=preserve_values,
         base_src=base_src,
         base_include=base_inc,
         base_exclude=base_exc,

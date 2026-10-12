@@ -51,6 +51,7 @@ class ModuleManifest:
     packages_aur: List[str]
     packages_flatpak: List[str]
     preserve: List[str]
+    preserve_values: Dict[str, List[str]]
     chmod: List[str]
     label: str
     category: str
@@ -111,6 +112,23 @@ def _as_parts_dict(value) -> Dict[str, dict]:
     return {key: cfg for key, cfg in value.items() if isinstance(cfg, dict)}
 
 
+def _as_str_map(value) -> Dict[str, List[str]]:
+    if not isinstance(value, dict):
+        return {}
+    result: Dict[str, List[str]] = {}
+    for key, keys in value.items():
+        if not isinstance(key, str):
+            continue
+        if isinstance(keys, str):
+            result[key] = [keys]
+            continue
+        if isinstance(keys, (list, tuple)):
+            names = [name for name in keys if isinstance(name, str)]
+            if names:
+                result[key] = names
+    return result
+
+
 def load_manifest(app_src: Path, is_optional: bool = False) -> ModuleManifest:
     """Load a manifest for an app source (dir or file); defaults derived from name.
 
@@ -147,6 +165,7 @@ def load_manifest(app_src: Path, is_optional: bool = False) -> ModuleManifest:
         packages_aur=_as_str_list(packages.get("aur")),
         packages_flatpak=_as_str_list(packages.get("flatpak")),
         preserve=manifest_preserve,
+        preserve_values=_as_str_map(packages.get("preserve_values")),
         chmod=_as_str_list(packages.get("chmod")),
         label=packages.get("label", name),
         category=packages.get("category", ""),
@@ -199,6 +218,7 @@ def _manifest_from_optional(name: str, entry: dict) -> ModuleManifest:
         packages_aur=_as_str_list(entry.get("aur")),
         packages_flatpak=_as_str_list(entry.get("flatpak")),
         preserve=[],
+        preserve_values={},
         chmod=[],
         label=entry.get("label", name),
         category=entry.get("category", ""),
@@ -222,6 +242,7 @@ def _merge_optional_entry(m: ModuleManifest, entry: dict) -> ModuleManifest:
         packages_aur=_as_str_list(entry.get("aur", m.packages_aur)),
         packages_flatpak=_as_str_list(entry.get("flatpak", m.packages_flatpak)),
         preserve=m.preserve,
+        preserve_values=m.preserve_values,
         chmod=m.chmod,
         label=entry.get("label", m.label),
         category=entry.get("category", m.category),

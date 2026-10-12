@@ -100,6 +100,7 @@ def _phase_atomic_deployment(
         # preserve/chmod describe the app, independent of which variant ships.
         manifest = load_manifest(env.configs_src / item)
         preserve = manifest.preserve if keep_preserved else None
+        preserve_values = manifest.preserve_values if keep_preserved else None
 
         if not atomic_replace_item(
             src,
@@ -107,6 +108,7 @@ def _phase_atomic_deployment(
             preserved_log=preserved_log,
             test_mode=test_mode,
             preserve=preserve,
+            preserve_values=preserve_values,
             base_src=result.base_src,
             base_include=result.base_include,
             base_exclude=result.base_exclude,

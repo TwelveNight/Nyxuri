@@ -196,6 +196,142 @@ class TestPreserveInjectionBeforeSwap(unittest.TestCase):
                              "No monitor.kdl in dest → repo's (absent) ships, no crash")
 
 
+class TestPreserveValuesAcrossSwap(unittest.TestCase):
+    """manifest preserve_values must carry individual keys into the staged tree."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def _swap(self, src_text, dest_text, keys, rel="app-config.toml"):
+        from nyxuri.deploy.atomic import atomic_replace_item
+
+        workdir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, workdir, True)
+        src = workdir / "srcdir"
+        src.mkdir()
+        (src / rel).write_text(src_text)
+        (src / "extra.conf").write_text("shipped")
+        dest = workdir / "dest_dir"
+        dest.mkdir()
+        if dest_text is not None:
+            (dest / rel).write_text(dest_text)
+        result = atomic_replace_item(src, dest, preserve_values={rel: keys})
+        self.assertTrue(result)
+        return (dest / rel).read_text()
+
+    def test_user_value_survives_swap(self):
+        """The shipped default must not clobber a value the user turned on."""
+        text = self._swap(
+            "[brightness]\nenable_ddcutil = false\nother = 2\n",
+            "[brightness]\nenable_ddcutil = true\nother = 1\n",
+            ["enable_ddcutil"],
+        )
+        self.assertIn("enable_ddcutil = true", text)
+        self.assertNotIn("enable_ddcutil = false", text)
+
+    def test_missing_key_falls_back_to_shipped_default(self):
+        """A key the user never set must keep the shipped value."""
+        text = self._swap(
+            "[brightness]\nenable_ddcutil = false\n",
+            "[brightness]\nother = 1\n",
+            ["enable_ddcutil"],
+        )
+        self.assertIn("enable_ddcutil = false", text)
+
+    def test_missing_dest_file_falls_back_to_shipped_default(self):
+        """First deploy has nothing to carry → the shipped value ships."""
+        text = self._swap(
+            "[brightness]\nenable_ddcutil = false\n",
+            None,
+            ["enable_ddcutil"],
+        )
+        self.assertIn("enable_ddcutil = false", text)
+
+    def test_undeclared_keys_still_come_from_the_shipped_file(self):
+        """Only declared keys carry over; every other line updates normally."""
+        text = self._swap(
+            "[brightness]\nenable_ddcutil = false\nother = 2\n",
+            "[brightness]\nenable_ddcutil = true\nother = 1\n",
+            ["enable_ddcutil"],
+        )
+        self.assertIn("other = 2", text)
+        self.assertNotIn("other = 1", text)
+
+    def test_comment_and_formatting_of_shipped_file_are_kept(self):
+        """The swap must not graft the outgoing file's comments onto the new one."""
+        text = self._swap(
+            "[brightness]\n# shipped note\nenable_ddcutil = false\n",
+            "[brightness]\n# user note\nenable_ddcutil = true\n",
+            ["enable_ddcutil"],
+        )
+        self.assertIn("# shipped note", text)
+        self.assertNotIn("# user note", text)
+
+    def test_same_key_name_in_another_section_is_untouched(self):
+        """Carrying is section-scoped, so an unrelated homonym cannot be rewritten."""
+        text = self._swap(
+            "[a]\nenabled = false\n\n[b]\nenabled = false\n",
+            "[a]\nenabled = true\n\n[b]\nenabled = false\n",
+            ["enabled"],
+        )
+        self.assertIn("[a]\nenabled = true", text)
+        self.assertIn("[b]\nenabled = false", text)
+
+    def test_absent_key_in_shipped_file_is_not_appended(self):
+        """A key the shipped file dropped stays dropped instead of being re-added."""
+        text = self._swap(
+            "[brightness]\nremoved = true\n",
+            "[brightness]\nenable_ddcutil = true\n",
+            ["enable_ddcutil"],
+        )
+        self.assertNotIn("enable_ddcutil", text)
+
+    def test_declared_target_absent_from_staged_tree_is_skipped(self):
+        """A declared path that the shipped tree does not contain is ignored."""
+        from nyxuri.deploy.atomic import atomic_replace_item
+
+        workdir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, workdir, True)
+        src = workdir / "srcdir"
+        src.mkdir()
+        (src / "app-config.toml").write_text("[brightness]\nenable_ddcutil = false\n")
+        dest = workdir / "dest_dir"
+        dest.mkdir()
+        (dest / "app-config.toml").write_text("[brightness]\nenable_ddcutil = true\n")
+
+        result = atomic_replace_item(
+            src, dest, preserve_values={"gone.toml": ["enable_ddcutil"]})
+
+        self.assertTrue(result)
+        self.assertEqual((dest / "app-config.toml").read_text(),
+                         "[brightness]\nenable_ddcutil = false\n")
+
+    def test_declared_target_cannot_escape_the_staged_tree(self):
+        """A traversal path must be refused rather than read from outside."""
+        from nyxuri.deploy.atomic import atomic_replace_item
+
+        workdir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, workdir, True)
+        src = workdir / "srcdir"
+        src.mkdir()
+        (src / "app-config.toml").write_text("[brightness]\nenable_ddcutil = false\n")
+        dest = workdir / "dest_dir"
+        dest.mkdir()
+        (dest / "app-config.toml").write_text("[brightness]\nenable_ddcutil = true\n")
+        (workdir / "outside.toml").write_text("[brightness]\nenable_ddcutil = true\n")
+
+        result = atomic_replace_item(
+            src, dest, preserve_values={"../outside.toml": ["enable_ddcutil"]})
+
+        self.assertTrue(result)
+        self.assertEqual((dest / "app-config.toml").read_text(),
+                         "[brightness]\nenable_ddcutil = false\n")
+
+
 class TestNiriRequiredIncludes(unittest.TestCase):
     """Every non-optional include in niri's config.kdl must exist in the repo.
 

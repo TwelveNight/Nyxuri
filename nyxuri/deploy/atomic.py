@@ -8,12 +8,82 @@ The atomic_replace_item swap-then-preserve is the heart of Nyxuri's deploy
 
 import fnmatch
 import os
+import re
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from nyxuri.core import get_env, log_msg, register_temp_path, remove_path
 from nyxuri.i18n import msg
+
+
+_SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]\s*$")
+_ASSIGN_RE = re.compile(r"^(\s*)([A-Za-z0-9_][A-Za-z0-9_-]*)(\s*=\s*)(.+?)\s*$")
+
+
+def _toml_scalars(path: Path, keys: List[str]) -> Dict[Tuple[str, str], str]:
+    """Read ``(section, key) -> raw value text`` for the named keys.
+
+    Values are captured as written, so a carried-over value keeps its original
+    spelling instead of being re-serialised by a TOML writer.
+    """
+    wanted = set(keys)
+    found: Dict[Tuple[str, str], str] = {}
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return found
+    section = ""
+    for line in text.splitlines():
+        header = _SECTION_RE.match(line)
+        if header is not None:
+            section = header.group(1).strip()
+            continue
+        if line.lstrip().startswith("#"):
+            continue
+        assign = _ASSIGN_RE.match(line)
+        if assign is None:
+            continue
+        name = assign.group(2)
+        if name in wanted:
+            found.setdefault((section, name), assign.group(4))
+    return found
+
+
+def _apply_toml_scalars(path: Path, values: Dict[Tuple[str, str], str]) -> int:
+    """Overwrite the named keys in ``path`` in place, returning how many landed.
+
+    Only the matched assignment lines are rewritten, so every other byte of the
+    freshly deployed file — including comments and section order — is untouched.
+    """
+    if not values:
+        return 0
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 0
+    lines = text.splitlines(keepends=True)
+    section = ""
+    applied = 0
+    for index, line in enumerate(lines):
+        body = line.rstrip("\r\n")
+        header = _SECTION_RE.match(body)
+        if header is not None:
+            section = header.group(1).strip()
+            continue
+        if body.lstrip().startswith("#"):
+            continue
+        assign = _ASSIGN_RE.match(body)
+        if assign is None:
+            continue
+        raw = values.get((section, assign.group(2)))
+        if raw is None:
+            continue
+        lines[index] = "".join([assign.group(1), assign.group(2), assign.group(3), raw, "\n"])
+        applied += 1
+    if applied:
+        path.write_text("".join(lines), encoding="utf-8")
+    return applied
 
 
 def _matches_pattern(rel_str: str, is_dir: bool, patterns: List[str]) -> bool:
@@ -118,6 +188,7 @@ def _deploy_ignore_factory(root_src: Path):
 def atomic_replace_item(
     src: Path, dest: Path, preserved_log: Optional[List[str]] = None,
     test_mode: bool = False, preserve: Optional[List[str]] = None,
+    preserve_values: Optional[Dict[str, List[str]]] = None,
     preserve_custom: bool = True,
     base_src: Optional[Path] = None,
     base_include: Optional[List[str]] = None,
@@ -128,6 +199,12 @@ def atomic_replace_item(
     ``preserve`` injects manifest-declared files (e.g. monitor.kdl) into tmp_new
     *before* the rename, so the swapped-in directory is already complete — no
     post-rename restore window for inotify watchers to catch a half-state.
+
+    ``preserve_values`` carries individual keys of a deployed text config across
+    the swap (e.g. noctalia's brightness.enable_ddcutil, which the user may have
+    turned on and which the shipped default would otherwise reset). Values are
+    read from the outgoing file and written into the staged copy, so the same
+    no-restore-window property holds.
     """
     pid = os.getpid()
     dest_parent = dest.parent
@@ -244,6 +321,27 @@ def atomic_replace_item(
                 elif src_p.is_file():
                     shutil.copy2(src_p, tgt_p)
                 else:
+                    continue
+                print(msg("log_keep_preserved_file", dest.name, rel))
+                if preserved_log is not None:
+                    preserved_log.append(f"~/.config/{dest.name}/{rel}")
+
+        if preserve_values and dest.is_dir():
+            dest_root = dest.resolve()
+            new_root = tmp_new.resolve()
+            for rel, keys in preserve_values.items():
+                if not rel or os.path.isabs(rel) or not keys:
+                    continue
+                src_p = dest / rel
+                tgt_p = tmp_new / rel
+                try:
+                    src_p.resolve(strict=False).relative_to(dest_root)
+                    tgt_p.resolve(strict=False).relative_to(new_root)
+                except ValueError:
+                    continue
+                if not src_p.is_file() or not tgt_p.is_file():
+                    continue
+                if not _apply_toml_scalars(tgt_p, _toml_scalars(src_p, keys)):
                     continue
                 print(msg("log_keep_preserved_file", dest.name, rel))
                 if preserved_log is not None:
