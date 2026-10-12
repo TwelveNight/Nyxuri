@@ -64,8 +64,8 @@ Noctalia 桌面绘制、壁纸 hook 和 mpvpaper 插件关闭，Greeter 自动�
 bar 的壁纸按钮直接打开 skwd-wall 选择器；已有 bar 布局可在设置中添加 wallpaper 组件。
 控制中心的壁纸预览卡片和快捷按钮仍打开 Noctalia 选择器，选图会交给 skwd 渲染。
 同步回来的预览事件不再触发切图，视频也不会被缩略图覆盖。
-Nyxuri 启动时先停止 II 配色监听，再把 skwd 交接到当前桌面；返回 iNiR／Hyprland
-时由它们原有 helper 恢复配色监听。共享服务启用关系和过渡配置不改。
+Nyxuri 启动时先停止 II 配色监听，再把 skwd 交接到当前桌面；iNiR 同样停止 II 监听，由自身生成共享 Kitty 配色；返回 Hyprland
+时由原有 helper 恢复 II 配色监听。共享服务启用关系和过渡配置不改。
 
 Niri overview 保留 iNiR 的 0.75 缩放、工作区阴影和开合动画；skwd 渲染图层留在 backdrop。
 
@@ -74,9 +74,10 @@ Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` �
 `~/.local/state/nyxuri-desktop/noctalia/noctalia/`，保留已有设置。
 
 Kitty 继承原有设置，Nyxuri 颜色写入私有目录，Noctalia 和 Niri 键位启动终端时均使用此配置。
-Nyxuri 登录时先停止 II 配色监听，避免换壁纸串改共享主题；返回 iNiR／II 后由它们
+Nyxuri 登录时先停止 II 配色监听，避免换壁纸串改共享主题；iNiR 自行取色，返回 II 后由其
 原有的启动钩子恢复监听。壁纸预览、色板和缩略图缓存位于 `~/.cache/nyxuri-desktop/`。
 深浅主题切换沿用上游 `nyxuri theme sync`，同步共享 GTK／Qt 应用主题；三套桌面仍共用 skwd 壁纸。
+iNiR 和 II 也接入 NyxMellow 的动态 Fcitx 模板，由当前会话随壁纸取色；输入法只重载 Classic UI。Nyxuri 私有配置也显式注册三个 Fcitx 模板，切换桌面后由当前会话继续取色。
 多套桌面按顺序登录；共享用户 D-Bus 不支持同一用户同时运行它们。
 
 GDM 入口按标准 `niri-session` 的用户服务启动／关闭顺序运行，但使用独立服务。

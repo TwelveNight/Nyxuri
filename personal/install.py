@@ -19,6 +19,7 @@ from nyxuri.deploy.atomic import atomic_replace_item
 from nyxuri.deploy.assets import deploy_wallpapers
 from nyxuri.deploy.deploy import _phase_atomic_deployment
 from nyxuri.deploy.templates import _phase_render_templates
+from nyxuri.modules.fcitx import FCITX_CLASSICUI_RELOAD_HOOK
 
 CONFIGS = ("niri", "noctalia", "kitty-nyxuri")
 AUTOSTART_UNITS = (
@@ -121,6 +122,7 @@ def prepare_sources(destination: Path) -> None:
     conf.write_text(text)
     # Reassert the personal output boundary against fresh upstream defaults.
     data = tomllib.loads(text)
+    fcitx_names = {f"nyxmellow_{suffix}" for suffix in ("theme", "panel", "highlight")}
     policy = ['[shell]', 'clipboard_enabled = false', '[theme.templates]', 'builtin_ids = []', 'community_ids = []',
               '[theme.templates.user.nyxuri_kitty]', 'index = 7',
               'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/kitty-nyxuri.conf"',
@@ -128,8 +130,17 @@ def prepare_sources(destination: Path) -> None:
               "post_hook = 'pkill -SIGUSR1 -x kitty >/dev/null 2>&1 || true'"]
     for name, template in data.get("theme", {}).get("templates", {}).get("user", {}).items():
         output = template.get("output_path", "")
-        if "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
+        if name not in fcitx_names and "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
+    # Fcitx is an explicitly shared application theme, owned by the current desktop.
+    fcitx_templates = destination / "noctalia/templates/fcitx5"
+    shutil.copytree(ROOT / "assets/fcitx5/nyxmellow/templates", fcitx_templates, dirs_exist_ok=True)
+    for index, (suffix, filename) in enumerate((("theme", "theme.conf"), ("panel", "panel.svg"), ("highlight", "highlight.svg")), 8):
+        policy += [f"[theme.templates.user.nyxmellow_{suffix}]", "enabled = true", f"index = {index}",
+                   f'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/fcitx5/{filename}"',
+                   f'output_path = "/home/user/.local/share/fcitx5/themes/nyxmellow/{filename}"']
+        if suffix == "highlight":
+            policy += [f"post_hook = '{FCITX_CLASSICUI_RELOAD_HOOK}'"]
     policy += ['[widget.wallpaper.actions]', 'left = "exec skwd-wall-v2"']
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
     for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):

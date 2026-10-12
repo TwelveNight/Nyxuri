@@ -96,7 +96,7 @@ class PersonalIsolationTests(unittest.TestCase):
             self.assertEqual(len(inherited), 2)
             run.assert_called_once_with([sys.executable, str(install.ROOT / "personal/desktop-session.py"), "start", "niri", "--no-ii-theme"], check=True)
 
-    def test_nyxuri_stops_ii_writer_before_wallpaper_restart_and_return_restores_it(self):
+    def test_no_ii_theme_stops_writer_before_wallpaper_restart_and_default_restores_it(self):
         helper = handoff_helper()
         for no_ii in (True, False):
             with self.subTest(nyxuri=no_ii), TempEnv() as ctx:
@@ -118,6 +118,19 @@ class PersonalIsolationTests(unittest.TestCase):
                 else:
                     self.assertIn(start, commands)
                     self.assertNotIn(stop, commands)
+
+    def test_no_ii_theme_stops_writer_even_for_already_active_session(self):
+        helper = handoff_helper()
+        with TempEnv() as ctx:
+            directory = ctx.home / "run/inir"
+            directory.mkdir(parents=True)
+            identity = dict(desktop="niri", pid=os.getpid(), key="NIRI_SOCKET", value="/test.sock", wayland="wayland-test")
+            (directory / "desktop-session.json").write_text(json.dumps(identity))
+            args = ["desktop-session.py", "start", "niri", "--no-ii-theme"]
+            with patch.dict(os.environ, XDG_RUNTIME_DIR=str(directory.parent)), patch.object(sys, "argv", args), patch.object(helper, "session_identity", return_value=identity), patch.object(helper, "unit_active", return_value=True), patch.object(helper.subprocess, "run", return_value=Mock(returncode=0, stdout="")) as run:
+                helper.main()
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertEqual(commands, [("systemctl", "--user", "stop", "ii-skwd-wall-theme.service")])
 
     def test_all_six_switch_directions_reject_stale_cleanup(self):
         helper = handoff_helper()

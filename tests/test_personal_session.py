@@ -115,6 +115,16 @@ class TestPersonalSession(unittest.TestCase):
             self.assertIn("bar", config["bar"])
             self.assertEqual(config["theme"]["templates"]["builtin_ids"], [])
             self.assertEqual(config["plugins"]["enabled"], [])
+            templates = config["theme"]["templates"]["user"]
+            for suffix, filename in (("theme", "theme.conf"), ("panel", "panel.svg"), ("highlight", "highlight.svg")):
+                entry = templates[f"nyxmellow_{suffix}"]
+                self.assertTrue(entry["enabled"])
+                self.assertEqual(entry["input_path"], str(private / "noctalia/templates/fcitx5" / filename))
+                self.assertEqual(entry["output_path"], str(ctx.home / ".local/share/fcitx5/themes/nyxmellow" / filename))
+                self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "assets/fcitx5/nyxmellow/templates" / filename).read_bytes())
+            self.assertIn("ReloadAddonConfig s classicui", templates["nyxmellow_highlight"]["post_hook"])
+            self.assertNotIn("pkill", templates["nyxmellow_highlight"]["post_hook"])
+
 
     def test_plan_does_not_write(self):
         with TempEnv() as ctx:

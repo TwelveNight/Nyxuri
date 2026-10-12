@@ -55,7 +55,13 @@ Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart
 验证 IPC 对端 PID／UID／compositor 名称和 Wayland socket，发布当前会话环境，
 通过 --no-ii-theme 停止 II 配色监听，完成环境交接并重启 skwd 后启动 Noctalia。
 托盘与 IPC 就绪后启动 wallpaper.py watch，只把 skwd 当前状态同步给 Noctalia。
-返回 iNiR／Hyprland 时，它们原有 helper 会恢复 II 配色监听；共享服务的启用链接不改。
+iNiR 的 skwd-session 也传入 --no-ii-theme，自行生成共享 Kitty 配色，避免两个写入者互相覆盖。
+返回 Hyprland 时原有 helper 恢复 II 配色监听；共享服务的启用链接不改。
+iNiR 的 ThemeService 监听 skwd 活动壁纸变化，以 --noswitch 生成共享 Kitty 色板。
+其个人应用配色偏好关闭 iRiS 的固定表面和强调色覆盖；iNiR／II 的配色流水线
+各自渲染共享 NyxMellow Fcitx 模板，随后重载 Classic UI addon，不重启输入法。
+Nyxuri 的 zz-personal.toml 同样显式注册三个 NyxMellow 模板；输入素材位于私有
+noctalia/templates/fcitx5，输出限定为共享主题目录内的 theme.conf、panel.svg、highlight.svg。
 旧 display／GPU 变量在启动 compositor 时清除，私有 shell 单元也用 UnsetEnvironment
 清除旧 GPU 变量，个人 NVIDIA 三项选择由单元显式设置（见下节）。helper 的锁、pidfd watcher 和会话记录与现有
 Hyprland helper 共用 `$XDG_RUNTIME_DIR/inir`，防止旧会话清理伤及新会话。
