@@ -193,7 +193,8 @@ Firefox Nightly／Brave 与 JetBrains 按原有标题限定；Hermes pet 只匹�
 Super+/ 在个人 binds 中覆盖上游 show-hotkey-overlay，打开社区插件
 `kenn/keybind-cheatsheet:cheatsheet`。`personal/keybind-cheatsheet.toml` 复制为
 私有 Noctalia 的 `zz-personal-cheatsheet.toml`，指定 compositor=niri 及私有
-`nyxuri-desktop/niri/config.kdl`，避免读取公共 iNiR 快捷键。插件跟随递归 include
+`~/.config/nyxuri-desktop/niri/config.kdl`，由插件展开 `~` 为当前用户主目录，
+避免遗留 `/home/user` 占位符或读取公共 iNiR 快捷键。插件跟随递归 include
 解析分拆配置；缓存刷新命令为 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh`。
 
 插件源码由 Noctalia 自己的 community 源下载管理，不在仓库内复制第三方代码。

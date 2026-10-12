@@ -6,6 +6,7 @@ from pathlib import Path
 
 from personal import install
 from personal.cheatsheet_categories import annotate, category
+from nyxuri.deploy.atomic import atomic_replace_item
 from tests.utils import TempEnv
 
 
@@ -19,7 +20,17 @@ class PersonalCheatsheetTests(unittest.TestCase):
             config = tomllib.loads((stage / "noctalia/zz-personal-cheatsheet.toml").read_text())
             settings = config["plugin_settings"]["kenn/keybind-cheatsheet"]
             self.assertEqual(settings["compositor"], "niri")
-            self.assertEqual(settings["niri_config"], "/home/user/.config/nyxuri-desktop/niri/config.kdl")
+            self.assertEqual(settings["niri_config"], "~/.config/nyxuri-desktop/niri/config.kdl")
+            # Deploy the generated settings as the installer does. The plugin
+            # expands '~' itself, so the root must resolve in the target HOME.
+            target = ctx.home / ".config/nyxuri-desktop"
+            target.mkdir()
+            atomic_replace_item(stage / "niri", target / "niri")
+            atomic_replace_item(stage / "noctalia", target / "noctalia")
+            deployed = tomllib.loads((target / "noctalia/zz-personal-cheatsheet.toml").read_text())
+            root = Path(deployed["plugin_settings"]["kenn/keybind-cheatsheet"]["niri_config"]).expanduser()
+            self.assertEqual(root, target / "niri/config.kdl")
+            self.assertTrue(root.is_file())
             binds = (stage / "niri/personal-binds.kdl").read_text()
             shortcut = re.search(r'(?m)^    Mod\+Slash[^\n]*', binds).group()
             self.assertIn('repeat=false', shortcut)
