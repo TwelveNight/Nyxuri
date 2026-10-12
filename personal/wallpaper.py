@@ -40,6 +40,37 @@ def preview(output):
     return str(thumbnail)
 
 
+def preview_marker(path, connector=""):
+    directory = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / f"nyxuri-wallpaper-{os.getuid()}"
+    directory.mkdir(mode=0o700, exist_ok=True)
+    for old in directory.iterdir():
+        if old.is_file() and time.time() - old.stat().st_mtime > 60:
+            old.unlink(missing_ok=True)
+    key = hashlib.sha256(f"{connector}:{path}".encode()).hexdigest()
+    return directory / key
+
+
+def hook():
+    path = os.environ.get("NOCTALIA_WALLPAPER_PATH", "")
+    connector = os.environ.get("NOCTALIA_WALLPAPER_CONNECTOR", "")
+    if not path:
+        return
+    marker = preview_marker(path, connector)
+    if marker.exists():
+        marker.unlink(missing_ok=True)
+        return  # This event is our own preview update, never a render request.
+    cache = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+    source = Path(path).expanduser().resolve()
+    if source.is_relative_to((cache / "nyxuri-desktop/thumbnails").resolve()):
+        return  # Never replace a video with its preview image.
+    for output in current():
+        if connector and connector != (output.get("name") or output.get("output")):
+            continue
+        if path in [output.get("path"), preview(output)]:
+            return
+    apply(path, connector or None)
+
+
 def sync():
     for output in current():
         path = preview(output)
@@ -50,10 +81,11 @@ def sync():
         saved = subprocess.run(["noctalia", "msg", "wallpaper-get", *args], capture_output=True, text=True, timeout=3)
         if saved.returncode == 0 and saved.stdout.strip() == path:
             continue
+        preview_marker(path, connector or "").touch()
         subprocess.run(["noctalia", "msg", "wallpaper-set", *args, path], check=True, timeout=5)
 
 
-def apply(path):
+def apply(path, output=None):
     """Send the rendering request first; the watcher syncs Noctalia separately."""
     source = Path(path).expanduser().resolve(strict=True)
     if not source.is_file():
@@ -63,6 +95,8 @@ def apply(path):
     request = {"id": 1, "method": "wall.apply", "params": {
         "type": "video" if source.suffix.lower() in VIDEO else "static",
         "path": str(source), "no_transition": True, "notify": False}}
+    if output:
+        request["params"]["output"] = output
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         client.settimeout(10)
         client.connect(address)
@@ -96,7 +130,7 @@ if __name__ == "__main__":
         if sys.argv[1] == "apply":
             apply(sys.argv[2])
         else:
-            {"watch": watch, "sync": sync}[sys.argv[1]]()
+            {"watch": watch, "sync": sync, "hook": hook}[sys.argv[1]]()
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"wallpaper bridge: {error}", file=sys.stderr)
         raise SystemExit(1)

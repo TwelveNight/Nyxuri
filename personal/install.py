@@ -108,10 +108,12 @@ def prepare_sources(destination: Path) -> None:
     conf = destination / "noctalia/noctalia-config.toml"
     text = conf.read_text().replace('[wallpaper]\n', '[wallpaper]\nenabled = false\ntransition = []\ntransition_duration = 0\n')
     text = text.replace('[shell.greeter_sync]\nauto_sync = true', '[shell.greeter_sync]\nauto_sync = false')
-    text = text.replace('wallpaper_changed = ["~/.config/nyxuri-desktop/noctalia/wallpaper-hook.sh"]', 'wallpaper_changed = []')
+    text = text.replace('wallpaper_changed = ["~/.config/nyxuri-desktop/noctalia/wallpaper-hook.sh"]', 'wallpaper_changed = ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"]')
     text = text.replace('enabled = ["noctalia/mpvpaper"]', 'enabled = []')
     text = re.sub(r'\n\[widget\.mpvpaper\][\s\S]*?(?=\n\[|\Z)', '', text)
     text = re.sub(r'\n\[plugin_settings\."noctalia/mpvpaper"\][\s\S]*?(?=\n\[|\Z)', '', text)
+    text = text.replace('start = ["launcher", "workspaces", "group:g1"]',
+                        'start = ["launcher", "wallpaper", "workspaces", "group:g1"]')
     conf.write_text(text)
     # Reassert the personal output boundary against fresh upstream defaults.
     data = tomllib.loads(text)
@@ -124,6 +126,7 @@ def prepare_sources(destination: Path) -> None:
         output = template.get("output_path", "")
         if "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
+    policy += ['[widget.wallpaper.actions]', 'left = "exec skwd-wall-v2"']
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
 
 

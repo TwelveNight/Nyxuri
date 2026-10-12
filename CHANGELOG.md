@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+- 个人分支的状态栏壁纸按钮打开 skwd-wall，控制中心选图也交给 skwd 渲染。
+
 - 个人分支的应用搜索和其他 Noctalia 列表支持 Ctrl+J/K 上下选择。
 
 - 个人分支按 Super+Q 或 Alt+Q 隐藏 Folia 到托盘，继续播放音乐。

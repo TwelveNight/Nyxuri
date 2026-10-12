@@ -71,15 +71,20 @@ runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 
 `zz-personal.toml` 再次关闭 builtin/community 配色模板，禁用输出到私有目录和
 `~/.cache/nyxuri-desktop/` 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
-部署副本关闭 Noctalia 桌面绘制、wallpaper_changed hook 与 mpvpaper 插件。
+部署副本关闭 Noctalia 桌面绘制、mpvpaper 插件；wallpaper_changed 调用个人 wallpaper.py hook。
 自定义 Python 选择器的个人 backend 加载部署的 wallpaper.py，直接调用 apply，通过 skwd
 Unix socket 的 wall.apply 请求切换，单次请求 no_transition=true，不改共享过渡配置。
 请求失败返回非零；成功应答只代表后端接受请求，不保证画面已经显示。
 wallpaper.py watch 独立同步各输出的图片或视频缩略图到 Noctalia，用于取色与锁屏预览。
-同步不再反向请求 skwd，视频不会被预览图片覆盖。
+同步写入 Noctalia 前在私有运行目录标记该预览事件；hook 消费标记而不请求 skwd。
+用户在内置面板选图时 hook 请求 skwd，指定目标输出；当前壁纸和视频预览均跳过，
+运行标记最长保留 60 秒，避免过期同步事件回写渲染器。
 Super+Ctrl+W 打开 skwd-wall-v2 前端，沿用其自身过渡设置；
 Ctrl+Alt+T 打开 Nyxuri 自定义选择器；随机切换使用 skwd-helm random。
-Noctalia 内置壁纸面板仍是自身状态入口，没有替换其后端，不能用它切换 skwd 画面。
+bar 的 wallpaper 组件左键通过 `[widget.wallpaper.actions]` 打开 `skwd-wall-v2`，
+默认个人 bar 包含该组件；已有 GUI 布局保留，可在状态栏设置添加。
+控制中心的大预览卡片和底部 wallpaper 快捷按钮继续打开内置面板；选图由
+个人 hook 交给 skwd 渲染，Noctalia 不绘制第二层壁纸。
 外部 skwd 选择器的状态变化同样由单向监听同步。
 
 `personal/overview.kdl` 部署为私有 Niri 的 `personal-overview.kdl`，在用户

@@ -110,7 +110,7 @@ class TestPersonalSession(unittest.TestCase):
             self.assertFalse(config["wallpaper"]["enabled"])
             self.assertFalse(config["shell"]["clipboard_enabled"])
             self.assertEqual(config["hooks"]["wallpaper_changed"],
-                             [])
+                             ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"])
             self.assertIn("bar", config["bar"])
             self.assertEqual(config["theme"]["templates"]["builtin_ids"], [])
             self.assertEqual(config["plugins"]["enabled"], [])
@@ -156,7 +156,7 @@ class TestDirectWallpaperBackend(unittest.TestCase):
                 self.assertFalse(backend.apply_static_wallpaper("/a.png"))
             values = tomllib.loads((sources / "noctalia/noctalia-config.toml").read_text())
             self.assertFalse(values["wallpaper"]["enabled"])
-            self.assertEqual(values["hooks"]["wallpaper_changed"], [])
+            self.assertEqual(values["hooks"]["wallpaper_changed"], ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"])
             self.assertEqual(values["plugins"]["enabled"], [])
             self.assertTrue((sources / "niri/scripts/wallpaper.py").exists())
 

@@ -60,7 +60,9 @@ Super+Ctrl+W 打开 skwd-wall 前端；Ctrl+Alt+T 打开 Nyxuri 自定义选择�
 后者直接请求 skwd-wall 切换并取消本次过渡。skwd 前端沿用自身过渡设置。
 Noctalia 的取色、锁屏预览和私有 Kitty/Niri 模板由单向状态监听同步，不阻塞切换请求。
 Noctalia 桌面绘制、壁纸 hook 和 mpvpaper 插件关闭，Greeter 自动同步仍关闭。
-Noctalia 内置壁纸面板未替换后端；使用自定义选择器或 skwd 选择器切换实际壁纸。
+bar 的壁纸按钮直接打开 skwd-wall 选择器；已有 bar 布局可在设置中添加 wallpaper 组件。
+控制中心的壁纸预览卡片和快捷按钮仍打开 Noctalia 选择器，选图会交给 skwd 渲染。
+同步回来的预览事件不再触发切图，视频也不会被缩略图覆盖。
 Nyxuri 启动时先停止 II 配色监听，再把 skwd 交接到当前桌面；返回 iNiR／Hyprland
 时由它们原有 helper 恢复配色监听。共享服务启用关系和过渡配置不改。
 

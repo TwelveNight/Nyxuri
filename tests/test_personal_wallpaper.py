@@ -1,10 +1,11 @@
 """Direct rendering and one-way preview contracts, isolated from the desktop."""
 import json
 import os
+import tomllib
 import unittest
 from unittest.mock import Mock, patch
 
-from personal import wallpaper
+from personal import wallpaper, install
 from tests.utils import TempEnv
 
 
@@ -19,11 +20,11 @@ class TestPersonalWallpaper(unittest.TestCase):
                 reader = Mock(readline=Mock(return_value=b'{"id":1,"result":{"applied":"ok"}}\n'))
                 client.makefile.return_value = Mock(__enter__=Mock(return_value=reader), __exit__=Mock(return_value=False))
                 with patch.dict(os.environ, SKWD_WALL_V2_SOCK=str(ctx.home / "wall.sock")), patch.object(wallpaper.socket, "socket", return_value=socket_context), patch.object(wallpaper.subprocess, "run") as run:
-                    wallpaper.apply(str(image))
+                    wallpaper.apply(str(image), "DP-1")
                 client.connect.assert_called_once_with(str(ctx.home / "wall.sock"))
                 self.assertEqual(json.loads(client.sendall.call_args.args[0]), {
                     "id": 1, "method": "wall.apply", "params": {
-                        "path": str(image), "type": kind, "no_transition": True, "notify": False}})
+                        "path": str(image), "type": kind, "no_transition": True, "notify": False, "output": "DP-1"}})
                 run.assert_not_called()
 
     def test_rpc_error_is_not_treated_as_success(self):
@@ -50,4 +51,31 @@ class TestPersonalWallpaper(unittest.TestCase):
             ["noctalia", "msg", "wallpaper-get", "DP-1"],
             ["noctalia", "msg", "wallpaper-set", "DP-1", "/preview.png"],
             ["noctalia", "msg", "wallpaper-get", "DP-2"]])
-        self.assertFalse(hasattr(wallpaper, "hook"))
+
+
+    def test_bar_wallpaper_opens_skwd_frontend(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "sources"
+            source.mkdir()
+            install.prepare_sources(source)
+            policy = tomllib.loads((source / "noctalia/zz-personal.toml").read_text())
+            config = tomllib.loads((source / "noctalia/noctalia-config.toml").read_text())
+            self.assertEqual(policy["widget"]["wallpaper"]["actions"]["left"], "exec skwd-wall-v2")
+            self.assertIn("wallpaper", config["bar"]["bar"]["start"])
+            self.assertFalse(config["wallpaper"]["enabled"])
+            self.assertEqual(config["hooks"]["wallpaper_changed"], ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"])
+
+    def test_hook_routes_user_choice_but_ignores_preview_echo(self):
+        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home), NOCTALIA_WALLPAPER_PATH="/new.png", NOCTALIA_WALLPAPER_CONNECTOR="DP-1"), patch.object(wallpaper, "current", return_value=[]), patch.object(wallpaper, "apply") as apply:
+            wallpaper.hook()
+            apply.assert_called_once_with("/new.png", "DP-1")
+            apply.reset_mock()
+            wallpaper.preview_marker("/new.png", "DP-1").touch()
+            wallpaper.hook()
+            apply.assert_not_called()
+            self.assertFalse(wallpaper.preview_marker("/new.png", "DP-1").exists())
+
+    def test_video_preview_never_becomes_wallpaper(self):
+        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home), XDG_CACHE_HOME=str(ctx.home / "cache"), NOCTALIA_WALLPAPER_PATH=str(ctx.home / "cache/nyxuri-desktop/thumbnails/a.jpg")), patch.object(wallpaper, "apply") as apply:
+            wallpaper.hook()
+            apply.assert_not_called()
