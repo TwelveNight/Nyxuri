@@ -62,7 +62,7 @@ def prepare_sources(destination: Path) -> None:
     custom_include = 'include "__custom__.kdl"'
     if custom_include not in content:
         raise ValueError("Upstream Niri custom include contract changed; review before deployment")
-    content = content.replace(custom_include, 'include "personal-binds.kdl"\ninclude "75-personal-binds.kdl"\ninclude "personal-startup.kdl"\n' + custom_include)
+    content = content.replace(custom_include, 'include "personal-binds.kdl"\ninclude "75-personal-binds.kdl"\ninclude "personal-startup.kdl"\ninclude "personal-overview.kdl"\n' + custom_include)
     niri.write_text(content)
     shutil.copy2(ROOT / "personal/binds.kdl", destination / "niri/personal-binds.kdl")
     shutil.copy2(ROOT / "personal/75-personal-binds.kdl", destination / "niri/75-personal-binds.kdl")
@@ -70,6 +70,7 @@ def prepare_sources(destination: Path) -> None:
     binds = destination / "niri/binds.kdl"
     binds.write_text(re.sub(r'^    Mod\+X\s[^\n]*\n', "", binds.read_text(), flags=re.MULTILINE))
     shutil.copy2(ROOT / "personal/startup.kdl", destination / "niri/personal-startup.kdl")
+    shutil.copy2(ROOT / "personal/overview.kdl", destination / "niri/personal-overview.kdl")
     scripts = destination / "niri/scripts"
     for name in ("desktop-session.py", "runtime.py", "wallpaper.py", "session.py"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)

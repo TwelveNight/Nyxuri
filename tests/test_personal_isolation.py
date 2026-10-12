@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -20,6 +21,28 @@ def handoff_helper():
 
 
 class PersonalIsolationTests(unittest.TestCase):
+    def test_overview_uses_skwd_renderers_without_moving_picker_or_shell(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            original = (install.ROOT / "configs/niri/config.kdl").read_bytes()
+            install.prepare_sources(source)
+            config = (source / "niri/config.kdl").read_text()
+            overview = (source / "niri/personal-overview.kdl").read_text()
+            self.assertLess(config.index('include "personal-overview.kdl"'),
+                            config.index('include "__custom__.kdl"'))
+            self.assertIn('backdrop-color "transparent"', overview)
+            self.assertIn('zoom 0.75', overview)
+            self.assertRegex(overview, r'workspace-shadow\s*\{\s*on\s*\}')
+            self.assertRegex(overview, r'overview-open-close\s*\{\s*spring damping-ratio=1\.0 stiffness=900 epsilon=0\.0001')
+            self.assertIn('place-within-backdrop true', overview)
+            namespace = re.search(r'match namespace="([^"]+)"', overview).group(1)
+            for renderer in ("skwd-paper", "skwd-wall-vk", "skwd-wall-still"):
+                self.assertRegex(renderer, namespace)
+            for surface in ("skwd-wall-v2", "skwd-paper-picker", "noctalia-bar-bar", "noctalia-dock", "mpvpaper"):
+                self.assertNotRegex(surface, namespace)
+            self.assertEqual((install.ROOT / "configs/niri/config.kdl").read_bytes(), original)
+
     def test_deployed_launchers_ignore_public_tools_and_legacy_shell_selection(self):
         with TempEnv() as ctx:
             private = ctx.home / ".config/nyxuri-desktop"

@@ -77,6 +77,15 @@ Python 选择器静态／视频均调用参数数组 `skwd-helm apply`，随机�
 识别活动路径／预览，避免把视频替换成缩略图。
 Noctalia 的壁纸绘制不能在 GUI 覆盖状态里重新打开。
 
+`personal/overview.kdl` 部署为私有 Niri 的 `personal-overview.kdl`，在用户
+`__custom__.kdl` 前加载。渲染器的 `skwd-paper`／`skwd-wall-still`／`skwd-wall-vk` 图层
+使用 `place-within-backdrop true`，overview 背景透明，当前 skwd 壁纸保持全屏，
+不随工作区预览缩小。选择器 `skwd-wall-v2` 与 Noctalia 栏／dock 不匹配此规则。
+概览直接使用已有渲染器，不启用 Noctalia 静态 backdrop，不新建壁纸进程，
+不修改共享 skwd 或其他 Niri 会话的配置。
+原生概览使用 iNiR 的 `zoom 0.75`、启用的工作区阴影与开合动画
+（spring damping-ratio=1.0、stiffness=900、epsilon=0.0001）；不涉及 iNiR Shell 的启动器界面。
+
 Kitty 基础设置仍来自原有 Kitty，颜色、Niri glow 和 Noctalia 模板路径在私有
 目录；Nyxuri 会话中 II 配色监听保持停止，避免换壁纸改写共享 GTK／Qt／II 设置。
 不安装 GTK/Fcitx/Fisher/Greeter。

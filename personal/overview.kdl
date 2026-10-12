@@ -1,0 +1,21 @@
+// Keep the active skwd wallpaper behind all overview workspaces.
+overview {
+    zoom 0.75
+    backdrop-color "transparent"
+    workspace-shadow {
+        on
+    }
+}
+
+// Follow the active iNiR native overview animation.
+animations {
+    overview-open-close {
+        spring damping-ratio=1.0 stiffness=900 epsilon=0.0001
+    }
+}
+
+// Match renderers only; the skwd picker must remain an interactive overlay.
+layer-rule {
+    match namespace="^skwd-(paper|wall-vk|wall-still)$"
+    place-within-backdrop true
+}

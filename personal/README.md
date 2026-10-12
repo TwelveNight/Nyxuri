@@ -61,6 +61,10 @@ cd ~/Template/github/niri-dots/Nyxuri
 Noctalia 的桌面壁纸绘制、mpvpaper 插件及自动 Greeter 同步默认关闭。
 请保持 Noctalia 的壁纸绘制关闭，不在 GUI 中启用第二个桌面后端。
 
+Niri overview 的全屏背景也使用当前 skwd 静态／动态壁纸；个人图层规则让
+壁纸留在 backdrop，工作区预览缩小时壁纸保持全屏。无需额外的背景进程。
+概览沿用 iNiR 的 0.75 缩放、工作区阴影和开合动画。
+
 Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` 使用
 `~/.config/nyxuri-desktop`，不是最终应用目录。GUI 状态继续沿用
 `~/.local/state/nyxuri-desktop/noctalia/noctalia/`，保留已有设置。
