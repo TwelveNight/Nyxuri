@@ -97,8 +97,7 @@ exec_python_engine() {
     # -I -S blocks PYTHON* and sitecustomize startup injection; the fixed
     # launcher receives the validated tree and user arguments separately.
     local python_launcher='import sys; target = sys.argv.pop(1); sys.path.insert(0, target); sys.argv[0] = "nyxuri"; from nyxuri.cli import main; main()'
-    # This branch keeps its desktop policy in personal/, including on a fresh
-    # clone. Upstream trees without that entry retain the ordinary engine.
+    # Keep personal desktop policy in this branch's entry, including fresh clones.
     if [ -f "$target_dir/personal/entry.py" ]; then
         python_launcher='import sys; target = sys.argv.pop(1); sys.path.insert(0, target); sys.argv[0] = "nyxuri"; from personal.entry import main; main()'
     fi

@@ -15,12 +15,12 @@ if [ ! -r "$state_file" ] && [ -r "$state_root/NyxNiri/state.json" ]; then
 fi
 active_shell="noctalia"
 if [ -r "$state_file" ]; then
-    if grep -q '"active_shell"[[:space:]]*:[[:space:]]*"custom"' "$state_file" 2>/dev/null; then
-        active_shell="custom"
+    if grep -Eq '"active_shell"[[:space:]]*:[[:space:]]*"(nyxuri-shell|custom)"' "$state_file" 2>/dev/null; then
+        active_shell="nyxuri-shell"
     fi
 fi
 
-if [ "$active_shell" = "custom" ]; then
+if [ "$active_shell" = "nyxuri-shell" ] || [ "$active_shell" = "custom" ]; then
     custom_shell_bin="${NYXURI_CUSTOM_SHELL_BIN:-${NYXNIRI_CUSTOM_SHELL_BIN:-}}"
     if [ -z "$custom_shell_bin" ] && [ -r "$state_file" ]; then
         custom_bin_json=$(grep -o '"custom_shell_bin"[[:space:]]*:[[:space:]]*"[^"]*"' "$state_file" 2>/dev/null | head -n 1 | sed 's/.*"[[:space:]]*:[[:space:]]*"//;s/"//' || true)
@@ -29,10 +29,21 @@ if [ "$active_shell" = "custom" ]; then
         fi
     fi
 
+    if [ -z "$custom_shell_bin" ] && command -v nyxuri-shell >/dev/null 2>&1; then
+        custom_shell_bin=$(command -v nyxuri-shell)
+    fi
+
+    if [ -n "$custom_shell_bin" ] && [ ! -x "$custom_shell_bin" ]; then
+        healed="${custom_shell_bin%/bin/nyxuri-shell}/nyxuri-shell"
+        if [ -x "$healed" ]; then
+            custom_shell_bin="$healed"
+        fi
+    fi
+
     if [ -n "$custom_shell_bin" ] && [ -x "$custom_shell_bin" ]; then
         exec "$custom_shell_bin" --action "$action"
     else
-        echo "Warning: Custom shell binary is missing or not executable (${custom_shell_bin:-none}), falling back to Noctalia." >&2
+        echo "Warning: Nyxuri shell binary is missing or not executable (${custom_shell_bin:-none}), falling back to Noctalia." >&2
     fi
 fi
 
@@ -69,9 +80,16 @@ case "$action" in
         fi
         exec python3 "$tools_dir/orbit-launcher.py"
         ;;
+    translate)
+        tools_dir="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/tools"
+        if [ -x "$tools_dir/orbit-translate.py" ]; then
+            exec "$tools_dir/orbit-translate.py"
+        fi
+        exec python3 "$tools_dir/orbit-translate.py"
+        ;;
     *)
         echo "Unknown shell action: $action" >&2
-        echo "Usage: $0 {launcher|session|settings|clipboard|lock|wallpaper-random|wallpaper-picker|radial-launcher}" >&2
+        echo "Usage: $0 {launcher|session|settings|clipboard|lock|wallpaper-random|wallpaper-picker|radial-launcher|translate}" >&2
         exit 1
         ;;
 esac

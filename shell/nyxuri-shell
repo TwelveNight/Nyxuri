@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Nyxuri Shell Launcher & Gateway (nyxuri-shell)
+# Native wrapper for starting Nyxuri Shell and dispatching shell actions.
+# ==============================================================================
+
+set -euo pipefail
+
+SOURCE_FILE="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "${SOURCE_FILE}")" && pwd)
+SHELL_DIR="${SCRIPT_DIR}"
+
+FALLBACK_QML_PATH="${SHELL_DIR}/fallback"
+if [ -d "${FALLBACK_QML_PATH}" ]; then
+    export QML_IMPORT_PATH="${QML_IMPORT_PATH:+${QML_IMPORT_PATH}:}${FALLBACK_QML_PATH}"
+    export QML2_IMPORT_PATH="${QML2_IMPORT_PATH:+${QML2_IMPORT_PATH}:}${FALLBACK_QML_PATH}"
+fi
+
+# The generated palette has to be written where the shell reads it. The two sides
+# defaulted to different places: scripts/lib/clavis-paths.sh resolves to
+# $XDG_STATE_HOME/quickshell/user/generated, while Paths.qml computed
+# <dataHome>/profiles/<profile>/generated. Whenever those disagree the palette is
+# written somewhere nothing reads, and every theme change looks inert. Pin both
+# to the same directory here, which is also the only place the deployer would set.
+GENERATED_HOME_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/generated"
+export NYXURI_SHELL_GENERATED_HOME="${NYXURI_SHELL_GENERATED_HOME:-$GENERATED_HOME_DEFAULT}"
+export CLAVIS_GENERATED_HOME="${CLAVIS_GENERATED_HOME:-$GENERATED_HOME_DEFAULT}"
+
+ACTION=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --action)
+            if [ $# -lt 2 ] || [ -z "$2" ]; then
+                printf 'Missing action after --action\n' >&2
+                exit 2
+            fi
+            ACTION="${2:-}"
+            shift 2
+            ;;
+        --check-ready)
+            ACTION="check-ready"
+            shift 1
+            ;;
+        --stage)
+            ACTION="stage"
+            shift 1
+            ;;
+        --status)
+            ACTION="status"
+            shift 1
+            ;;
+        --stop)
+            ACTION="stop"
+            shift 1
+            ;;
+        -h|--help)
+            echo "Usage: nyxuri-shell [--action <launcher|session|settings|clipboard|lock|wallpaper-random|wallpaper-picker|radial-launcher>|--check-ready|--stage|--status|--stop]"
+            exit 0
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [ -n "$ACTION" ]; then
+    case "$ACTION" in
+        launcher)
+            exec qs -p "${SHELL_DIR}" ipc call spotlight toggle
+            ;;
+        session)
+            exec qs -p "${SHELL_DIR}" ipc call power-menu toggle
+            ;;
+        settings)
+            exec qs -p "${SHELL_DIR}" ipc call control-center toggle ""
+            ;;
+        clipboard)
+            exec qs -p "${SHELL_DIR}" ipc call spotlight openMode clipboard
+            ;;
+        lock)
+            if ! qs -p "${SHELL_DIR}" ipc call lock open 2>/dev/null; then
+                qs -p "${SHELL_DIR}" --no-duplicate >/dev/null 2>&1 &
+                for _ in $(seq 1 30); do
+                    sleep 0.1
+                    if qs -p "${SHELL_DIR}" ipc call lock open 2>/dev/null; then
+                        exit 0
+                    fi
+                done
+                exit 1
+            fi
+            exit 0
+            ;;
+        wallpaper-random)
+            exec qs -p "${SHELL_DIR}" ipc call wallpaper random
+            ;;
+        wallpaper-picker)
+            exec qs -p "${SHELL_DIR}" ipc call control-center toggle "wallpaper"
+            ;;
+        radial-launcher)
+            tools_dir="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/tools"
+            if [ -x "$tools_dir/orbit-launcher.py" ]; then
+                exec "$tools_dir/orbit-launcher.py"
+            fi
+            if [ -f "$tools_dir/orbit-launcher.py" ]; then
+                exec python3 "$tools_dir/orbit-launcher.py"
+            fi
+            exit 0
+            ;;
+        stage)
+            exec qs -p "${SHELL_DIR}" ipc call shell stage
+            ;;
+        status)
+            exec qs -p "${SHELL_DIR}" ipc call shell status
+            ;;
+        check-ready)
+            if res=$(qs -p "${SHELL_DIR}" ipc call shell isReady 2>/dev/null); then
+                if [ "${res}" = "true" ]; then
+                    exit 0
+                fi
+                exit 1
+            fi
+            if qs -p "${SHELL_DIR}" ipc show >/dev/null 2>&1; then
+                exit 0
+            else
+                exit 1
+            fi
+            ;;
+        stop)
+            exec qs kill -p "${SHELL_DIR}" >/dev/null 2>&1 || true
+            ;;
+        *)
+            echo "Unknown action: ${ACTION}" >&2
+            exit 1
+            ;;
+    esac
+fi
+
+# Default: start Nyxuri Shell via quickshell
+exec qs -p "${SHELL_DIR}" --no-duplicate "$@"

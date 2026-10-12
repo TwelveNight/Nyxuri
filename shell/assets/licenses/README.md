@@ -1,0 +1,126 @@
+# Third-party sources
+
+Existing license files in this directory continue to cover their respective
+components.
+
+## Animated Weather Cards
+
+Source: [Animated Weather Cards](https://codepen.io/ste-vg/pen/GqaZbo) by Steve Gardner.
+The current-weather animation at the top of Clavis's sidebar weather view
+recreates the original web project's visuals and animation in Qt/QML.
+
+The original project is licensed under MIT. [AnimatedWeatherCards-MIT.txt](AnimatedWeatherCards-MIT.txt)
+preserves the complete license and copyright notice verbatim from the downloaded
+CodePen project's `LICENSE.txt`.
+
+## Zen Browser
+
+Source: [Zen Browser / zen-browser/desktop](https://github.com/zen-browser/desktop),
+local checkout commit `412731f37e567223097101d9fae9f9d364708b6b`.
+
+| Upstream file | Nyxuri adaptation |
+| --- | --- |
+| `src/zen/spaces/ZenGradientGenerator.mjs` | `shared/utils/ZenPalette.js`: color-position math, harmony relations, primary identity and Linux opaque background semantics; `assets/shaders/wallpaper/frag/zen-palette.frag`: layered gradients |
+| `src/browser/base/content/zen-panels/theme-picker.inc` | `shared/utils/ZenPalette.js`: all 41 presets across five pages, including positions, algorithms, lightness and type; `modules/settings/ZenPaletteEditor.qml`: editor controls |
+| `src/zen/spaces/zen-gradient-generator.css` | `modules/settings/ZenPaletteEditor.qml`: dotted editing pad, primary/secondary dots, preset pagination, opacity range and 16-position grain control |
+| `src/zen/common/styles/zen-browser-ui.css` | `assets/shaders/wallpaper/frag/zen-palette.frag` and `modules/wallpaper/ZenPaletteRenderer.qml`: screen-blended background layers and ordinary alpha grain overlay |
+
+These files retain the upstream MPL notice. The complete license is in
+`ZenBrowser-MPL-2.0.txt`. No file-level “Incompatible With Secondary Licenses”
+notice was found in the adapted sources. Exhibit B in the full license is a
+notice template, not such a designation of these files. No separate license
+was found for these source files. No Zen artwork, logos, or grain bitmap is
+copied; the shader implements independent, deterministic monochrome grain.
+
+The modified files and their additions are distributed under both
+MPL-2.0 and GPL-3.0-or-later as part of the Nyxuri Larger Work, pursuant to MPL
+section 3.3. Recipients may use these files under either license. See Mozilla's
+[MPL-in-GPL developer guidelines](https://www.mozilla.org/en-US/MPL/2.0/combining-mpl-and-gpl/).
+The existing GPL code is reused through component interfaces, not copied into
+the MPL files. Nyxuri configuration, draft lifecycle and backend services remain
+under the project's original license.
+
+Adaptations replace browser DOM/events with QML, normalize editor positions on a fixed 380px square color plane (the upstream
+nominal panel width), independent of browser padding and live QML geometry,
+make secondary positions and RGB derived state, fix secondary dragging and
+primary selection, canonicalize the upstream `float` preset spelling to
+`floating`, and keep theme selection local to the wallpaper. The desktop uses
+an opaque base following the global theme, using Zen’s light/dark base
+colors instead of browser platform transparency. Palette data and presets do not
+select or change the global theme.
+Save/cancel, per-output scopes and external theme generation belong to Nyxuri.
+
+QML/JS and GLSL source are installed with the shell. The shader is compiled by
+Qt Shader Baker (`qsb`) into `assets/shaders/wallpaper/qsb/zen-palette.frag.qsb`
+and loaded via `Paths.fileUrl(...)` without requiring runtime compiler toolchains.
+No reference checkout is needed to build, test, install or run Nyxuri. This port does not imply Zen
+Browser endorsement.
+
+## Caelestia media cover
+
+Source: [Caelestia Shell](https://github.com/caelestia-dots/shell), local checkout
+commit `20e625d6bf1a9d0bb7625a4bb814797d187b075d`.
+
+`Modules/Keystone/MediaContent/CaelestiaCover.qml` adapts
+`modules/dashboard/media/CoverVisualiser.qml` and
+`components/widgets/CoverArt.qml`: the rotating nine-sided Cookie mask and
+spectrum bars that follow its outline. Clavis uses its own audio service and
+color tokens, pools peaks from the full spectrum into 36 bars with a linear
+response, and uses 4-pixel strokes with a 2–20 pixel amplitude range. It releases
+audio acquisition while hidden or paused. The cover
+scales with the media layout and uses Clavis's missing-art placeholder.
+
+The upstream GPL-3.0 license is preserved in
+[caelestia-shell-GPL-3.0.txt](caelestia-shell-GPL-3.0.txt). The shape is supplied
+by the external M3Shapes runtime; no upstream geometry implementation is copied.
+
+## M3Shapes and Cookie Clock
+
+[M3Shapes](https://github.com/soramanew/m3shapes) is an external QML runtime
+dependency, supplied on Arch by `qt6-m3shapes-git`. Clavis no longer distributes
+or builds its former vendored C++ geometry, morphing, renderer or plugin sources.
+`M3Shapes-Apache-2.0.txt` is retained as an upstream license reference; the installed
+module and its license are provided by the system package.
+
+The retained `Modules/SystemCards/CookieClock/` QML geometry and presentation
+adaptations from end-4/dots-hyprland remain covered by
+`end-4-dots-hyprland-GPL-3.0.txt` and their source notices. They consume the external
+M3Shapes API and are not the removed vendored M3Shapes C++ implementation.
+
+## Meteocons
+
+Source: https://github.com/basmilius/meteocons, MIT © Bas Milius.
+The release bundles `@meteocons/svg@0.1.0` and `@meteocons/lottie@0.1.0` from npm.
+Their URLs and SHA-256 hashes are pinned in `packaging/dependencies.json`.
+The npm archives omit the license text; `Meteocons-MIT.txt` supplies it.
+
+## Material Color Utilities
+
+Source: [material-foundation/material-color-utilities](https://github.com/material-foundation/material-color-utilities),
+npm package `@material/material-color-utilities` 0.3.0, Apache-2.0 © Google LLC.
+
+| Upstream file | Nyxuri adaptation |
+| --- | --- |
+| `utils/math_utils.js`, `utils/color_utils.js`, `hct/viewing_conditions.js`, `hct/cam16.js`, `hct/hct_solver.js`, `hct/hct.js` | `shared/utils/ThemeColor.js`: consolidated into one `.pragma library`; ESM imports flattened, unused exports trimmed, math untouched. Additions at the bottom: `hexFromArgb`, `argbFromHex`, `hexToArgb`, `toneOf`, `hueChromaOf`, `hexFromHueChromaTone` |
+
+`M3Shapes-Apache-2.0.txt` carries the verbatim Apache-2.0 text for this file.
+The same math seeds the planned full material-color-utilities vendor that
+replaces the matugen extraction slot.
+
+## Noctalia (theme templates)
+
+Source: [Noctalia](https://noctalia.dev) 5.2.1, MIT © noctalia-dev
+(`noctalia-MIT.txt`).
+
+| Upstream file | Nyxuri adaptation |
+| --- | --- |
+| `assets/templates/kitty/kitty.conf` | `shell/assets/templates/kitty/kitty.conf`: header comment, otherwise verbatim |
+| `assets/templates/kitty/apply.sh` | `shell/assets/templates/kitty/kitty-apply.sh`: theme file and include line renamed to `nyxuri.conf` |
+| `assets/templates/btop/btop.theme` | `shell/assets/templates/btop/btop.theme`: header comment, otherwise verbatim |
+| `assets/templates/btop/apply.sh` | `shell/assets/templates/btop/btop-apply.sh`: `color_theme = "nyxuri"` |
+| `assets/templates/starship/starship.toml` | `shell/assets/templates/starship/starship.toml`: palette name `noctalia` → `nyxuri`, header comment |
+| `assets/templates/starship/apply.sh` | `shell/assets/templates/starship/starship-apply.sh`: cache path and markers renamed to nyxuri; also strips a previous Noctalia block so the co-managed `starship.toml` keeps a single palette block |
+
+The golden reference fixtures under `shell/tests/fixtures/theme/golden/` are
+unmodified `noctalia theme` outputs and remain covered by the same MIT notice.
+`undo.sh` scripts were not vendored: the P4 registry has no undo semantics yet.

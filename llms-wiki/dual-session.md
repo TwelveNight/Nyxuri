@@ -71,6 +71,8 @@ runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 
 ## 壁纸和颜色
 
+按用户选择保留上游 theme_mode_changed = "nyxuri theme sync"，切换深浅主题时
+同步共享应用主题；三套桌面共用 skwd 壁纸，此处允许全局配色同步。
 `zz-personal.toml` 再次关闭 builtin/community 配色模板，禁用输出到私有目录和
 `~/.cache/nyxuri-desktop/` 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
 部署副本关闭 Noctalia 桌面绘制、mpvpaper 插件；wallpaper_changed 调用个人 wallpaper.py hook。
@@ -94,7 +96,8 @@ bar 的 wallpaper 组件左键通过 `[widget.wallpaper.actions]` 打开 `skwd-w
 选择器和 shell 图层不匹配；overview 背景透明，缩放 0.75，保留工作区阴影与开合动画。
 
 Kitty 基础设置仍来自原有 Kitty，颜色、Niri glow 和 Noctalia 模板路径在私有
-目录；Nyxuri 会话中 II 配色监听保持停止，避免换壁纸改写共享 GTK／Qt／II 设置。
+目录；Nyxuri 会话中 II 配色监听保持停止，壁纸取色仍走私有模板。
+显式深浅主题切换允许上游 theme sync 写入共享 GTK／Qt 设置，不修改 II shell 配置。
 不安装 GTK/Fcitx/Fisher/Greeter。
 此适配不修改共享用户服务的启用关系及已有 Portal 路由。
 
@@ -115,8 +118,8 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 切换指注销后在 GDM 选择另一登录项，不意味着保留原桌面窗口或同时运行三套 compositor。
 本次审计的证据与待验项见 [personal/ISOLATION.md](../personal/ISOLATION.md)。
 
-本次在官方 `origin/main` `ebafe03` 的临时副本验证了部署兼容性及配置语法；
-当前个人分支没有合并该提交。官方 main 已改写过历史，首次 merge 可能需要人工解冲突。
+个人分支已合并官方 `origin/main` `ebafe03`（v4.0.0-alpha.1 后）。
+历史改写的冲突采用新版上游实现，保留个人入口、公共部署保护与私有配置层。
 
 ## 个人键位与自启动
 

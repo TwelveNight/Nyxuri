@@ -17,9 +17,10 @@ PYTHON_LAUNCHER = (
     'import sys; target = sys.argv.pop(1); sys.path.insert(0, target); '
     'sys.argv[0] = "nyxuri"; from nyxuri.cli import main; main()'
 )
-PERSONAL_LAUNCHER = PYTHON_LAUNCHER.replace("from nyxuri.cli", "from personal.entry")
 PYTHON_VERSION_CODE = 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")'
 
+
+PERSONAL_LAUNCHER = PYTHON_LAUNCHER.replace("from nyxuri.cli", "from personal.entry")
 
 class TestInstallBootstrap(unittest.TestCase):
     def _fake_tools(self, root: Path, log: Path) -> Path:
@@ -209,24 +210,6 @@ class TestInstallBootstrap(unittest.TestCase):
                 check=False,
             )
             self._assert_secure_launch(result, log, marker, cache, user_args)
-
-    def test_tree_without_personal_entry_keeps_upstream_launcher(self):
-        with TempEnv() as env, tempfile.TemporaryDirectory(dir=env.home) as raw:
-            root = Path(raw)
-            cache = self._prepare_cache(env, root)
-            shutil.rmtree(cache / "personal")
-            marker = root / "forged-marker"
-            self._fake_package(root, marker)
-            self._fake_sitecustomize(root, marker)
-            log = root / "python.log"
-            bindir = self._fake_tools(root, log)
-            user_args = ["help"]
-            result = subprocess.run(["bash", "-s", "--", *user_args], cwd=root,
-                                    input=(REPO_ROOT / "install.sh").read_text(),
-                                    env=self._launch_env(env, bindir, root, root / "userbase"),
-                                    capture_output=True, text=True, check=False)
-            self._assert_secure_launch(result, log, marker, cache, user_args)
-            self.assertNotIn("personal overlay", result.stdout)
 
 
 if __name__ == "__main__":

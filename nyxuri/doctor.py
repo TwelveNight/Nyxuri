@@ -41,7 +41,7 @@ def _check_wayland_session(env) -> None:
         print(msg("doctor_warn", text(f"会话: 缺少 {sess_file}", f"Session: {sess_file} is missing")))
 
 def _check_shell_provider(env) -> None:
-    from nyxuri.state.ledger import active_shell, read_ledger
+    from nyxuri.state.ledger import active_shell, nyxuri_shell_bin
     current = active_shell()
     if current == "noctalia":
         if shutil.which(THEME_ENGINE):
@@ -49,13 +49,13 @@ def _check_shell_provider(env) -> None:
         else:
             print(msg("doctor_warn", text("桌面外壳: 当前选用 Noctalia 但未在 PATH 中找到", "Desktop Shell: Noctalia selected but missing from PATH")))
     else:
-        custom_bin = read_ledger().get("custom_shell_bin", get_compat_env("CUSTOM_SHELL_BIN", ""))
+        custom_bin = nyxuri_shell_bin() or get_compat_env("CUSTOM_SHELL_BIN", "")
         if custom_bin and os.path.isfile(custom_bin) and os.access(custom_bin, os.X_OK):
-            print(msg("doctor_ok", text(f"桌面外壳: 自研/自定义 Shell ({custom_bin}) 可用", f"Desktop Shell: Custom shell ({custom_bin}) available")))
+            print(msg("doctor_ok", text(f"桌面外壳: Nyxuri Shell ({custom_bin}) 可用", f"Desktop Shell: Nyxuri Shell ({custom_bin}) available")))
         else:
             print(msg("doctor_warn", text(
-                f"桌面外壳: 自研/自定义 Shell ({custom_bin or '未配置'}) 不可执行，将回退 Noctalia",
-                f"Desktop Shell: Custom shell ({custom_bin or 'not configured'}) not executable; will fallback to Noctalia",
+                f"桌面外壳: Nyxuri Shell ({custom_bin or '未配置'}) 不可执行，将回退 Noctalia",
+                f"Desktop Shell: Nyxuri Shell ({custom_bin or 'not configured'}) not executable; will fallback to Noctalia",
             )))
 
 def _check_noctalia(env) -> None:
@@ -91,12 +91,25 @@ def _check_core_deps(env) -> None:
         tools = f"{MAIN_WM}, {THEME_ENGINE}, fish, starship"
         print(msg("doctor_ok", text(f"核心依赖已安装: {tools}", f"Core dependencies installed: {tools}")))
 
+def _check_matugen(env) -> None:
+    """Palette extraction engine — optional by contract, loud when absent."""
+    if shutil.which("matugen"):
+        res = timed_run(["matugen", "--version"], 5, capture_output=True, text=True, check=False)
+        version = res.stdout.strip() if res is not None and res.returncode == 0 else "unknown"
+        print(msg("doctor_ok", text(f"取色引擎: matugen {version}", f"Color engine: matugen {version}")))
+        return
+    print(msg("doctor_warn", text(
+        "取色引擎: 缺少 matugen — Shell 使用内置回退色，壁纸取色不可用（可选依赖）",
+        "Color engine: matugen is missing — the shell falls back to builtin colors; wallpaper extraction is unavailable (optional dependency)")))
+
+
 def _check_scripts(env) -> None:
     config_dir = env.config_dir
     scripts_info = [
-        (f"{THEME_ENGINE}/theme-sync.sh", "theme-sync.sh"),
         (f"{THEME_ENGINE}/wallpaper-hook.sh", "wallpaper-hook.sh"),
         (f"{THEME_ENGINE}/mpvpaper-sync.sh", "mpvpaper-sync.sh"),
+        (f"{MAIN_WM}/scripts/session-shell.sh", "session-shell.sh"),
+        (f"{MAIN_WM}/scripts/shell-action.sh", "shell-action.sh"),
         (f"{MAIN_WM}/scripts/toggle-eyecare.sh", "toggle-eyecare.sh"),
         (f"{MAIN_WM}/scripts/niri-scratch-toggle.sh", "niri-scratch-toggle.sh"),
         (f"{THEME_ENGINE}/tools/orbit-launcher.py", "orbit-launcher.py"),
@@ -318,6 +331,7 @@ DOCTOR_SECTIONS = [
     ]),
     ("doctor_sec_core", [
         _check_core_deps,
+        _check_matugen,
         _check_scripts,
         _check_shell,
         _check_orbit,

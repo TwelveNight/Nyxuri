@@ -1,0 +1,479 @@
+# Nyxuri Shell — 母体基准与审计
+
+## 基准与适用范围
+
+- 上游：[StatIndet/quickshell](https://github.com/StatIndet/quickshell)，默认分支 `main`。
+- 固定 commit：`91cdecbe08831acdcff44d350e09232efe7164ed`；提交时间 `2026-09-30T22:21:35+08:00`；获取日期 `2026-10-01`。
+- 导入方式：完整 clone 到临时目录，再用该 commit 的 `git archive` 平铺到 `shell/`。901 个 Git 跟踪文件原样保留，包括隐藏文件、测试、GPL-3.0 主许可证及第三方归属；不包含 `.git`、构建产物和上游未跟踪文件。
+- 母体导入时唯一修正：`.gitignore` 的 `build/` 改为 `/build/`。上游已跟踪的 `scripts/build/compile-launcher-shaders.sh` 在新宿主中否则会被忽略；收窄规则后 901 个文件均可正常纳入 Git。导入前已逐文件验证内容和可执行权限，修正后源码仍与基准一致。
+- 导入树约 11.86 MB，507 个 QML 文件；Google Sans Flex 字体本体 3,997,148 字节。本轮不删字体、不改上游源码、不运行上游安装器、不接入部署。
+- 需求依据：[issue #111](https://github.com/ech678/Nyxuri/issues/111)。后续工作见 [实施蓝图](blueprint.md)。
+
+同步上游必须显式选择 commit、先比较净差异，再在现有母体上合并；不自动跟随 main，不用一次全量覆盖抹掉 Nyxuri 修改。此记录是上游基准，不是 Nyxuri 发布版本。未来编译应显式传入基准 commit，避免 CMake 在无嵌套 `.git` 时误把宿主 HEAD 当成 Clavis commit。
+
+`shell/AGENTS.md` 是 Nyxuri 开发契约，继承宿主约束；上游 docs 仅作参考。源码软链进用户配置的上游开发方式与宿主物理隔离契约冲突，Nyxuri 必须采用原子复制。上游单独 clone 的测试假设、Git 文件选择器和根目录 GitHub workflows 不会因平铺自动适配宿主；不能假定原有检查入口已正确覆盖导入树。
+
+2026-10-01 文档整合时核实：母体文件已在本地完整平铺，但大量源码仍未跟踪。
+提交 16785c6 只记录计划、契约与审计，检出该提交不能获得完整母体。
+后续首次源码提交应单独保存母体与来源，再开展可追溯改造；本次文档修改不暂存或提交源码。
+
+## P3 恢复依据（2026-10-02）
+
+已核实本地提交 `15403b970a73e39ee8e5e42e567fdce0f570e4c0` 保存原始母体，
+`shell` tree 为 `bf81fa27845207502798e35b17157402961e4e99`。下文旧路径是历史审计引用，
+不能按当前树路径不存在推断原功能不存在。历史源码引用用代码路径表示，
+从固定提交或完整参考树读取，不链接到已经移除的现树位置。恢复步骤见 [恢复计划](recovery.md)。
+用户报告 Bar 滚轮失效、通知透明与错位；尚未逐项实机复现。已提取并逐文件核验参考树：909 个文件、11,943,087 字节、18 个可执行文件，
+内容与权限全部匹配固定 Git 树；来源与核验见 [SOURCE](../references/clavis-15403b9/SOURCE.md)。
+参考树位于`shell/references/clavis-15403b9/`，保留完整原始路径；不参与运行、构建或部署。
+[恢复矩阵](recovery-matrix.md) 覆盖全功能入口及原路径/现路径，
+[输入附件](recovery-inputs.md) 逐一列出显式交互。未修改运行代码或实测产品恢复。
+
+## 结论与证据等级
+
+本页的“确认”来自固定 commit 源码；“实测”仅限下面的隔离探测。静态扫描列出候选接口，不能证明文件启动可达、进程实际常驻或网络实际发出。没有真实 Wayland 视觉、冷启动性能、RSS 或退出残留测量，不能宣称秒启、零报错或泄漏成立。
+
+### 启动闭包
+
+[shell.qml](../shell.qml) 的 `ShellRoot` 直接创建 `shell/AppShell.qml`。AppShell 静态导入 `Clavis.Niri` 和多个功能目录，直接实例化 DisplayOverlays、WallpaperBackground、DesktopCardHost、Bar、DockHost、Keystone、RegionSelector、SidebarHostWindow、HotCorners、Lock、PowerMenu、LauncherWindow。这里是**对象装配事实**，并不意味着每个对象的所有内部窗口和后台都已活跃。
+
+AppShell 的完成钩子初始化 I18n、DisplayColor、LyricsTrackService、SystemIdentityService；歌词初始化明确接通 MPRIS 曲目和 native Lyrics，不能仅隐藏歌词画面来封存它。`DisplayColor.evaluate()` 又把 Gamma 能力拉入启动路径。`shell/Services/DisplayColor.qml` 还引用天气位置。
+
+控制中心（ControlCenter）：上游通过 `shell/Services/ControlCenterService.qml` 在打开时激活 LazyLoader；`shell/Modules/ControlCenter/ControlCenterWindow.qml` 关闭时发出 `popoutClosed` 将 Loader 设为 inactive。在 P1 启动阻断排查中，审计发现 ControlCenter 虽未在顶层阻断，但其子组件（`LanguageAndRegionPage.qml:3`、`MapTilerApiSettingsCard.qml:2`、`OpenWeatherApiSettingsCard.qml:2`）静态硬导入了 `Clavis.WeatherMap`。在 `ENABLE_WEATHERMAP=OFF` 默认构建下，直接实例化会导致 QML 加载崩溃；P1 为保核心亮屏暂时将其移出装配；后续在 P3-R05 中完成了按需 Loader 解耦，并在 P3-R12 负资产大清扫中将已废弃的 MapTiler 与 OpenWeather 死卡片及其设置段落彻底物理删除。
+
+会话面板（原 PowerMenu）：原 `shell/Modules/PowerMenu/PowerMenu.qml` 每屏 Loader 的 active 恒为 true，窗口仅按服务状态控制 visible。**P2 已完成重构**：将其彻底迁移为 `modules/session/SessionHost.qml` 与 `SessionPanel.qml`，对接 `app/ActionGateway.qml` 意图收敛中枢，关闭动画后触发 `dismissFinished` 彻底销毁窗口（`active: false`），旧 `Modules/PowerMenu/` 与单例 `PowerMenuService.qml` 已彻底安全删除。
+
+### 依赖与降级缺口
+
+**原版 Niri 约束**：Nyxuri 使用官方原版 Niri。`Clavis.Niri` 是上游自定义桥，其标准 IPC 能力与依赖魔改合成器的高级扩展须分别审计；不将整个插件视为原版能力，也不认定所有桥内功能都必须删除。动画目标、最小化、浮动移动/视差需分别调查，不能按名称认定全部依赖魔改；只有已证实不兼容的扩展才隔离。基础工作区/窗口/输出接口以标准协议实测为准。导入时缺插件的启动失败仍是当前事实，不能据此推断必须安装魔改 Niri。
+
+依赖真值为 [packaging/dependencies.json](../packaging/dependencies.json) 和构建声明，而不是 issue 中的概括。当前上游完整安装面很大，不能直接搬入 Nyxuri CORE_DEPS。
+
+| 能力 | 当前证据 | 重构要求 |
+| --- | --- | --- |
+| Niri 原生桥 | AppShell、工作区、活动窗口、亮度等静态导入 `Clavis.Niri` | 从入口移除硬导入；按能力加载原有桥，缺失时隐藏相应数据部件，保留核心栏与启动器 |
+| Cava / 音频分析 | `core/CMakeLists.txt` 必需 PipeWire、`libcava` 或 `cava` pkg-config；`AudioSpectrum.qml` 静态导入 `Clavis.Cava` | 关闭构建目标并隔离 QML 导入；安装 cava 命令本身不能满足开发库依赖 |
+| 天气 / 地图 | Weather、WeatherMap 原生目标无条件加入；完整依赖含 QtLocation、MapLibre、QtKeychain | 本期封存，禁止触达 provider；不启动请求、缓存维护或定位 |
+| 歌词 | AppShell 主动 initialize，`LyricsTrackService.qml` 静态导入 `Clavis.Lyrics` | 从启动装配撤出，并取消曲目监听与 native 网络对象 |
+| M3Shapes | 多个 UI 静态 import，包括 Lock AuthCard | 外部运行时 QML 模块；核心消费路径需用原有几何资产提供降级，不能写空白 AuthCard 冒充锁屏 |
+| Runtime / I18n / Keyboard / Files / Media / Gamma / WindowPreview / DesktopCards | 各自为独立原生 QML URI；详见后附导入位置 | 分别隔离加载和构建；按真实消费者启用，不能把整个 core 当作最小依赖 |
+| key-cli | `Paths.stableKey` 默认 `key`；user unit 运行 `key shell`；键盘状态、sysmon、剪贴板等消费 JSON/JSONL | 作为可选外部能力，不做核心冷启动依赖；本期不重写 sysmon parser，也不复制 key-cli |
+| Quickshell / Qt | 上游文档基准 QS 0.3.1、Qt 6.8+，需要相应 Wayland/PAM/PipeWire 等编译能力 | 精简配置必须实测后才能宣布最小依赖集合；不能由完整安装清单反推 |
+
+QML 的静态 import 解析先于 `active:false` 的对象控制。把带缺失模块 import 的组件留在入口内联 Loader 中，不能作为已证明的降级方案；应拆成独立 source URL，异步加载真实组件并处理 Loader.Error，验证缺失插件时核心仍亮屏。
+
+### 生命周期与副作用归属
+
+| 域 | 已确认行为 / 风险 | 目标所有者与处理 |
+| --- | --- | --- |
+| 时间 | `Services/Time.qml:32` 的 Timer 每 30 秒运行，SystemClock 按分钟更新 | bar 的时钟服务；没有消费者时销毁，不做全局常驻工具 |
+| 键盘状态 | `KeyboardLockService.qml:78` 完成时启动 `key keyboard watch`，断开后最多重连 3 次 | lock / OSD 的显式租约；无消费者不启动，退出不重连 |
+| 频谱 | `AudioSpectrum.qml` 已有 acquire/release，CavaProvider.active 取决于消费者数 | 封存；保留所有权思路，消除静态导入硬依赖 |
+| 系统监控 | `SystemMonitorService.qml:662` 起有 watchdog、重连和 2 秒强制终止，消费 key sysmon | 封存；不归入首期基础栏，未来迁移保留真实协议和有界终止 |
+| 通知 | `NotificationManager.qml:97` 建存储目录；通知到期 Timer 会 destroy；历史和 FileActionService 有耦合 | notifications 常驻接收服务，弹窗/历史面板短生命周期，历史有界保存；不能随面板收起丢掉 D-Bus 接收 |
+| 锁屏 | `Lock.qml` 的 WlSessionLock/PamContext，截图前置、监控消费者与 WindowPreviewService 绑定 | lock 模块；保留安全状态机，截图和装饰可降级，不能因停用/切换销毁正在保护会话的锁 |
+| 空闲策略 | `IdleService.qml` 文件写入、显示电源/休眠进程，析构时恢复显示与亮度 | lock 的会话策略服务；禁用后释放监视与恢复临时改变，副作用经动作执行边界 |
+| 音量 / 亮度 / 托盘 | Quickshell 能力及 Brightness 原生/外部命令、Tray 文件接口 | 各域服务由 bar / panel 明确获取；设备缺失局部 unavailable，不阻断栏 |
+| 壁纸 / Dock / 桌面卡片 / 侧栏 | AppShell 全量装配；各自含外部命令、预览与设置引用 | 本期封存，不能仅隐藏父 Item；保留源码与资源，但核心不引用其根组件 |
+| 天气网络 | `core/src/openmeteo_client.cpp` 包含 ipwho.is、Open-Meteo、Nominatim 请求与超时 abort | 封存 weather 的网络与缓存对象；源码含 URL 不等于冷启动已发请求 |
+| 歌词网络 | `core/plugin/lyrics/src/lyrics.cpp` 包含 LRCLIB/网易请求、取消与 deleteLater | 封存 lyrics；取消在途请求和轨道监听，不把已有取消机制重写为猜测桩 |
+| 文件 / 主题 / 偏好 | `Common/Appearance.qml:298` FileView；多个 Services 写配置，脚本涉及 gsettings / matugen / Niri 文件 | app 持有存储与动作执行边界；shared 只接收色板、尺寸、字体和模型 |
+
+扫描 Widgets/Components 未发现本次模式中的 Process 或 execDetached，但仍广泛引用全局 Services/Common。不存在这两种文本并不能证明展示层纯净。Common 已有文件读取，Paths 持有宿主环境，故不可整体搬进 shared。
+
+“释放模块”指 QObject 树、窗口、定时器、连接、请求、子进程与引用清理。Qt、字体和分配器缓存不保证 RSS 立即回到原值；必须验证多轮稳态不持续增长，不能承诺销毁后每个字节立刻归还系统。
+
+### 资产、许可证与视觉
+
+`shell/Common/Fonts.qml` 不只是设置默认 family：它加载内嵌 Google Sans Flex，并让 expressive 和 systemClock 使用该字体；删除字体必须同时改消费者与回退规则。ui 已有系统字体可用性判断，mono/numeric 有 monospace fallback。
+
+MaterialSymbol 用系统 Material Symbols 字体，文件不是内嵌资产；直接退回普通字体会显示图标名称。必须声明系统图标字体能力，或为首期图标提供 SVG fallback。优先复用原有 ThemeIcon/SvgIcon，不凭空重做图标系统。删除字体不意味着删除对应历史许可记录。
+
+保留 Keystone/Launcher/Wallpaper 的 GLSL 与 QSB、几何和动画源码；重型功能封存不等于删掉其视觉资产。`assets/icons/weather/meteocons/` 在 Git 树仅有占位，发布源码准备才下载校验资源；完整 Git 母体与完整发布包不是同一概念，本轮不下载额外资源。
+
+主许可证见 `shell/LICENSE`，混合来源见 `shell/licenses/README.md` 及各 notice；keyboard、rclone、搜索图标有独立说明。后续删除/替换按资产引用和原始许可逐项处理，不能把所有文件重新标记成 Nyxuri 自有。
+
+### 原版 Niri 调查线索（未完成兼容验收）
+
+`core/plugin/niri/CMakeLists.txt` 将标准桥、动画目标与浮动视差编入同一 URI。`niri_animation_targets.cpp:88` 发送 SetWindowAnimationTargets；`niri_plugin.cpp` 有 MinimizeWindow/RestoreWindow 和能力探测；`niri_floating_parallax.cpp` 通过 MoveFloatingWindow 组合效果。这些是请求/实现存在的事实，尚未逐项对照固定原版协议或实机验收，不能直接称全都专有，也不能报告全部标准兼容。拆分任务见 ROADMAP P0-04。
+
+### 宿主接入
+
+- `nyxuri/cli.py:_cmd_shell` 的 set 仅写账本；status 的 Ready 仅表示路径存在且可执行，不是运行健康。没有热切换或 readiness 握手。
+- `configs/niri/scripts/session-shell.sh` 对 custom 成功执行 `exec` 后，不再捕获异常退出；现有回退仅覆盖缺失可执行文件。入口只停止特定 Noctalia scope，不是任意 Shell 的完整清理协议。
+- `shell-action.sh` 已提供 8 个稳定动作，但根据持久账本分发，不是当前实际存活实例。custom 启动失败时可能仍路由到失败端。
+- 上游 unit 使用 `key shell`，与宿主路由不能同时充当会话所有者；平铺后 root workflows 也不会自动在 Nyxuri 根目录生效。
+- `shell/` 不在当前 `configs/` 自动发现域；本轮不会被部署。未来应通过明确可选流程，以 `atomic_replace_item` 原子复制，接入快照/回滚/卸载，不做软链或伪装为默认 config。
+- 主题流水线仍与 Noctalia 相连。首期保留 Noctalia 生成的已存在色板作为只读输入，并提供静态 fallback；不因停用 Noctalia 临时引入第二个主题守护进程。
+
+## 验证记录
+
+- Nyxuri 导入前基线：475 tests，OK，6 skipped。
+- 本机 QS：0.3.1。隔离 HOME/XDG、禁用真实 session bus、offscreen、10 秒上限运行原版入口，退出 255，首次 QML 失败为 `AppShell.qml:4 module "Clavis.Niri" is not installed`；另有 IPC socket 建立失败，可能受执行沙箱限制，未把它判成源码缺陷。日志 `/tmp/nyxuri-shell-startup.log`。
+- CMake configure 到 `/tmp/nyxuri-shell-native-check`，在 `core/CMakeLists.txt:63` 被缺失的 `cava` pkg-config 阻断；已先尝试 libcava。未编译 native、未运行 CTest、未安装依赖。单独 pkg-config 查询 Qt6Keychain 名称失败不等于 CMake Qt6Keychain 缺失，实际 configure 已通过该发现阶段。
+- 上游 `scripts/dev/check.sh` 停在 qml-format：原有 QML 与本机格式工具输出不一致，日志 `/tmp/clavis-check.a1bYq4/qml-format.log`。没有重排母体，没有运行后续 lint/CTest，不能把格式检查失败称为运行错误或零警告通过。
+- 导入后宿主单测仍为 475 tests，OK，6 skipped；compileall、宿主 bash 语法、install.sh ShellCheck 与临时 HOME 沙箱部署均通过。导入 Python 全树内存编译通过，文档本地链接已检查。上游全量运行测试因原生依赖阻断未完成。
+- offscreen 不提供真实 Wayland 安全锁、输出热插拔或视觉验收；本轮不启动真实桌面，也不把探测失败改写成架构已完成。
+
+## 全树资源接口索引
+
+以下扫描覆盖 QML/JS/C++/头文件中的 Process/QProcess、execDetached、Timer/QTimer/SystemClock、FileView/QFile/QDir、网络类型、原生 import 与析构钩子，共 210 个文件。行号固定于本页基准 commit。声明、include 和实现均可能命中；这是审查入口，不是实例数量或泄漏统计。脚本和 D-Bus/Wayland/socket 等其他接口仍需在对应模块实施时追踪；本轮没有对每个后台的动态存活给出证明。
+
+| 文件 | 接口及行号 |
+| --- | --- |
+| `shell/AppShell.qml` | 脱离进程：73, 166, 172, 178；原生导入：4 |
+| `shell/Common/Appearance.qml` | 文件接口：298 |
+| `shell/Modules/Bar/ActiveWindow/ActiveWindow.qml` | 原生导入：3 |
+| `shell/Modules/Bar/SysMonitor/SysMonitor.qml` | 销毁钩子：76 |
+| `shell/Modules/Bar/Workspaces/Workspaces.qml` | 原生导入：4 |
+| `shell/Modules/ControlCenter/AccountPage.qml` | 销毁钩子：24 |
+| `shell/Modules/ControlCenter/AddNetworkPage.qml` | 销毁钩子：45 |
+| `shell/Modules/ControlCenter/AdvancedPage.qml` | 计时器：108 |
+| `shell/Modules/ControlCenter/BezierCurveEditor.qml` | 脱离进程：266 |
+| `shell/Modules/ControlCenter/BezierCurveLayerEditor.qml` | 脱离进程：193 |
+| `shell/Modules/ControlCenter/BluetoothPairingPage.qml` | 销毁钩子：44 |
+| `shell/Modules/ControlCenter/CloudRemoteManagerWindow.qml` | 计时器：79 |
+| `shell/Modules/ControlCenter/ComputerBackupWindow.qml` | 计时器：284 |
+| `shell/Modules/ControlCenter/ControlCenterWindow.qml` | 计时器：166 |
+| `shell/Modules/ControlCenter/DisplaysPage.qml` | 销毁钩子：50 |
+| `shell/Modules/ControlCenter/GeneralSidebarPage.qml` | 销毁钩子：107 |
+| `shell/Modules/ControlCenter/LanguageAndRegionPage.qml` | 原生导入：3 |
+| `shell/Modules/ControlCenter/MapTilerApiSettingsCard.qml` | 原生导入：2 |
+| `shell/Modules/ControlCenter/NetworkPage.qml` | 计时器：179；销毁钩子：147 |
+| `shell/Modules/ControlCenter/OpenWeatherApiSettingsCard.qml` | 原生导入：2 |
+| `shell/Modules/ControlCenter/ShortcutsPage.qml` | 原生导入：8；销毁钩子：358 |
+| `shell/Modules/ControlCenter/SplitMenuButton.qml` | 销毁钩子：116 |
+| `shell/Modules/ControlCenter/WallpaperColorPicker.qml` | 销毁钩子：30 |
+| `shell/Modules/DesktopCards/DesktopCardHost.qml` | 原生导入：4；销毁钩子：260 |
+| `shell/Modules/Dock/DockFileArtwork.qml` | 原生导入：2 |
+| `shell/Modules/Dock/DockFileDrag.qml` | 销毁钩子：63 |
+| `shell/Modules/Dock/DockFileIcon.qml` | 原生导入：2 |
+| `shell/Modules/Dock/DockFilePopup.qml` | 原生导入：4 |
+| `shell/Modules/Dock/DockFolderFan.qml` | 原生导入：3 |
+| `shell/Modules/Dock/DockFolderModel.qml` | 原生导入：3 |
+| `shell/Modules/Dock/DockPreviewPopup.qml` | 原生导入：6；销毁钩子：62 |
+| `shell/Modules/Dock/DockSurface.qml` | 计时器：624, 632, 642, 650, 659；原生导入：5, 6 |
+| `shell/Modules/Dock/DockWindowCard.qml` | 原生导入：4 |
+| `shell/Modules/FilePicker/FilePickerWindow.qml` | 计时器：870 |
+| `shell/Modules/HotCorners/HotCorners.qml` | 原生导入：4 |
+| `shell/Modules/Keystone/ClockContent/ClockContent.qml` | 计时器：103 |
+| `shell/Modules/Keystone/CloudUploadContent/CloudUploadContent.qml` | 计时器：182 |
+| `shell/Modules/Keystone/DashboardContent/DashboardClock.qml` | 计时器：31 |
+| `shell/Modules/Keystone/DashboardContent/DashboardWeatherCard.qml` | 计时器：100 |
+| `shell/Modules/Keystone/DashboardContent/UserCard.qml` | 原生导入：3 |
+| `shell/Modules/Keystone/LyricsContent/LyricsContent.qml` | 原生导入：2 |
+| `shell/Modules/Keystone/LyricsContent/LyricsSpectrum.qml` | 销毁钩子：26 |
+| `shell/Modules/Keystone/MediaContent/CaelestiaCover.qml` | 原生导入：9；销毁钩子：49 |
+| `shell/Modules/Keystone/Styles/Long/LongStatusItem.qml` | 销毁钩子：213 |
+| `shell/Modules/Keystone/Styles/Long/LongWorkspaces.qml` | 原生导入：4 |
+| `shell/Modules/Keystone/Styles/Recording/AudioRecordingVisual.qml` | 原生导入：3 |
+| `shell/Modules/Keystone/Styles/Shared/KeystoneHoverController.qml` | 计时器：54, 62 |
+| `shell/Modules/Keystone/Styles/Shared/KeystoneSurface.qml` | 计时器：1387, 1476；原生导入：9；销毁钩子：925 |
+| `shell/Modules/Keystone/Tools/ToolsBackend.qml` | 进程对象：35 |
+| `shell/Modules/Keystone/WeatherContent/WeatherContent.qml` | 计时器：195 |
+| `shell/Modules/Keystone/WeatherContent/WeatherMapCard.qml` | 原生导入：3；销毁钩子：101 |
+| `shell/Modules/Keystone/WeatherContent/WeatherSunriseSunset.qml` | 计时器：62 |
+| `shell/Modules/Launcher/LauncherWindow.qml` | 计时器：321；原生导入：7 |
+| `shell/Modules/Launcher/SpotlightAppDrag.qml` | 销毁钩子：96 |
+| `shell/Modules/Launcher/SpotlightClipboardDetails.qml` | 计时器：63, 242；销毁钩子：59 |
+| `shell/Modules/Launcher/SpotlightFileProvider.qml` | 销毁钩子：62 |
+| `shell/Modules/Launcher/SpotlightResultsPanel.qml` | 计时器：509；销毁钩子：779 |
+| `shell/Modules/Lock/Cards/AuthCard.qml` | 原生导入：5 |
+| `shell/Modules/Lock/Cards/WeatherCard.qml` | 计时器：383 |
+| `shell/Modules/Lock/DefaultLockContent.qml` | 计时器：75 |
+| `shell/Modules/Lock/DefaultLockStatus.qml` | 销毁钩子：32 |
+| `shell/Modules/Lock/Lock.qml` | 销毁钩子：56 |
+| `shell/Modules/Lock/LockContent.qml` | 计时器：578 |
+| `shell/Modules/Lock/PreLockCapture.qml` | 进程对象：197；计时器：107；销毁钩子：227 |
+| `shell/Modules/Map/MapLibreView.qml` | 网络接口：37, 40；销毁钩子：124 |
+| `shell/Modules/Sidebars/Dashboard/DailyAirQualityTrendPane.qml` | 计时器：173 |
+| `shell/Modules/Sidebars/Dashboard/DailyForecastTrendCard.qml` | 计时器：175 |
+| `shell/Modules/Sidebars/Dashboard/DailyWindTrendPane.qml` | 计时器：162 |
+| `shell/Modules/Sidebars/Dashboard/DrawerView.qml` | 原生导入：2；销毁钩子：321 |
+| `shell/Modules/Sidebars/Dashboard/HourlyAirQualityTrendPane.qml` | 计时器：172 |
+| `shell/Modules/Sidebars/Dashboard/HourlyWindTrendPane.qml` | 计时器：165 |
+| `shell/Modules/Sidebars/Dashboard/InfoView.qml` | 销毁钩子：30 |
+| `shell/Modules/Sidebars/Dashboard/WeatherAqiCard.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/WeatherAstroCard.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/WeatherBlob.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/WeatherHumidityCard.qml` | 原生导入：4 |
+| `shell/Modules/Sidebars/Dashboard/WeatherInsightCard.qml` | 原生导入：2 |
+| `shell/Modules/Sidebars/Dashboard/WeatherMetricTrendPane.qml` | 计时器：314 |
+| `shell/Modules/Sidebars/Dashboard/WeatherPrecipitationCard.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/WeatherPressureCard.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/WeatherView.qml` | 计时器：380 |
+| `shell/Modules/Sidebars/Dashboard/WeatherVisibilityCard.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/WeatherWindCard.qml` | 原生导入：3 |
+| `shell/Modules/Sidebars/Dashboard/infoTools/InfoToolDrawer.qml` | 计时器：135 |
+| `shell/Modules/Sidebars/Dashboard/notifications/NotificationItem.qml` | 计时器：301 |
+| `shell/Modules/Sidebars/Dashboard/notifications/NotificationList.qml` | 原生导入：4 |
+| `shell/Modules/Sidebars/QuickSettings/BluetoothContent.qml` | 计时器：137, 145；销毁钩子：109 |
+| `shell/Modules/Sidebars/QuickSettings/IdleContent.qml` | 计时器：41 |
+| `shell/Modules/Sidebars/QuickSettings/NetworkContent.qml` | 计时器：170, 178；销毁钩子：145 |
+| `shell/Modules/SystemCards/CookieClock/BubbleDate.qml` | 原生导入：2 |
+| `shell/Modules/SystemCards/CookieClock/CookieFace.qml` | 原生导入：2 |
+| `shell/Modules/SystemCards/ExpressiveMetricTile.qml` | 原生导入：4 |
+| `shell/Modules/SystemCards/SidebarCookieClock.qml` | 计时器：32 |
+| `shell/Modules/SystemCards/SystemCalendarCard.qml` | 计时器：30 |
+| `shell/Modules/SystemCards/SystemCardContent.qml` | 原生导入：3 |
+| `shell/Modules/SystemCards/SystemClockCard.qml` | 计时器：46 |
+| `shell/Modules/SystemCards/SystemLiquidMetricCard.qml` | 原生导入：5 |
+| `shell/Modules/SystemCards/SystemWeatherCard.qml` | 原生导入：3 |
+| `shell/Modules/Wallpaper/WallpaperTransitionSurface.qml` | 计时器：497 |
+| `shell/Modules/Wallpaper/ZenPaletteRenderer.qml` | 原生导入：17 |
+| `shell/Services/ApplicationService.qml` | 脱离进程：66；原生导入：5 |
+| `shell/Services/AudioRecordingService.qml` | 进程对象：185, 209, 235, 250；脱离进程：60；计时器：264, 273 |
+| `shell/Services/AudioSpectrum.qml` | 原生导入：5 |
+| `shell/Services/AutostartService.qml` | 进程对象：472, 560；文件接口：498, 542 |
+| `shell/Services/AvatarService.qml` | 进程对象：33；脱离进程：41, 45 |
+| `shell/Services/AwwwWallpaperService.qml` | 进程对象：325, 339, 349, 386, 440, 468；计时器：430 |
+| `shell/Services/BluetoothService.qml` | 计时器：576, 587；销毁钩子：445 |
+| `shell/Services/BlurService.qml` | 进程对象：76 |
+| `shell/Services/Brightness.qml` | 进程对象：158, 175, 296, 304；计时器：311；原生导入：6, 7 |
+| `shell/Services/ClipboardService.qml` | 进程对象：483, 500, 520, 540 |
+| `shell/Services/CloudUploadService.qml` | 进程对象：294；原生导入：2 |
+| `shell/Services/ControlCenterService.qml` | 脱离进程：44；计时器：100 |
+| `shell/Services/DefaultApplicationsService.qml` | 进程对象：805；文件接口：755, 778 |
+| `shell/Services/DisplayColor.qml` | 进程对象：148；计时器：126, 139, 144；文件接口：159；网络接口：80, 83；原生导入：6 |
+| `shell/Services/DisplayConfigService.qml` | 进程对象：186；计时器：175, 180；原生导入：6 |
+| `shell/Services/DockService.qml` | 进程对象：468；计时器：510；文件接口：480；原生导入：6, 7 |
+| `shell/Services/FileActionService.qml` | 进程对象：24 |
+| `shell/Services/FileSearchService.qml` | 进程对象：219, 234, 249；计时器：214 |
+| `shell/Services/I18nService.qml` | 原生导入：5 |
+| `shell/Services/IdleService.qml` | 进程对象：363, 403, 421；脱离进程：444；文件接口：374；销毁钩子：441 |
+| `shell/Services/InfoDrawerState.qml` | 进程对象：142；计时器：185；文件接口：154 |
+| `shell/Services/KeyboardLockService.qml` | 进程对象：80；计时器：99 |
+| `shell/Services/LyricsTrackService.qml` | 原生导入：5 |
+| `shell/Services/MatugenTemplateService.qml` | 进程对象：109, 143；计时器：96, 103；文件接口：90 |
+| `shell/Services/MediaManager.qml` | 计时器：39 |
+| `shell/Services/MediaPalette.qml` | 原生导入：5 |
+| `shell/Services/NetworkManagerExtras.qml` | 进程对象：116, 188, 226, 253, 286 |
+| `shell/Services/NetworkService.qml` | 计时器：1104, 1118, 1131, 1142；销毁钩子：953 |
+| `shell/Services/NiriConfigService.qml` | 进程对象：151；文件接口：221；原生导入：8 |
+| `shell/Services/NotificationManager.qml` | 进程对象：172；计时器：74；文件接口：246 |
+| `shell/Services/PackageService.qml` | 进程对象：34, 53；计时器：72 |
+| `shell/Services/PersonalizationConfig.qml` | 进程对象：2182；计时器：2193；文件接口：2167, 2201 |
+| `shell/Services/QuickToggleConfig.qml` | 进程对象：124；文件接口：134 |
+| `shell/Services/RcloneService.qml` | 进程对象：703, 760, 793, 848, 889；计时器：922, 932, 942 |
+| `shell/Services/RecordingService.qml` | 进程对象：220, 239, 259, 274；计时器：288, 297 |
+| `shell/Services/RegionSelectionService.qml` | 计时器：65 |
+| `shell/Services/SpotlightAppUsage.qml` | 进程对象：61；文件接口：74 |
+| `shell/Services/SpotlightCatalog.qml` | 脱离进程：93 |
+| `shell/Services/SpotlightSearchService.qml` | 进程对象：127；计时器：141, 151 |
+| `shell/Services/SpotlightToolService.qml` | 进程对象：209, 224；计时器：195, 200 |
+| `shell/Services/SystemCardService.qml` | 销毁钩子：278 |
+| `shell/Services/SystemIdentityService.qml` | 进程对象：153；计时器：130, 134；文件接口：141 |
+| `shell/Services/SystemMonitorService.qml` | 进程对象：734；计时器：662, 669, 703, 723, 742 |
+| `shell/Services/ThemeService.qml` | 进程对象：321, 331, 346；原生导入：6 |
+| `shell/Services/Time.qml` | 计时器：26, 32 |
+| `shell/Services/TimerService.qml` | 脱离进程：87；计时器：219, 226 |
+| `shell/Services/TodoService.qml` | 进程对象：80；文件接口：92 |
+| `shell/Services/TrayService.qml` | 进程对象：108；文件接口：118 |
+| `shell/Services/UiPreferences.qml` | 进程对象：575, 706, 720；计时器：698, 741, 751；文件接口：588；原生导入：7 |
+| `shell/Services/WallpaperSceneService.qml` | 原生导入：5 |
+| `shell/Services/WallpaperService.qml` | 进程对象：686；计时器：659, 668 |
+| `shell/Services/WeatherPlugin.qml` | 原生导入：3 |
+| `shell/Services/WindowPreviewService.qml` | 计时器：97；原生导入：4, 5；销毁钩子：79 |
+| `shell/Widgets/common/BrailleSpinner.qml` | 计时器：23 |
+| `shell/Widgets/common/CompositorBlurRegion.qml` | 计时器：196；销毁钩子：189 |
+| `shell/Widgets/common/MaterialStepper.qml` | 计时器：95 |
+| `shell/Widgets/common/SearchSelectMenuField.qml` | 计时器：423 |
+| `shell/Widgets/common/SettingsSearchAnchor.qml` | 计时器：99；销毁钩子：55 |
+| `shell/Widgets/common/StyledScrollBar.qml` | 计时器：29 |
+| `shell/Widgets/weather/WeatherBackground.qml` | 计时器：1026, 1124 |
+| `shell/core/plugin/cava/src/audio_level_provider.cpp` | 计时器：9, 12 |
+| `shell/core/plugin/cava/src/audio_level_provider.h` | 计时器：7, 65, 66 |
+| `shell/core/plugin/cava/src/cava_provider.cpp` | 计时器：13 |
+| `shell/core/plugin/cava/src/cava_provider.h` | 计时器：4, 49 |
+| `shell/core/plugin/desktopcards/src/wallpaper_analyzer.cpp` | 计时器：6, 383 |
+| `shell/core/plugin/files/src/desktop_files.cpp` | 进程对象：8, 165, 177, 178, 181, 182；文件接口：5, 39, 40 |
+| `shell/core/plugin/files/src/desktop_files.h` | 文件接口：2, 38 |
+| `shell/core/plugin/files/src/file_metadata.cpp` | 文件接口：4, 13, 17 |
+| `shell/core/plugin/gamma/src/gamma_backend.cpp` | 计时器：9, 69, 75, 125, 138, 183 |
+| `shell/core/plugin/keyboard/src/shortcut_recorder.cpp` | 文件接口：4, 5, 72, 73, 74 |
+| `shell/core/plugin/lyrics/src/lyrics.cpp` | 计时器：232；文件接口：4, 6, 14, 656, 667, 682, 1261, 1276, 1284, 1297, 1298, 1310, 1311, 1342, 1348, 1350, 1351, 1359, 1373, 1374, 1388；网络接口：12, 239, 623, 829, 835, 836, 848, 850, 851, 857, 871, 872 |
+| `shell/core/plugin/lyrics/src/lyrics.h` | 计时器：9, 106；网络接口：5, 6, 41, 103, 104, 105, 176 |
+| `shell/core/plugin/niri/src/niri_animation_targets.cpp` | 计时器：11, 12 |
+| `shell/core/plugin/niri/src/niri_animation_targets.h` | 计时器：4, 29, 30 |
+| `shell/core/plugin/niri/src/niri_floating_parallax.cpp` | 计时器：8, 128 |
+| `shell/core/plugin/niri/src/niri_plugin.cpp` | 计时器：7, 17, 597 |
+| `shell/core/plugin/runtime/src/clavis_file_system.cpp` | 文件接口：3, 27, 30 |
+| `shell/core/plugin/runtime/src/config_file_watch.cpp` | 文件接口：2, 12, 13, 30 |
+| `shell/core/plugin/runtime/src/config_file_watch.h` | 文件接口：2, 23 |
+| `shell/core/plugin/windowpreview/src/window_capture_probe.cpp` | 计时器：7, 30, 31, 69, 71, 132 |
+| `shell/core/plugin/windowpreview/src/window_preview_manager.cpp` | 计时器：8, 11, 100, 226 |
+| `shell/core/plugin/windowpreview/src/window_preview_manager.h` | 计时器：6, 44, 45 |
+| `shell/core/src/niri_icon_lookup.cpp` | 文件接口：3, 5, 110, 124, 152, 219, 232 |
+| `shell/core/src/niri_ipc_client.cpp` | 计时器：8, 201, 217 |
+| `shell/core/src/openmeteo_client.cpp` | 计时器：14, 176；网络接口：7, 8, 172, 173, 180, 182, 183 |
+| `shell/core/src/openmeteo_client.h` | 计时器：7, 42；网络接口：4, 40 |
+| `shell/core/src/runtime/backlight_reading.cpp` | 文件接口：2, 7 |
+| `shell/core/src/runtime/clavis_paths.cpp` | 文件接口：3, 17, 43, 55, 60, 64, 84, 86, 98 |
+| `shell/core/src/weather_backend.cpp` | 计时器：66, 67, 69 |
+| `shell/core/src/weather_backend.h` | 计时器：8, 38, 39 |
+| `shell/core/src/weather_cache.cpp` | 文件接口：3, 4, 12, 14, 20, 34, 35 |
+| `shell/core/src/weather_map_provider.cpp` | 计时器：25；网络接口：7, 8, 48, 139, 140, 143, 144, 150, 153, 186, 187, 190, 191, 197, 200, 225, 226, 229, 230, 236, 239 |
+| `shell/core/src/weather_map_provider.h` | 计时器：5, 73；网络接口：3, 8, 72, 74, 75, 76 |
+| `shell/core/src/weather_normals_cache.cpp` | 文件接口：3, 4, 8, 13, 24, 26, 88, 89 |
+| `shell/core/tests/clavis_paths_test.cpp` | 文件接口：3, 4, 31, 32, 33, 34, 35, 36, 39, 40, 41, 42, 44, 47, 48, 49, 50, 51, 53, 54, 55, 56 |
+| `shell/core/tests/desktop_files_test.cpp` | 进程对象：8, 61, 67；文件接口：4, 5, 34, 35, 37, 73, 82, 99, 126, 144, 166 |
+| `shell/core/tests/device_state_test.cpp` | 文件接口：2, 14, 35 |
+| `shell/core/tests/icon_theme_controller_test.cpp` | 文件接口：3, 4, 24, 26 |
+| `shell/core/tests/lyrics_test.cpp` | 计时器：15, 137；文件接口：3, 5, 185, 186, 187, 188, 284, 285；网络接口：9, 11, 12, 44, 46, 47, 51, 53, 57, 62, 63, 77, 104, 108, 117, 124, 127, 149, 425, 439, 589 |
+| `shell/core/tests/niri_icon_lookup_test.cpp` | 文件接口：3, 4, 39, 40, 41, 47 |
+| `shell/core/tests/niri_ipc_async_test.cpp` | 计时器：5, 24 |
+| `shell/core/tests/niri_minimize_test.cpp` | 计时器：10, 53, 90 |
+| `shell/core/tests/process_quit_test.cpp` | 进程对象：2, 11, 20, 25, 41 |
+| `shell/core/tests/weather_climate_normals_test.cpp` | 文件接口：5, 71 |
+| `shell/core/tests/weather_location_test.cpp` | 文件接口：5, 47 |
+| [scripts/capture/LockSnapshot.qml](../scripts/capture/LockSnapshot.qml) | 计时器：14 |
+| [tests/qml/tst_gamma_backend.qml](../tests/qml/tst_gamma_backend.qml) | 原生导入：3 |
+| `shell/tools/window-preview/Fixture.qml` | 计时器：14 |
+| `shell/tools/window-preview/Preview.qml` | 原生导入：4 |
+| `shell/tools/window-preview/main.cpp` | 计时器：12, 62, 106, 111, 116, 153, 168, 174；文件接口：4, 77 |
+
+### 脚本调用与写入复查入口
+
+以下为 scripts 下命令、子进程与文件操作候选行号。build/dev/ci/release/install 属于开发或发布路径，不应自动进入 Shell 运行闭包；capture/system/theme/lib 中的接口需沿调用者继续确认。命中命令字符串或帮助文案不代表执行，shell 重定向与原生间接调用不能仅靠此扫描穷尽。
+
+| 脚本 | 候选行号 |
+| --- | --- |
+| [scripts/build/compile-launcher-shaders.sh](../scripts/build/compile-launcher-shaders.sh) | 43 |
+| [scripts/capture/screenshot_to_clipboard.sh](../scripts/capture/screenshot_to_clipboard.sh) | 5 |
+| [scripts/check-package.py](../scripts/check-package.py) | 6, 13, 43 |
+| `shell/scripts/ci/arch.sh` | 23, 36 |
+| `shell/scripts/ci/publish.sh` | 9 |
+| [scripts/dev/check.sh](../scripts/dev/check.sh) | 69, 97, 106, 107, 108, 113 |
+| [scripts/dev/format-qml.sh](../scripts/dev/format-qml.sh) | 62 |
+| [scripts/dev/generate-search-catalog.py](../scripts/dev/generate-search-catalog.py) | 15, 30, 32, 33, 101, 103, 131, 147, 148 |
+| [scripts/dev/lint-qml.sh](../scripts/dev/lint-qml.sh) | 33, 34, 78, 97, 107, 113, 127 |
+| [scripts/install/arch.py](../scripts/install/arch.py) | 15, 16, 38, 42, 46, 47, 48, 190, 263, 271, 436, 445, 478, 481, 483, 489, 513, 555, 562, 567, 572, 577, 580, 588, 616, 650, 686 |
+| [scripts/install/launcher.sh.in](../scripts/install/launcher.sh.in) | 38, 58 |
+| [scripts/lib/matugen-registry.sh](../scripts/lib/matugen-registry.sh) | 10, 11 |
+| [scripts/release.py](../scripts/release.py) | 16, 17, 74, 82, 90, 98, 105, 106, 128, 129, 181, 186, 201, 202, 204, 213, 214, 228, 231, 233, 242, 256, 279, 280, 283, 284, 285, 290, 337, 395, 422, 437 |
+| [scripts/system/display_preview.py](../scripts/system/display_preview.py) | 315, 332, 345, 363 |
+| [scripts/system/manage-niri-effects.sh](../scripts/system/manage-niri-effects.sh) | 4 |
+| [scripts/system/manage-niri-fragment.sh](../scripts/system/manage-niri-fragment.sh) | 4 |
+| [scripts/system/niri_config.py](../scripts/system/niri_config.py) | 2, 15, 39, 80, 96, 99, 118, 184, 187, 202, 203, 205, 236, 239, 254, 260, 307, 309, 311, 312, 320, 527, 539, 544, 547, 553, 587, 620, 621, 689, 707, 722, 730, 737, 738, 758, 763, 768 |
+| [scripts/system/niri_outputs.py](../scripts/system/niri_outputs.py) | 1, 3 |
+| [scripts/system/overview.sh](../scripts/system/overview.sh) | 12, 25 |
+| [scripts/theme/generate_matugen_colors.sh](../scripts/theme/generate_matugen_colors.sh) | 6, 72, 73, 83, 84, 99, 104, 106 |
+| [scripts/theme/list_cursor_icon_themes.sh](../scripts/theme/list_cursor_icon_themes.sh) | 13 |
+| [scripts/theme/manage_matugen_templates.sh](../scripts/theme/manage_matugen_templates.sh) | 6, 28, 29, 31, 109, 114, 126 |
+| [scripts/theme/set_system_color_scheme.sh](../scripts/theme/set_system_color_scheme.sh) | 17, 18, 22, 29, 37 |
+| [scripts/theme/write_niri_cursor_config.sh](../scripts/theme/write_niri_cursor_config.sh) | 4 |
+
+## P0 调查结论与契约沉淀
+
+### P0-03 启动闭包分类与副作用归属
+
+| 类别 | 模块 / 组件 | 导入与初始化路径 | 副作用与所有者 | 处置方案 |
+| --- | --- | --- | --- | --- |
+| **核心必需** | `shell.qml` -> `AppShell.qml` | 根实例，Quickshell 入口 | 装配顶层组件与全局 IPC handler | 保留，解除对封存模块的硬依赖 |
+| **核心必需** | `Modules/Bar` | `AppShell.qml` 直接实例化 `Bar {}` | 管理 Horizontal/Vertical 状态栏各屏 surface | 保留基础 Bar 框架 |
+| **核心必需** | `Bar/Workspaces` | `BarComponentLoader.qml` | 消费 `Clavis.Niri` 工作区模型及点击切换 | 保留，标准 Niri 工作区 |
+| **核心必需** | `Bar/ActiveWindow` | `BarComponentLoader.qml` | 消费 `Clavis.Niri` focusedWindow 模型 | 保留，标准 Niri 聚焦窗口标题与图标 |
+| **核心必需** | `Modules/Launcher` | `AppShell.qml` 的 `LauncherWindow` | 本地桌面应用搜索与启动，键盘快捷键唤起 | 保留，作为基础启动器 |
+| **核心必需** | `Modules/Lock` | `AppShell.qml` 的 `Lock` | Wayland session-lock、PAM 认证上下文 | 保留，安全会话锁核心 |
+| **核心必需** | `modules/session/` (原 `Modules/PowerMenu`) | `AppShell.qml` 挂载 `SessionHost` | 系统关机、重启、锁屏、注销动作收发 | **P2 已完成**：迁移为自治按需加载，关闭即销毁，淘汰 `PowerMenuService` |
+| **核心必需** | `Common/Fonts` | `Common/Fonts.qml` 单例 | 系统与角色字体解析、FontLoader | 保留，提供系统字体 fallback |
+| **核心必需** | `Services/Time` | `Time.qml` 单例 | 30s 周期时钟计时器 | 保留，仅供 Bar 时钟消费 |
+| **可选/延后** | `Modules/ControlCenter` | `LazyLoader` 挂载 `ControlCenterWindow` | 多页面系统设置、DBus/网络监控 | **P3 迁移中**：审计发现子页面静态依赖 `Clavis.WeatherMap`，P3-01 解耦后安全接入 LazyLoader 与 ActionGateway |
+| **可选/延后** | `Modules/Sidebars` | `SidebarHostWindow` | 侧栏通知抽屉与工具集 | P2-P3 迁移 |
+| **可选/延后** | `Services/NotificationManager` | `NotificationManager.qml` | 接收 org.freedesktop.Notifications | P3 接入独立生命周期 |
+| **可选/延后** | `Modules/Bar/Tray` | `BarComponentLoader.qml` | 消费 SNI 托盘 D-Bus 接口 | P3 接入 |
+| **封存隔离** | `Cava` / `AudioSpectrum` | `AppShell` / `Bar` / `core/plugin/cava` | 连接 PipeWire、运行音频分析循环 | 封存，关闭默认 CMake 构建，隔离 QML 导入 |
+| **封存隔离** | `Weather` / `WeatherMap` | `AppShell` / `Sidebars` / `core/plugin/weather*` | ipwho.is / Open-Meteo 定时请求、瓦片缓存 | 封存，关闭网络请求与后台定位 |
+| **封存隔离** | `Lyrics` / `LyricsTrackService` | `AppShell.Component.onCompleted` | 监听 MPRIS 曲目、调用 LRCLIB 在线 API | 封存，撤出 AppShell 装配 |
+| **封存隔离** | `DesktopCards` / `Dock` | `AppShell` 直接实例化 | 桌面底层小部件与 Dock 窗口 | 封存，顶层装配移除 |
+| **封存隔离** | `AwwwWallpaperService` | `Services/AwwwWallpaperService.qml` | 启动 awww 进程与定时轮巡 | 封存，P4 统一用自研与 palette.toml 替换 |
+
+### P0-04 原版 Niri 协议能力分类
+
+目标原版版本基线：Niri 0.1.10+ / 25.x 官方 Release。
+
+| 协议 / 接口 | 实现路径 | 原版状态 | 行为与降级决策 |
+| --- | --- | --- | --- |
+| `EventStream` | `niri_ipc_client.cpp:63` | **官方标准** | Unix domain socket 流式事件，核心必须保留 |
+| `Workspaces` 查询与事件 | `niri_plugin.cpp:111` | **官方标准** | 解析 id, idx, name, output, is_active, is_focused，完整支持 |
+| `Windows` 查询与事件 | `niri_plugin.cpp:112` | **官方标准** | 解析 id, title, app_id, pid, workspace_id, is_focused，完整支持 |
+| `Outputs` 查询与事件 | `niri_plugin.cpp:113` | **官方标准** | 解析 name, make, model, logical_x/y, scale, modes，完整支持 |
+| `Action` (Focus/Close/Overview) | `niri_plugin.cpp:71-89` | **官方标准** | 原版 Niri 标准 Action，直接调用，行为一致 |
+| `Capabilities` 查询 | `niri_plugin.cpp:80` | **扩展能力** | 原版返回错误或缺少字段时，优雅置为 false，不抛 action 异常 |
+| `MinimizeWindow` / `RestoreWindow` | `niri_plugin.cpp:75-76` | **非标扩展** | 原版尚未包含此协议，受 `supportsMinimize` 守护，为 false 时禁用或隐藏 |
+| `SetWindowAnimationTargets` | `niri_animation_targets.cpp` | **魔改专有** | 仅魔改 Niri 存在，原版降级为无动画或默认过渡，不阻断核心 |
+| `MoveFloatingWindow` (视差) | `niri_floating_parallax.cpp` | **组合效果** | 缺视差支持时平滑退化为普通浮动位置 |
+
+### P0-05 Native 构建与系统字体拆分
+
+#### 1. CMake 依赖最小拆分矩阵
+
+| Target | 依赖库 | 状态 | 编译开关与策略 |
+| --- | --- | --- | --- |
+| `ClavisRuntimeCore` / `ClavisRuntime` | Qt6::Core, Qt6::Network, libudev | **核心必需** | 默认编译，提供路径与硬件基础探测 |
+| `ClavisNiriCore` / `ClavisNiri` | Qt6::Core, Qt6::Gui, Qt6::Qml, Qt6::Network | **核心必需** | 默认编译，零魔改外部依赖，支持原版 Niri IPC |
+| `ClavisCavaCore` / `ClavisCava` | PkgConfig::Pipewire, libcava/cava | **封存可选** | `ENABLE_CAVA=OFF` 默认关闭，缺少 cava.pc 不阻断配置 |
+| `ClavisWeatherCore` / `ClavisWeather` | Qt6::Core, Qt6::Network | **封存可选** | `ENABLE_WEATHER=OFF` 默认关闭 |
+| `ClavisWeatherMapCore` / `ClavisWeatherMap` | Qt6Keychain, MapLibre, QtLocation | **封存可选** | `ENABLE_WEATHERMAP=OFF` 默认关闭 |
+| `ClavisLyrics` | Qt6::Network | **封存可选** | `ENABLE_LYRICS=OFF` 默认关闭 |
+| `ClavisWindowPreview` | Qt6::WaylandClient | **封存可选** | `ENABLE_WINDOWPREVIEW=OFF` 默认关闭 |
+
+#### 2. 系统字体与图标回退矩阵
+
+| 角色 | 原始资源 | 系统回退方案 | 视觉保障 |
+| --- | --- | --- | --- |
+| `ui` | 依赖配置/LXGW WenKai | 优先系统文楷，回退系统无衬线 (sans-serif) | 字符清晰，不因字形变化产生排版截断 |
+| `mono` | JetBrainsMono Nerd Font | 优先系统 Nerd Font，回退 monospace | 终端与代码对齐规整 |
+| `numeric` | JetBrainsMono Nerd Font | 回退 monospace | 纯数字等宽对齐 |
+| `expressive` | 内嵌 Google Sans Flex (4MB) | 移除非必需内嵌依赖，回退 `ui` / sans-serif | 节省 4MB 体积，首屏排版按几何比例对齐 |
+| `systemClock` | 内嵌 Google Sans Flex | 回退 `ui` / sans-serif | 时钟显示规整，按字号几何缩放 |
+| `icons` | Material Symbols (系统) | 优先系统字体，提供本地内置 SVG 兜底 | 不联网下载，避免文字占位符出现 |
+
+### P0-06 双 Shell 切换状态机 (nyxuri shell)
+
+#### 切换时序与状态流转
+
+1. **Preflight (预检)**：
+   - 目标为 `custom`：检查 `custom_shell_bin` 路径非空、文件存在且具备执行权限 (`X_OK`)；检查当前属于 Wayland 会话。
+   - 目标为 `noctalia`：检查 `noctalia` 命令在 `PATH` 中可执行。
+   - 若系统当前已被锁屏 (`session-lock` 活跃)，拒绝切换并直接返回错误。
+2. **Stop Old (停止旧端)**：
+   - 若当前活跃为 `noctalia`：通过 `systemctl --user stop app-niri-noctalia-*.scope` 或 IPC 请求优雅退出。
+   - 若当前活跃为 `custom`：发送退出 IPC 或向受管 PID 发送 SIGTERM。超时 2.5s 未退出则 SIGKILL 并清理残留 socket，回收 D-Bus 接口。
+3. **Start New (启动新端)**：
+   - 启动目标进程（带日志重定向），不使用孤立 shell 拼串。
+4. **Ready Probe (就绪探测)**：
+   - 探测新实例：通过 IPC socket 握手或有界轮询（最大 3.0s），确认首帧渲染或动作注册就绪。
+5. **Commit or Rollback (提交或回滚)**：
+   - **探测成功**：原子更新 `~/.local/state/nyxuri/state.json` 中的 `active_shell` 字段，通知动作路由更新，返回 0。
+   - **探测超时/崩溃**：立即清理失败的目标实例，回滚重启旧 Shell（恢复原桌面），在终端输出详细错误并在桌面发送 critical 通知。
+
+### P0-07 调试与检查工作流规范
+
+1. **隔离启动命令**：
+   ```bash
+   # 仅在开发环境预览，不影响系统全局配置与其它 Shell
+   qs --path ./shell --no-duplicate --log-times -v
+   ```
+2. **热重载与编译流程**：
+   - **QML 变动**：保存文件即触发 Quickshell 动态热重载，无需重启进程。
+   - **C++ 变动**：执行 `cmake --build build/shell --target ClavisNiri`，完成后重启 Shell 实例。
+3. **日志追踪与检查**：
+   - 跟踪当前 Shell 日志：`qs log --path ./shell --follow`。
+   - IPC 接口内省：`qs ipc --path ./shell show`。
+
+## P3-R10 生命周期与副作用审计总结
+
+### 1. 资源盘点概况
+
+基于 `shell/scripts/dev/audit-lifecycle.py --inventory` 提取的完整机器可读清单（[lifecycle-inventory.json](lifecycle-inventory.json)）：
+- **总治理资源项**：266 项（覆盖 `Timer`、`Process`、`FileView`、`Network`、`IPC`、`NativeConsumer`、`ExternalCommand`）。
+- **外部命令全收敛**：除 `app/ActionGateway.qml` 外，全库所有直接外部命令调用全部消除；`AppShell.qml`（loginctl）、`IdleService.qml`（niri msg）、`SpotlightCatalog.qml`（notify-send）、`TimerService.qml`（notify-send）、`AvatarService.qml`（notify-send）、`AudioRecordingService.qml`（notify-send）、`BezierCurveEditor.qml`（wl-copy）、`BezierCurveLayerEditor.qml`（wl-copy）及 `ApplicationService.qml` 均全部收敛至 `ActionGateway.execute(args, owner)`。
+- **高风险 Teardown 覆盖率**：100%。所有后台进程流（`SystemMonitorService`、`KeyboardLockService`、`AudioRecordingService`、`RecordingService`、`AwwwWallpaperService`、`WallpaperService` 等）均实现 `Component.onDestruction` 终止与资源注销。
+- **代号违规消除**：全库 544 个 QML/JS 文件在 `audit-lifecycle.py --scope all --check` 下 **0 违规**。
+
+### 2. 契约与稳定性实测
+
+- **连续开关压测**：`tests/test_shell.py:test_p3_r10_20x_lifecycle_simulation` 完成 20 次快速开关压测，验证 Timer 与 Process 在每次开关周期完整重置，过期 token 对应回调被 100% 丢弃，无累积句柄或泄漏。
+- **Action Gateway 绕过拦截**：`tests/test_shell.py:test_p3_r10_lifecycle_and_sideeffect_contracts` 自动化扫描全库文件，对直接 `Quickshell.execDetached` 形成回归门禁断言。
+- **check.sh 集成**：`check.sh` 与 `check.sh --full` 自动执行生命周期与副作用审计，通过退出状态码 0 与稳定日志保证 CI/开发环境一致性。

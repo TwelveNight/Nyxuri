@@ -31,7 +31,13 @@
 
 - 个人分支沿用 iNiR 快捷键与自启动选择，Super+X 留给应用、电源菜单改为 Super+Alt+Delete，并禁用 ToDesk 自启动。
 
-- 个人分支沿用原安装命令，新增独立配置与登录项，保留 iNiR 与 ii 的主题，壁纸由 skwd 管理并同步 Noctalia 配色，概览沿用 iNiR 样式，并支持合并官方更新。
+- 个人分支沿用原安装命令，新增独立配置与登录项，沿用个人深浅主题同步选择，壁纸由 skwd 管理并同步 Noctalia 配色，概览沿用 iNiR 样式，并支持合并官方更新。
+
+## [v4.0.0-alpha.1] - 2026-10-07
+
+### Added
+- 新增划词翻译：`Alt+E` 在指针下方弹出 Material 3 译文浮窗，多渠道并行翻译；星环 System Tools 新增 Translate 入口打开渠道设置
+- 自研桌面外壳 Nyxuri Shell 作为实验性功能已经加入到main分支：仍在开发中、已知问题较多、外观尚未完成，暂不推荐日常使用；`nyxuri shell` 可随时一键切回 Noctalia，已知问题清单随仓库发布
 
 ## [v3.1.0] - 2026-09-26
 
@@ -505,7 +511,8 @@
 ### Added
 - 首次发布基于 Niri 与 Noctalia V5 的 NyxNiri 桌面配置。
 
-[Unreleased]: https://github.com/ech678/Nyxuri/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/ech678/Nyxuri/compare/v4.0.0-alpha.1...HEAD
+[v4.0.0-alpha.1]: https://github.com/ech678/Nyxuri/compare/v3.1.0...v4.0.0-alpha.1
 [v3.1.0]: https://github.com/ech678/Nyxuri/compare/v3.0.5...v3.1.0
 [v3.0.5]: https://github.com/ech678/Nyxuri/compare/v3.0.4...v3.0.5
 [v3.0.4]: https://github.com/ech678/Nyxuri/compare/v3.0.3...v3.0.4

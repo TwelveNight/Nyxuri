@@ -40,7 +40,7 @@ cd ~/Template/github/niri-dots/Nyxuri
 
 更新要求干净的个人分支和官方 `origin`。它 fetch 官方 `main`，merge 到
 `night/personal-overlay`，然后用新进程运行 `./install.sh install`，再列清单确认。
-不 push，不丢弃本地提交。官方已改写过 main 历史，首次合并可能需要人工解决冲突。遇到冲突立即停止，解决冲突并完成 Git 合并后，
+不 push，不丢弃本地提交。当前已合并官方 main 的 `ebafe03`。遇到冲突立即停止，解决冲突并完成 Git 合并后，
 重新运行 `./install.sh install`。只更新源码可用 `--no-deploy`，已审阅的自动化可用 `--yes`。
 本仓库的 `nyxuri install/update` 也会进入个人部署；其他仓库、官方远程安装和系统包
 仍使用各自入口，不会因为本机的安装标记切换到个人适配。
@@ -76,6 +76,7 @@ Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` �
 Kitty 继承原有设置，Nyxuri 颜色写入私有目录，Noctalia 和 Niri 键位启动终端时均使用此配置。
 Nyxuri 登录时先停止 II 配色监听，避免换壁纸串改共享主题；返回 iNiR／II 后由它们
 原有的启动钩子恢复监听。壁纸预览、色板和缩略图缓存位于 `~/.cache/nyxuri-desktop/`。
+深浅主题切换沿用上游 `nyxuri theme sync`，同步共享 GTK／Qt 应用主题；三套桌面仍共用 skwd 壁纸。
 多套桌面按顺序登录；共享用户 D-Bus 不支持同一用户同时运行它们。
 
 GDM 入口按标准 `niri-session` 的用户服务启动／关闭顺序运行，但使用独立服务。

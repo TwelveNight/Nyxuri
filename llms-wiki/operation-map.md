@@ -2,30 +2,24 @@
 
 > 命令分发在 `nyxuri/cli.py` 的 `COMMANDS` dict。退出码自动传播。aliases 并列。
 
-本分支的 `install.sh` 检测源码中的 `personal/entry.py`：无参数、`install`、`deploy`
-进入私有部署，`update [--no-deploy] [--yes]` 合并官方 main 后重新运行标准入口；
-`--plan` 只展示个人部署清单。install/deploy 的 full/config 参数范围相同。
-其他显式命令仍走下表的官方 CLI；旧 personal-mode 标记只保护直接 Python 引擎入口。
-这是个人分支保护已有应用配置的边界，见 [dual-session](dual-session.md)。
-
 ## 管"配置内容"的
 
 | 命令 | 干啥 |
 |---|---|
-| `install [full\|config]`（alias `deploy`） | 部署配置（full = + 壁纸 + 模块） |
-| `update [--force\|--no-deploy] [--to <tag\|commit>]` | 拉新版本 + 线性状态迁移 (`migrations`) + 重新部署；`--to` 锁到指定版本（system 模式 → 提示 pacman） |
-| `preset <app> [list\|apply <name>\|save <name>\|edit <name>\|delete <name>\|parts\|part <slot> <name>]` | 切/管理预设与零件插槽（状态接入 `state.json` 账本） |
+| `install [full|config]`（alias `deploy`） | 部署配置（full = + 壁纸 + 模块） |
+| `update [--force|--no-deploy] [--to <tag|commit>]` | 拉新版本 + 线性状态迁移 (`migrations`) + 重新部署；`--to` 锁到指定版本（system 模式 → 提示 pacman） |
+| `preset <app> [list|apply <name>|save <name>|edit <name>|delete <name>|parts|part <slot> <name>]` | 切/管理预设与零件插槽（状态接入 `state.json` 账本） |
 
 ## 管"安装方式"的
 
 | 命令 | 干啥 |
 |---|---|
-| `deps [core\|apps]` | 装软件包 |
+| `deps [core|apps]` | 装软件包 |
 | `apps`（alias `recommended`） | 装可选软件 |
-| `pkg <install\|upgrade\|remove\|search\|info\|installed>` | Fish 与安装器共用包管理；安装接收包名，搜索支持 `aur` / `pac` 前缀 |
+| `pkg <install|upgrade|remove|search|info|installed>` | Fish 与安装器共用包管理；安装接收包名，搜索支持 `aur` / `pac` 前缀 |
 | `wallpapers`（alias `wp`） | 装壁纸包（维护 `.nyxuri-managed.json` 跟踪清单） |
-| `<module> [install\|status\|uninstall]` | 扩展模块管理；fisher / greeter / gtk 走标准三件套；`fcitx` 支持细粒度解耦动词 `[install\|deploy\|activate\|status\|uninstall]` |
-| `theme [toggle\|dark\|light\|sync\|status]` | 原生切换/同步深浅主题（纯 Python 调度 gsettings、GTK settings.ini、Noctalia IPC 与 Kitty 信号，status 查询当前模式） |
+| `greeter` / `fcitx` / `gtk` / `fisher` `[install|status|uninstall]` | 扩展模块管理；fisher / greeter / gtk 走标准三件套；`fcitx` 支持细粒度解耦动词 `[install|deploy|activate|status|uninstall]` |
+| `theme [toggle|dark|light|sync|status]` | 原生切换/同步深浅主题（纯 Python 调度 gsettings、GTK settings.ini、Noctalia IPC 与 Kitty 信号，status 查询当前模式） |
 
 ## 管"状态"的
 
@@ -34,10 +28,10 @@
 | `snapshot [note]`（alias `backup`） | 存档当前配置 |
 | `rollback [index]`（alias `restore`） | 从存档恢复 |
 | `list` | 看所有存档 |
-| `shell [get\|set <noctalia\|custom> [path]\|status]` | 查看或切换桌面外壳运行插槽（记录于 state.json 账本） |
+| `shell [get|set <noctalia|nyxuri-shell> [bin_path]|switch [<noctalia|nyxuri-shell> [bin_path]]|status]` | 查看或切换桌面外壳运行插槽（switch 无参在 noctalia 与 nyxuri-shell 间互切；兼容 custom/nyxuri 别名，记录于 state.json 账本）。**[EXPERIMENTAL]** nyxuri-shell 完全在开发中、暂不推荐日常使用，切换与状态输出会带实验性警告；已知问题见 [shell/KNOWN-ISSUES.md](../shell/KNOWN-ISSUES.md) |
 | `doctor` | 体检（_check_* 列表） |
 | `clean [-n] [--only <任务>]` | 缓存清理；`-n` 只预览，Fish 的 `clean` 指向此入口 |
-| `uninstall [--all\|standard\|restore\|purge]`（alias `remove`）/ `purge` | 卸载（勾选式） |
+| `uninstall [--all|standard|restore|purge]`（alias `remove`）/ `purge` | 卸载（勾选式） |
 | `bug`（alias `report`） | 导出诊断报告 |
 | `test` | 开发者沙箱部署测试 |
 | `help` | 用法 |
