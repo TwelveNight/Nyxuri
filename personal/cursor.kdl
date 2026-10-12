@@ -1,0 +1,10 @@
+// Match the existing iNiR and Hyprland + ii cursor.
+cursor {
+    xcursor-theme "Bibata-Modern-Classic"
+    xcursor-size 24
+}
+
+environment {
+    XCURSOR_THEME "Bibata-Modern-Classic"
+    XCURSOR_SIZE "24"
+}
