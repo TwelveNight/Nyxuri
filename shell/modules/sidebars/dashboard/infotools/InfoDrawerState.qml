@@ -158,26 +158,34 @@ Singleton {
         atomicWrites: true
 
         onLoaded: {
+            let loaded = false;
             try {
                 root.loadState(stateFile.text());
+                loaded = true;
             } catch (error) {
-                console.warn("InfoDrawerState failed to load:", error);
+                console.warn("InfoDrawerState failed to load; leaving the existing file untouched:", error);
             }
 
             root.ready = true;
-            root.scheduleSave();
+            if (loaded)
+                root.scheduleSave();
         }
 
         onLoadFailed: error => {
             if (!root.storeReady)
                 return;
 
-            if (error !== FileViewError.FileNotFound)
-                console.warn("InfoDrawerState failed to open:", error);
+            if (error !== FileViewError.FileNotFound) {
+                console.warn("InfoDrawerState failed to open; leaving the existing file untouched:", error);
+                root.ready = true;
+                return;
+            }
 
             root.ready = true;
             root.scheduleSave();
         }
+
+        onSaveFailed: error => console.warn("InfoDrawerState failed to save:", error)
     }
 
     Timer {

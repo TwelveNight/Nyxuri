@@ -1274,6 +1274,31 @@ class TestConfigStoreFailureHandling(unittest.TestCase):
             source = self._relative(relative)
             self.assertIn("onSaveFailed", source, relative)
 
+    STATEFUL_STORES = (
+        "modules/sidebars/dashboard/infotools/InfoDrawerState.qml",
+        "modules/sidebars/dashboard/infotools/TodoService.qml",
+    )
+
+    def test_stateful_stores_only_seed_a_missing_file(self):
+        for relative in self.STATEFUL_STORES:
+            source = self._relative(relative)
+            handler = self._handler(source, "onLoadFailed:", "onSaveFailed:")
+            self.assertIn("error !== FileViewError.FileNotFound", handler, relative)
+            self.assertIn("console.warn", handler, relative)
+
+    def test_stateful_stores_report_save_failures(self):
+        for relative in self.STATEFUL_STORES:
+            self.assertIn("onSaveFailed", self._relative(relative), relative)
+
+    def test_info_drawer_skips_the_rewrite_after_a_failed_parse(self):
+        handler = self._handler(
+            self._relative("modules/sidebars/dashboard/infotools/InfoDrawerState.qml"),
+            "onLoaded:", "onLoadFailed:")
+        self.assertIn("let loaded = false;", handler)
+        self.assertIn("loaded = true;", handler)
+        self.assertLess(handler.index("loaded = true;"), handler.index("} catch"))
+        self.assertLess(handler.index("if (loaded)"), handler.index("scheduleSave"))
+
 
 class TestEndOfInputCancelsPrompts(unittest.TestCase):
     """A closed terminal must cancel the prompt instead of spinning the reader.

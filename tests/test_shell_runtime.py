@@ -884,6 +884,7 @@ import qs.app
 import qs.app.services
 import qs.modules.bar.tray
 import qs.modules.quicksettings
+import qs.modules.sidebars.dashboard.infotools
 
 ShellRoot {
     IpcHandler {
@@ -892,6 +893,9 @@ ShellRoot {
         function auxiliaryStores(): string {
             return String(IdleService.policyConfigPath) + "|" + String(TrayService.filePath)
                  + "|" + String(QuickToggleConfig.filePath);
+        }
+        function statefulStores(): string {
+            return String(InfoDrawerState.filePath) + "|" + String(TodoService.filePath);
         }
     }
 }
@@ -978,6 +982,25 @@ ShellRoot {
         for name in ("IdleService", "TrayService", "QuickToggleConfig"):
             self.assertIn(name + " failed to load", log)
             self.assertIn("leaving the existing", log)
+
+    def test_corrupt_stateful_stores_are_left_untouched(self):
+        """The drawer and todo stores schedule a save after loading; a parse failure must skip it."""
+        corrupt = '{"broken":'
+        stores = [self.ctx.home / relative for relative in (
+            ".local/state/nyxuri/clavis-info-drawer.json",
+            ".local/state/nyxuri/todo.json",
+        )]
+        for store in stores:
+            store.parent.mkdir(parents=True, exist_ok=True)
+            store.write_text(corrupt, encoding="utf-8")
+        self.wait_until_ready()
+        self.assertTrue(self.call("statefulStores").strip())
+        time.sleep(25)
+        for store in stores:
+            self.assertEqual(store.read_text(encoding="utf-8"), corrupt, store.name)
+        log = self.log_text()
+        for name in ("InfoDrawerState", "TodoService"):
+            self.assertIn(name + " failed to load", log)
 
 
 if __name__ == "__main__":

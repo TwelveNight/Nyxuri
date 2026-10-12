@@ -110,13 +110,18 @@ Singleton {
         if (!root.storeReady)
         return;
 
-        if (error !== FileViewError.FileNotFound)
-        console.warn("TodoService failed to open:", error);
+        if (error !== FileViewError.FileNotFound) {
+        console.warn("TodoService failed to open; leaving the existing file untouched:", error);
+        root.ready = true;
+        return;
+    }
 
         root.list = [];
         root.ready = true;
         root.save();
     }
+
+        onSaveFailed: error => console.warn("TodoService failed to save:", error)
     }
 
         Component.onDestruction: {

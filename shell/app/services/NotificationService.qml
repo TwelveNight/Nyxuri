@@ -303,10 +303,12 @@ Singleton {
                 root.saveNotifications();
                 root.initDone();
             } else {
-                console.warn("NotificationService failed to load notification file:", error);
+                console.warn("NotificationService failed to load notification file; leaving the existing file untouched:", error);
                 root.initDone();
             }
         }
+
+        onSaveFailed: error => console.warn("NotificationService failed to save:", error)
     }
 
     function notificationById(id) {
