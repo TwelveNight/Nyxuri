@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import socket
 import sys
 import time
 
@@ -52,19 +53,24 @@ def sync():
         subprocess.run(["noctalia", "msg", "wallpaper-set", *args, path], check=True, timeout=5)
 
 
-def hook():
-    path = os.environ.get("NOCTALIA_WALLPAPER_PATH", "")
-    if not path or not Path(path).is_file():
-        return
-    outputs = current()
-    connector = os.environ.get("NOCTALIA_WALLPAPER_CONNECTOR", "")
-    relevant = [o for o in outputs if not connector or connector in (o.get("name"), o.get("output"), o.get("connector"), o.get("output_name"))]
-    # Our preview updates also emit wallpaper_changed. Never send thumbnails
-    # back as a new desktop wallpaper, or a video would turn into its first frame.
-    if any(path in (o.get("path"), preview(o)) for o in relevant):
-        return
-    args = ["-o", connector] if connector else []
-    subprocess.run(["skwd-helm", "apply", path, *args], check=True, timeout=30)
+def apply(path):
+    """Send the rendering request first; the watcher syncs Noctalia separately."""
+    source = Path(path).expanduser().resolve(strict=True)
+    if not source.is_file():
+        raise ValueError("Wallpaper must be a file")
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    address = os.environ.get("SKWD_WALL_V2_SOCK") or str(Path(runtime) / "skwd-wall-v2/wall.sock")
+    request = {"id": 1, "method": "wall.apply", "params": {
+        "type": "video" if source.suffix.lower() in VIDEO else "static",
+        "path": str(source), "no_transition": True, "notify": False}}
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(10)
+        client.connect(address)
+        client.sendall((json.dumps(request) + "\n").encode())
+        with client.makefile("rb") as reply:
+            response = json.loads(reply.readline(1024 * 1024))
+    if response.get("id") != 1 or response.get("error") or "result" not in response:
+        raise ValueError(f"skwd rejected wallpaper: {response.get('error', response)}")
 
 
 def watch():
@@ -87,7 +93,10 @@ def watch():
 
 if __name__ == "__main__":
     try:
-        {"watch": watch, "hook": hook, "sync": sync}[sys.argv[1]]()
+        if sys.argv[1] == "apply":
+            apply(sys.argv[2])
+        else:
+            {"watch": watch, "sync": sync}[sys.argv[1]]()
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"wallpaper bridge: {error}", file=sys.stderr)
         raise SystemExit(1)

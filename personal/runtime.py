@@ -47,7 +47,7 @@ def main():
     os.environ["KITTY_CONFIG_DIRECTORY"] = str(config / "kitty-nyxuri")
     # Reuse iNiR's socket/PID validation, environment handoff and stale-watcher
     # protection. Shared runtime state is deliberate: both Niri entries agree
-    # with the existing Hyprland cleanup watcher on who owns skwd now.
+    # with the existing Hyprland cleanup watcher on who owns the session.
     subprocess.run([sys.executable, str(scripts / "desktop-session.py"), "start", "niri", "--no-ii-theme"], check=True)
     shell = subprocess.Popen(["noctalia"])
     bridge = None

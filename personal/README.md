@@ -1,11 +1,11 @@
 # 本地桌面适配
 
 `night/personal-overlay` 保留 Hyprland + ii 和现有 iNiR，另加一个
-**Nyxuri (niri + Noctalia)** 登录项。桌面壁纸共用 skwd-wall。
+**Nyxuri (niri + Noctalia)** 登录项。Nyxuri、iNiR／Hyprland 共用 skwd-wall，Noctalia 保留私有取色与预览。
 
 ## 安装
 
-先准备 `niri`、`noctalia`、`kitty`、`skwd-helm`、`skwd-walld`、`ffmpeg`、
+先准备 `niri`、`noctalia`、`kitty`、`mpvpaper`、`ffmpeg`、
 `jq`、`inotify-tools`、`wlsunset`、`python-gobject` 和 `gtk-layer-shell`。
 当前机器沿用 iNiR 已配置好的 Hyprland 会话交接、skwd 用户服务、
 共享配色监听和 Niri Portal 路由。原有 Kitty 配置必须存在。
@@ -56,30 +56,29 @@ cd ~/Template/github/niri-dots/Nyxuri
 
 ## 壁纸与会话
 
-静态图片、视频和 GIF 选择统一调用 `skwd-helm apply`，随机快捷键调用
-`skwd-helm random`。Noctalia 原生壁纸面板的选择也通过 hook 交给 skwd。
-Noctalia 的桌面壁纸绘制、mpvpaper 插件及自动 Greeter 同步默认关闭。
-请保持 Noctalia 的壁纸绘制关闭，不在 GUI 中启用第二个桌面后端。
+Super+Ctrl+W 打开 skwd-wall 前端；Ctrl+Alt+T 打开 Nyxuri 自定义选择器，
+后者直接请求 skwd-wall 切换并取消本次过渡。skwd 前端沿用自身过渡设置。
+Noctalia 的取色、锁屏预览和私有 Kitty/Niri 模板由单向状态监听同步，不阻塞切换请求。
+Noctalia 桌面绘制、壁纸 hook 和 mpvpaper 插件关闭，Greeter 自动同步仍关闭。
+Noctalia 内置壁纸面板未替换后端；使用自定义选择器或 skwd 选择器切换实际壁纸。
+Nyxuri 启动时先停止 II 配色监听，再把 skwd 交接到当前桌面；返回 iNiR／Hyprland
+时由它们原有 helper 恢复配色监听。共享服务启用关系和过渡配置不改。
 
-Niri overview 的全屏背景也使用当前 skwd 静态／动态壁纸；个人图层规则让
-壁纸留在 backdrop，工作区预览缩小时壁纸保持全屏。无需额外的背景进程。
-概览沿用 iNiR 的 0.75 缩放、工作区阴影和开合动画。
+Niri overview 保留 iNiR 的 0.75 缩放、工作区阴影和开合动画；skwd 渲染图层留在 backdrop。
 
 Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` 使用
 `~/.config/nyxuri-desktop`，不是最终应用目录。GUI 状态继续沿用
 `~/.local/state/nyxuri-desktop/noctalia/noctalia/`，保留已有设置。
 
-skwd 外部切换通过 `watch` 同步到 Noctalia。视频取首帧、Wallpaper Engine
-读取已有缩略图，供 Noctalia 配色和锁屏使用；不会将预览图反向设成桌面壁纸。
 Kitty 继承原有设置，Nyxuri 颜色写入私有目录，Noctalia 和 Niri 键位启动终端时均使用此配置。
 Nyxuri 登录时先停止 II 配色监听，避免换壁纸串改共享主题；返回 iNiR／II 后由它们
 原有的启动钩子恢复监听。壁纸预览、色板和缩略图缓存位于 `~/.cache/nyxuri-desktop/`。
-多套桌面按顺序登录；共享 skwd 和用户 D-Bus 不支持同一用户同时运行它们。
+多套桌面按顺序登录；共享用户 D-Bus 不支持同一用户同时运行它们。
 
 GDM 入口按标准 `niri-session` 的用户服务启动／关闭顺序运行，但使用独立服务。
 Niri 启动前清除旧桌面显示地址与 GPU 选择变量；shell 启动前调用随适配携带的
 `desktop-session.py`，验证真实 compositor IPC、PID 和 Wayland socket，
-完成 systemd／D-Bus 环境交接，再重连 skwd 和启动 Noctalia。
+完成 systemd／D-Bus 环境交接，重启 skwd 到本会话，再启动 Noctalia 与单向预览监听。
 私有 shell 也清除上个桌面遗留的 GPU 变量；终端与 Noctalia 的私有路径只传给本会话子进程。
 Shell 单元验证 `org.kde.StatusNotifierWatcher` 的拥有者是本次 Noctalia，且 IPC 可用后再报告就绪；
 个人 XDG 应用的排序 drop-in 等待此单元，不会主动拉起它。
@@ -92,7 +91,7 @@ Shell 单元验证 `org.kde.StatusNotifierWatcher` 的拥有者是本次 Noctali
 
 隔离测试、配置校验只能证明部署文件和调用契约。实机应按
 Hyprland → Nyxuri → iNiR → Hyprland 往返登录，检查 shell、托盘、输入法、
-壁纸和配色；视频及 skwd 外部换图也要分别确认。
+壁纸和配色；视频壁纸也要分别确认。
 
 若登录失败，回 GDM 选择原有 Hyprland 或 Niri，查看：
 
@@ -124,7 +123,7 @@ journalctl --user -b -u skwd-walld.service
 - Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。
 - Mod+Tab：Nyxuri Orbit；Mod+S / A / B：Noctalia 控制中心。
 - Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
-- Mod+Ctrl+W：skwd 选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动。
+- Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；原 OCR 菜单键打开截图编辑，不提供 OCR。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。

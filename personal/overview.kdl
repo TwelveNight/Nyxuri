@@ -1,4 +1,4 @@
-// Keep the active skwd wallpaper behind all overview workspaces.
+// Keep the skwd wallpaper behind all overview workspaces.
 overview {
     zoom 0.75
     backdrop-color "transparent"
@@ -14,7 +14,7 @@ animations {
     }
 }
 
-// Match renderers only; the skwd picker must remain an interactive overlay.
+// Keep the skwd wallpaper and optional video renderer in the backdrop.
 layer-rule {
     match namespace="^skwd-(paper|wall-vk|wall-still)$"
     place-within-backdrop true

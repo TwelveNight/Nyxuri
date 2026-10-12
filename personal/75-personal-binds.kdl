@@ -46,7 +46,7 @@ binds {
     Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
     Mod+T { spawn "kitty"; }
     Mod+Comma { spawn "noctalia" "msg" "settings-toggle"; }
-    Ctrl+Alt+T { spawn "skwd-wall-v2"; }
+    Ctrl+Alt+T { spawn "sh" "-c" "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh wallpaper-picker"; }
     XF86AudioPlay { spawn "noctalia" "msg" "media" "toggle"; }
     XF86AudioPause { spawn "noctalia" "msg" "media" "toggle"; }
     XF86AudioNext { spawn "noctalia" "msg" "media" "next"; }

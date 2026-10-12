@@ -12,7 +12,7 @@
 渲染的 `colors__custom__.conf` 覆盖颜色；Hyprland 仍由 ii 生成原有颜色文件。
 Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同一 Kitty 路径，
 供 Noctalia 启动的应用继承；Nyxuri 登录时停止 II 配色监听，返回其他桌面时恢复。
-个人部署通过 `nyxuri-shell.service` 调用 runtime：先交接会话环境并重连 skwd，再启动 Noctalia；
+个人部署通过 `nyxuri-shell.service` 调用 runtime：先交接会话环境并重启 skwd，再启动 Noctalia 和单向预览监听；
 主配置不重复 spawn shell。应用的排序 drop-in 等 Noctalia 托盘总线就绪。
 私有目录、独立 Niri 单元和壁纸桥接见 [dual-session](dual-session.md)。
 
@@ -20,7 +20,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
 [ Niri Compositor 会话 (Wayland) ]
   │
   ├── 1. 启动阶段 (spawn-at-startup)
-  │     ├── nyxuri-shell.service ────► 个人 runtime / Noctalia / skwd bridge (After compositor)
+  │     ├── nyxuri-shell.service ────► 个人 runtime / Noctalia / skwd 单向预览 (After compositor)
   │     ├── XDG autostart        ────► Fcitx5 / 1Password / Clash Verge / KDE Connect
   │     └── toggle-eyecare.sh --sync ─► 同步护眼模式状态与色温
   │
@@ -45,7 +45,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
         │
         └── 壁纸切换事件 (wallpaper_changed hook)
               ▼
-            个人 wallpaper.py bridge (读取 skwd current，视频抽帧)
+            原版：视频缩略图；个人层：关闭 hook，由 skwd 单向同步预览
               ▼
             Noctalia Material You 调色算法
               ▼ (~6s 自动触发)
@@ -62,7 +62,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
 | **`noctalia`** | 状态栏、桌面部件、调色引擎、OSD | `nyxuri-shell.service` | PartOf=nyxuri-niri.service，托盘总线就绪后应用启动 |
 | **`fcitx5`** | 中文与多语言输入法框架 | 系统 XDG autostart 条目 | 图形会话服务生命周期 |
 | **`xdg-desktop-portal`** | 桌面 Portal（文件、截图、色彩外观） | D-Bus 按需激活 / session 激活 | 由 `configs/xdg-desktop-portal/portals.conf` 分流路由 |
-| **`skwd-walld`** | 静态、视频与 WE 桌面壁纸 | 个人 runtime 完成环境交接后重连 | 共享服务；pidfd watcher 和 graphical-session 生命周期释放旧会话 |
+| **`skwd-walld`** | 三套桌面共用壁纸渲染 | 当前桌面 helper 交接显示环境并重启 | Nyxuri 单向同步 Noctalia，不改启用关系 |
 
 ---
 

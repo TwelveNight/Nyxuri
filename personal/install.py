@@ -46,6 +46,9 @@ def prepare_sources(destination: Path) -> None:
                                       '${XDG_CONFIG_HOME:-$HOME/.config}/nyxuri-desktop/' + app)
         for name in ("nyxuri", "nyxniri"):
             content = content.replace(f".cache/{name}/", ".cache/nyxuri-desktop/")
+        content = content.replace(".local/state/noctalia/mpvpaper", ".local/state/nyxuri-desktop/noctalia/mpvpaper")
+        content = content.replace(".cache/noctalia/mpvpaper", ".cache/nyxuri-desktop/mpvpaper")
+        content = content.replace('cache_base .. "/noctalia/mpvpaper"', 'cache_base .. "/nyxuri-desktop/mpvpaper"')
         path.write_text(content, encoding="utf-8")
     effects = destination / "niri/effects.kdl"
     if not effects.exists() and not effects.is_symlink():
@@ -73,52 +76,33 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/overview.kdl", destination / "niri/personal-overview.kdl")
     shutil.copy2(ROOT / "personal/cursor.kdl", destination / "niri/personal-cursor.kdl")
     scripts = destination / "niri/scripts"
-    for name in ("desktop-session.py", "runtime.py", "wallpaper.py", "session.py"):
+    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)
     shutil.copy2(ROOT / "personal/niri_actions.py", scripts / "niri-actions.py")
     (scripts / "session-shell.sh").write_text(
         '#!/bin/sh\nexec python3 "$(dirname "$0")/runtime.py"\n', encoding="utf-8")
-    hook = destination / "noctalia/wallpaper-hook.sh"
-    hook.write_text('#!/bin/sh\nexec python3 "$HOME/.config/nyxuri-desktop/niri/scripts/wallpaper.py" hook\n', encoding="utf-8")
     action = scripts / "shell-action.sh"
-    content = action.read_text().replace('exec noctalia msg wallpaper-random', 'exec skwd-helm random')
+    content = action.read_text()
     content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config/nyxuri-desktop"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
     # This session always runs Noctalia. A legacy public shell selection must
     # never send its keyboard actions to a different desktop's executable.
     start = content.index('state_root=')
     end = content.index('case "$action" in')
     content = content[:start] + content[end:]
+    content = content.replace("exec noctalia msg wallpaper-random", 'exec skwd-helm random')
     action.write_text(content)
     orbit = scripts / "niri-scratch-menu.py"
     orbit.write_text(orbit.read_text().replace('os.path.join(CONFIG_HOME, "noctalia",',
                                              'os.path.join(CONFIG_HOME, "nyxuri-desktop", "noctalia",'))
-    backend = destination / "noctalia/tools/wallpaper_picker/backend.py"
-    backend.write_text('''"""All desktop images and videos are rendered by skwd-wall."""
-import subprocess
-import sys
-
-
-def apply_static_wallpaper(path):
-    try:
-        return subprocess.run(["skwd-helm", "apply", path], check=False, timeout=30).returncode == 0
-    except (OSError, subprocess.TimeoutExpired) as error:
-        print(f"Cannot apply wallpaper: {error}", file=sys.stderr)
-        return False
-
-
-def apply_dynamic_wallpaper(video_path, thumb_path=None):
-    return apply_static_wallpaper(video_path)
-
-
-def apply_wallpaper(item):
-    return apply_static_wallpaper(item.path)
-''')
+    # Request the renderer directly; preview synchronization never calls it back.
+    shutil.copy2(ROOT / "personal/wallpaper-backend.py", destination / "noctalia/tools/wallpaper_picker/backend.py")
     conf = destination / "noctalia/noctalia-config.toml"
-    text = conf.read_text().replace('[wallpaper]\n', '[wallpaper]\nenabled = false\n')
-    text = text.replace('enabled = ["noctalia/mpvpaper"]', 'enabled = []')
+    text = conf.read_text().replace('[wallpaper]\n', '[wallpaper]\nenabled = false\ntransition = []\ntransition_duration = 0\n')
     text = text.replace('[shell.greeter_sync]\nauto_sync = true', '[shell.greeter_sync]\nauto_sync = false')
-    # Dormant mpvpaper settings no longer describe this backend.
-    text = text.split('[widget.mpvpaper]')[0].rstrip() + "\n"
+    text = text.replace('wallpaper_changed = ["~/.config/nyxuri-desktop/noctalia/wallpaper-hook.sh"]', 'wallpaper_changed = []')
+    text = text.replace('enabled = ["noctalia/mpvpaper"]', 'enabled = []')
+    text = re.sub(r'\n\[widget\.mpvpaper\][\s\S]*?(?=\n\[|\Z)', '', text)
+    text = re.sub(r'\n\[plugin_settings\."noctalia/mpvpaper"\][\s\S]*?(?=\n\[|\Z)', '', text)
     conf.write_text(text)
     # Reassert the personal output boundary against fresh upstream defaults.
     data = tomllib.loads(text)
@@ -148,7 +132,7 @@ def main(argv=None, preflight=None) -> int:
     print(f"User services: {env.config_dir}/systemd/user/nyxuri-{{niri,shell}}.service")
     print("Personal shortcuts and startup; create absent XDG entries: 1Password, Clash Verge; disable ToDesk in all desktops")
     print("Startup ordering: 1Password, Clash Verge, Fcitx5, KDE Connect wait for the private shell")
-    print("Wallpaper: shared skwd-wall; iNiR/ii config and Portal routes stay as installed.")
+    print("Wallpaper: direct skwd switching; one-way Noctalia preview and private colors.")
     if preflight is not None:
         print("Register: Nyxuri GDM login entry; reload user service definitions.")
     if args.plan:

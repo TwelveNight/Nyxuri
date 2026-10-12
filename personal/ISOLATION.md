@@ -9,7 +9,7 @@ Nyxuri (niri + Noctalia)。同一用户同时开启多个图形会话不在隔�
 | shell 配置 | `~/.config/nyxuri-desktop/noctalia` | `~/.config/inir`、`~/.config/quickshell/inir` | `~/.config/illogical-impulse`、`~/.config/quickshell/ii` |
 | shell 生命周期 | `nyxuri-shell.service` 跟随 `nyxuri-niri.service` | `inir.service` 跟随 `niri.service` | Hyprland 启动钩子 |
 | 配色写入 | 私有 Kitty、Niri 和色板缓存 | 沿用已有主题机制 | 沿用已有主题机制 |
-| 壁纸 | 三套共用 skwd-wall 及当前壁纸选择 | 同左 | 同左 |
+| 壁纸 | skwd 直接切换，Noctalia 单向预览 | skwd-wall | skwd-wall |
 
 Nyxuri 的两个服务没有绑定 default.target 或公共 niri.service；其 Niri 单元与
 公共 niri.service 互斥。登录项、服务文件、部署文件和配置解析均已检查。
@@ -20,7 +20,7 @@ Nyxuri 的两个服务没有绑定 default.target 或公共 niri.service；其 N
 - Orbit、壁纸选择器、亮度工具及 Python 兼容入口只读取私有配置。
 - 键位动作不再读取公共 Nyxuri 账本中的旧 shell 选择。
 - Noctalia 打开的 Kitty 与 compositor 快捷键使用同一私有配置；这些路径不发布到共享 systemd／D-Bus 环境。
-- Nyxuri 启动时先停 II 配色监听，再重连 skwd；返回 iNiR／II 时，原有启动钩子恢复监听。
+- Nyxuri 启动时停止 II 配色监听并交接 skwd；返回 iNiR／II 时恢复各自配色监听。
 - 私有 shell 启动前清理上一桌面可能残留的 GPU 选择变量。
 
 自动验证涵盖实际执行生成后的工具入口、拒绝公共路径与旧 shell 干扰、II 配色
@@ -38,7 +38,7 @@ PID／运行状态保持不变。实际部署的 Niri、Noctalia 配置和 GDM �
 每次检查 shell、托盘、输入法、截图／屏幕共享、壁纸和终端配色；确认换壁纸不会
 改写离开的桌面主题。静态校验与模拟不能替代这一步，审计没有注销当前用户。
 
-## Noctalia 壁纸入口实机复核
+## 迁移前的 Noctalia 壁纸桥接复核（历史记录）
 
 2026-10-12，用户登录 Nyxuri 后复核。Noctalia 会在专用配置根变量后追加
 `noctalia`；旧变量指向最终应用目录，实际加载了默认配置而没有壁纸 hook。
@@ -69,3 +69,21 @@ skwd 调用中，未改共享渲染器设置；视频冷启动并非已保证每
 通过标准安装入口部署并热加载，Niri、Noctalia、skwd 的 PID 保持不变；
 未主动切换壁纸，截图后恢复概览原状态。核对 8,107 个原桌面配置文件内容未变。
 完整测试为 518 项（6 项跳过），沙箱部署及实际 Niri 配置校验通过。
+
+## 原生壁纸试用（历史）
+
+2026-10-12，用户要求 Nyxuri 恢复原来的 Noctalia 管理方式，进入该桌面时停止
+skwd。当时使用原生静态壁纸与原配置的 mpvpaper，关闭静态过渡，移除 skwd
+桥接监听；共享服务不 disable，返回 iNiR／Hyprland 仍由原启动流程恢复。
+随后用户选择保留 skwd，当前实现改为直接请求后端、单向同步 Noctalia。
+自定义选择器使用无过渡 RPC，Noctalia hook 不再反向切换；请求应答时间不代表首帧时间。
+
+## skwd 直接切换实机复核
+
+2026-10-12，私有 shell 已重启，skwd-walld 与单向 wallpaper.py watch 在运行；
+Noctalia wallpaper.enabled=false、wallpaper_changed=[]，实际背景图层为 skwd-paper。
+II 配色监听保持停止，共享 skwd 服务仍 enabled。自定义选择器直接调用 socket，
+两次静态请求应答为 31／36 ms；换图日志观察到约 623／809 ms，预览同步约
+592／779 ms。这些是日志和状态观测，不是屏幕首帧计时；测试后恢复原图。
+519 项契约测试通过（6 项跳过），沙箱部署、Niri 与 Noctalia 配置校验通过。
+动态壁纸和快速连续点击的视觉表现仍需验收。

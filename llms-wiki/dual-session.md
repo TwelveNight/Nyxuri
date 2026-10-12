@@ -2,7 +2,8 @@
 
 此页描述 `night/personal-overlay`；操作见
 [`personal/README.md`](../personal/README.md)。Hyprland + ii、iNiR 和
-Nyxuri + Noctalia 使用同一用户，按顺序登录，共享 skwd。
+Nyxuri + Noctalia 使用同一用户，按顺序登录。三套桌面共用 skwd 渲染，
+各自维护 shell 预览与配色。
 
 ## 部署与更新
 
@@ -50,7 +51,8 @@ Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart
 
 `personal/runtime.py` 先运行携带的 iNiR 个人 `desktop-session.py`，
 验证 IPC 对端 PID／UID／compositor 名称和 Wayland socket，发布当前会话环境，
-通过 --no-ii-theme 在重启 skwd 前停止 II 配色监听，再启动 Noctalia 和壁纸监听。
+通过 --no-ii-theme 停止 II 配色监听，完成环境交接并重启 skwd 后启动 Noctalia。
+托盘与 IPC 就绪后启动 wallpaper.py watch，只把 skwd 当前状态同步给 Noctalia。
 返回 iNiR／Hyprland 时，它们原有 helper 会恢复 II 配色监听；共享服务的启用链接不改。
 旧 display／GPU 变量在启动 compositor 时清除，私有 shell 单元也用 UnsetEnvironment
 清除未被 Niri 重新发布的旧 GPU 变量。helper 的锁、pidfd watcher 和会话记录与现有
@@ -59,7 +61,7 @@ Noctalia 会在 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME` 后自行追加 `
 配置根变量设为 `~/.config/nyxuri-desktop`，实际读取其 `noctalia/*.toml`。
 状态根变量继续设为 `~/.local/state/nyxuri-desktop/noctalia`，实际 GUI 状态在
 其 `noctalia/settings.toml`，沿用已生成的私有状态以保留用户偏好。
-runtime 同时确认本次 Shell 拥有托盘总线且 IPC status 返回成功后才报告就绪、启动壁纸监听，
+runtime 同时确认本次 Shell 拥有托盘总线且 IPC status 返回成功后才报告就绪，
 避免初次同步抢在 IPC 前面。
 runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 与 Niri 键位打开的终端一致。这些私有路径只传给本会话子进程，不导入共享用户管理器。
@@ -69,22 +71,20 @@ runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 
 `zz-personal.toml` 再次关闭 builtin/community 配色模板，禁用输出到私有目录和
 `~/.cache/nyxuri-desktop/` 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
-临时部署副本关闭 Noctalia 桌面壁纸、mpvpaper 插件及 Greeter 自动同步。
-Python 选择器静态／视频均调用参数数组 `skwd-helm apply`，随机快捷键调用
-`skwd-helm random`；原生 Noctalia 选择经 wallpaper_changed hook 转交 skwd。
-`personal/wallpaper.py` watch 事件后读取 current，逐输出把静态图／视频首帧／
-已有 WE 缩略图传给 Noctalia 作配色和锁屏背景。相同预览不重复同步，hook
-识别活动路径／预览，避免把视频替换成缩略图。
-Noctalia 的壁纸绘制不能在 GUI 覆盖状态里重新打开。
+部署副本关闭 Noctalia 桌面绘制、wallpaper_changed hook 与 mpvpaper 插件。
+自定义 Python 选择器的个人 backend 加载部署的 wallpaper.py，直接调用 apply，通过 skwd
+Unix socket 的 wall.apply 请求切换，单次请求 no_transition=true，不改共享过渡配置。
+请求失败返回非零；成功应答只代表后端接受请求，不保证画面已经显示。
+wallpaper.py watch 独立同步各输出的图片或视频缩略图到 Noctalia，用于取色与锁屏预览。
+同步不再反向请求 skwd，视频不会被预览图片覆盖。
+Super+Ctrl+W 打开 skwd-wall-v2 前端，沿用其自身过渡设置；
+Ctrl+Alt+T 打开 Nyxuri 自定义选择器；随机切换使用 skwd-helm random。
+Noctalia 内置壁纸面板仍是自身状态入口，没有替换其后端，不能用它切换 skwd 画面。
+外部 skwd 选择器的状态变化同样由单向监听同步。
 
 `personal/overview.kdl` 部署为私有 Niri 的 `personal-overview.kdl`，在用户
-`__custom__.kdl` 前加载。渲染器的 `skwd-paper`／`skwd-wall-still`／`skwd-wall-vk` 图层
-使用 `place-within-backdrop true`，overview 背景透明，当前 skwd 壁纸保持全屏，
-不随工作区预览缩小。选择器 `skwd-wall-v2` 与 Noctalia 栏／dock 不匹配此规则。
-概览直接使用已有渲染器，不启用 Noctalia 静态 backdrop，不新建壁纸进程，
-不修改共享 skwd 或其他 Niri 会话的配置。
-原生概览使用 iNiR 的 `zoom 0.75`、启用的工作区阴影与开合动画
-（spring damping-ratio=1.0、stiffness=900、epsilon=0.0001）；不涉及 iNiR Shell 的启动器界面。
+`__custom__.kdl` 前加载。仅 skwd 渲染图层使用 place-within-backdrop，
+选择器和 shell 图层不匹配；overview 背景透明，缩放 0.75，保留工作区阴影与开合动画。
 
 Kitty 基础设置仍来自原有 Kitty，颜色、Niri glow 和 Noctalia 模板路径在私有
 目录；Nyxuri 会话中 II 配色监听保持停止，避免换壁纸改写共享 GTK／Qt／II 设置。
@@ -103,7 +103,8 @@ TempEnv 测试覆盖重复部署、公共配置不变、文件保留、参数数
 另运行生成后的 Niri／Noctalia 配置校验及 desktop-file 校验。
 真正的往返登录、shell／托盘／输入法和动态壁纸仍须实机验收；共享用户
 服务不承诺同一用户多图形会话并发隔离。
-skwd 壁纸选择、媒体音量、输入法与普通应用配置仍是同一用户共享资源。
+媒体音量、输入法与普通应用配置仍是同一用户共享资源；
+skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprland 的 shell 配色配置。
 切换指注销后在 GDM 选择另一登录项，不意味着保留原桌面窗口或同时运行三套 compositor。
 本次审计的证据与待验项见 [personal/ISOLATION.md](../personal/ISOLATION.md)。
 

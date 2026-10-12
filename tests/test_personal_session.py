@@ -1,15 +1,17 @@
-"""The private desktop shares skwd, while preserving the existing desktops."""
+"""The private desktop uses direct skwd requests, while preserving the existing desktops."""
 import importlib.util
 import json
 import os
 import re
 from pathlib import Path
 import subprocess
+import sys
 import unittest
+import tomllib
 from unittest.mock import patch, Mock
 
 from tests.utils import TempEnv
-from personal import install, wallpaper, runtime, update, session
+from personal import install, runtime, update, session
 
 
 class TestPersonalSession(unittest.TestCase):
@@ -99,7 +101,7 @@ class TestPersonalSession(unittest.TestCase):
             config = tomllib.loads(result.stdout)
             self.assertFalse(config["wallpaper"]["enabled"])
             self.assertEqual(config["hooks"]["wallpaper_changed"],
-                             ["~/.config/nyxuri-desktop/noctalia/wallpaper-hook.sh"])
+                             [])
             self.assertIn("bar", config["bar"])
             self.assertEqual(config["theme"]["templates"]["builtin_ids"], [])
             self.assertEqual(config["plugins"]["enabled"], [])
@@ -127,48 +129,27 @@ class TestPersonalSession(unittest.TestCase):
         self.assertNotIn(["systemctl", "--user", "--wait", "start", "niri.service"], calls)
 
 
-class TestWallpaperBridge(unittest.TestCase):
-    def test_current_supports_named_output_maps(self):
-        reply = {"outputs": {"DP-1": {"path": "/a.png"}, "DP-2": {"connected": False}}}
-        with TempEnv(), patch("personal.wallpaper.subprocess.run", return_value=Mock(stdout=json.dumps(reply))) as run:
-            self.assertEqual(wallpaper.current(), [{"name": "DP-1", "path": "/a.png"}])
-            self.assertEqual(run.call_args.args[0], ["skwd-helm", "current", "--json"])
-
-    def test_native_hook_applies_output_with_argument_array(self):
-        with TempEnv() as ctx:
-            image = ctx.home / "space ; image.png"
-            image.write_bytes(b"image")
-            with patch.dict(os.environ, NOCTALIA_WALLPAPER_PATH=str(image), NOCTALIA_WALLPAPER_CONNECTOR="DP-1"), patch("personal.wallpaper.current", return_value=[]), patch("personal.wallpaper.subprocess.run") as run:
-                wallpaper.hook()
-            self.assertEqual(run.call_args.args[0], ["skwd-helm", "apply", str(image), "-o", "DP-1"])
-
-    def test_preview_event_does_not_replace_video(self):
-        with TempEnv() as ctx:
-            image = ctx.home / "thumb.jpg"
-            image.write_bytes(b"image")
-            with patch.dict(os.environ, NOCTALIA_WALLPAPER_PATH=str(image), NOCTALIA_WALLPAPER_CONNECTOR="DP-1"), patch("personal.wallpaper.current", return_value=[{"name": "DP-1", "path": "movie.mp4"}]), patch("personal.wallpaper.preview", return_value=str(image)), patch("personal.wallpaper.subprocess.run") as run:
-                wallpaper.hook()
-            run.assert_not_called()
-
-    def test_sync_updates_output_and_preserves_current_preview(self):
-        with TempEnv(), patch("personal.wallpaper.current", return_value=[{"name": "DP-1"}, {"name": "DP-2"}]), patch("personal.wallpaper.preview", return_value="/preview.png"), patch("personal.wallpaper.subprocess.run", side_effect=[Mock(returncode=0, stdout="/old.png"), Mock(returncode=0), Mock(returncode=0, stdout="/preview.png")]) as run:
-            wallpaper.sync()
-        self.assertEqual([call.args[0] for call in run.call_args_list], [["noctalia", "msg", "wallpaper-get", "DP-1"], ["noctalia", "msg", "wallpaper-set", "DP-1", "/preview.png"], ["noctalia", "msg", "wallpaper-get", "DP-2"]])
-
-    def test_picker_static_and_video_use_only_skwd(self):
+class TestDirectWallpaperBackend(unittest.TestCase):
+    def test_picker_commands_bypass_noctalia_and_report_failure(self):
         with TempEnv() as ctx:
             sources = ctx.home / "sources"
             sources.mkdir()
             install.prepare_sources(sources)
-            spec = importlib.util.spec_from_file_location("personal_backend_test", sources / "noctalia/tools/wallpaper_picker/backend.py")
+            spec = importlib.util.spec_from_file_location("direct_backend_test", sources / "noctalia/tools/wallpaper_picker/backend.py")
             backend = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(backend)
-            with patch.object(backend.subprocess, "run", return_value=Mock(returncode=0)) as run:
+            with patch.object(backend._renderer, "apply") as apply, patch.object(backend._renderer.subprocess, "run") as run:
                 self.assertTrue(backend.apply_static_wallpaper("/a b.png"))
                 self.assertTrue(backend.apply_dynamic_wallpaper("/a b.mp4", "/thumbnail.jpg"))
-                self.assertEqual([c.args[0] for c in run.call_args_list], [["skwd-helm", "apply", "/a b.png"], ["skwd-helm", "apply", "/a b.mp4"]])
-            with patch.object(backend.subprocess, "run", return_value=Mock(returncode=3)):
+            self.assertEqual([call.args[0] for call in apply.call_args_list], ["/a b.png", "/a b.mp4"])
+            run.assert_not_called()
+            with patch.object(backend._renderer, "apply", side_effect=ValueError("renderer failed")):
                 self.assertFalse(backend.apply_static_wallpaper("/a.png"))
+            values = tomllib.loads((sources / "noctalia/noctalia-config.toml").read_text())
+            self.assertFalse(values["wallpaper"]["enabled"])
+            self.assertEqual(values["hooks"]["wallpaper_changed"], [])
+            self.assertEqual(values["plugins"]["enabled"], [])
+            self.assertTrue((sources / "niri/scripts/wallpaper.py").exists())
 
 
 class TestDesktopHandoff(unittest.TestCase):

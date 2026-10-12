@@ -39,7 +39,7 @@ class PersonalIsolationTests(unittest.TestCase):
             namespace = re.search(r'match namespace="([^"]+)"', overview).group(1)
             for renderer in ("skwd-paper", "skwd-wall-vk", "skwd-wall-still"):
                 self.assertRegex(renderer, namespace)
-            for surface in ("skwd-wall-v2", "skwd-paper-picker", "noctalia-bar-bar", "noctalia-dock", "mpvpaper"):
+            for surface in ("skwd-wall-v2", "skwd-paper-picker", "noctalia-wallpaper", "mpvpaper", "noctalia-bar-bar", "noctalia-dock"):
                 self.assertNotRegex(surface, namespace)
             self.assertEqual((install.ROOT / "configs/niri/config.kdl").read_bytes(), original)
 
@@ -93,6 +93,7 @@ class PersonalIsolationTests(unittest.TestCase):
             self.assertEqual(inherited[0]["KITTY_CONFIG_DIRECTORY"], str(ctx.home / ".config/nyxuri-desktop/kitty-nyxuri"))
             self.assertEqual(inherited[0]["NOCTALIA_CONFIG_HOME"], str(ctx.home / ".config/nyxuri-desktop"))
             self.assertEqual(inherited[0]["NOCTALIA_STATE_HOME"], str(ctx.home / ".local/state/nyxuri-desktop/noctalia"))
+            self.assertEqual(len(inherited), 2)
             run.assert_called_once_with([sys.executable, str(install.ROOT / "personal/desktop-session.py"), "start", "niri", "--no-ii-theme"], check=True)
 
     def test_nyxuri_stops_ii_writer_before_wallpaper_restart_and_return_restores_it(self):
