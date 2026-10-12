@@ -973,6 +973,53 @@ class TestShellLauncherConfigRoot(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("ORBIT-LAUNCHER-STARTED", result.stdout)
 
+    def test_translate_runs_the_deployed_tool(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            tool = home / ".config" / "noctalia" / "tools" / "orbit-translate.py"
+            tool.parent.mkdir(parents=True)
+            tool.write_text('#!/bin/sh\nprintf "ORBIT-TRANSLATE-STARTED\\n"\n', encoding="utf-8")
+            tool.chmod(0o755)
+            result = subprocess.run(
+                ["bash", str(self._launcher()), "--action", "translate"],
+                capture_output=True, text=True,
+                env={"HOME": str(home), "XDG_CONFIG_HOME": str(home / "elsewhere"),
+                     "PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ORBIT-TRANSLATE-STARTED", result.stdout)
+
+
+class TestWallpaperOverviewSymlink(unittest.TestCase):
+
+    def _script(self):
+        return (Path(__file__).resolve().parent.parent / "shell" / "scripts" / "system"
+                / "overview.sh")
+
+    def test_rerun_without_an_argument_keeps_the_link_resolvable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            picture = home / "pics" / "wall.jpg"
+            picture.parent.mkdir(parents=True)
+            picture.write_bytes(b"wallpaper")
+            binaries = home / "bin"
+            binaries.mkdir()
+            magick = binaries / "magick"
+            magick.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            magick.chmod(0o755)
+            (home / "run").mkdir()
+            environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"),
+                               XDG_RUNTIME_DIR=str(home / "run"),
+                               PATH=str(binaries) + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"))
+            first = subprocess.run(["bash", str(self._script()), str(picture)],
+                                   capture_output=True, text=True, env=environment)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            second = subprocess.run(["bash", str(self._script())],
+                                    capture_output=True, text=True, env=environment)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            link = home / ".local" / "state" / "nyxuri" / "wallpaper" / "current"
+            self.assertTrue(link.exists(), "the current wallpaper link must stay resolvable")
+            self.assertEqual(link.resolve(), picture.resolve())
+
 
 class TestDesktopCardHostStructure(unittest.TestCase):
 

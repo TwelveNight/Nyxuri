@@ -72,4 +72,4 @@ if [[ ! -f "$theme_file" ]]; then
 fi
 
 # Reload all running Kitty instances.
-pkill -USR1 kitty >/dev/null 2>&1 || true
+pkill -USR1 -x kitty >/dev/null 2>&1 || true

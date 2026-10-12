@@ -534,6 +534,12 @@ ShellRoot {
             return 0
         return len(hook_log.read_text(encoding="utf-8").splitlines())
 
+    def hook_signal_arguments(self):
+        hook_log = self.ctx.home / "hook-pkill"
+        if not hook_log.exists():
+            return []
+        return [line.split() for line in hook_log.read_text(encoding="utf-8").splitlines()]
+
     def hook_trace(self):
         trace = self.ctx.home / "hook-trace"
         if not trace.exists():
@@ -683,6 +689,12 @@ ShellRoot {
         self.wait_for_queue_idle()
         self.assertGreater(self.hook_invocation_count(), hooks_before,
                            "identical re-render did not run the post hooks")
+        signals = self.hook_signal_arguments()
+        self.assertTrue(signals, "template hooks never signalled the applications")
+        for arguments in signals:
+            if "kitty" in arguments:
+                self.assertIn("-x", arguments,
+                              "the kitty reload signal must match the process name exactly")
         for path, marker in switched.values():
             self.assertIn(marker, path.read_text(encoding="utf-8"))
 

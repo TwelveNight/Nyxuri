@@ -7,7 +7,10 @@ scripts_dir=$(cd -- "$script_dir/.." && pwd)
 source "$scripts_dir/lib/clavis-paths.sh"
 clavis_paths_init
 
-wallpaper=${1:-$CLAVIS_STATE_HOME/wallpaper/current}
+wallpaper=${1:-}
+if [[ -z "$wallpaper" ]]; then
+    wallpaper=$(readlink -f -- "$CLAVIS_STATE_HOME/wallpaper/current" 2>/dev/null || true)
+fi
 if [[ -z "$wallpaper" || ! -e "$wallpaper" ]]; then
     mkdir -p "$CLAVIS_STATE_HOME/logs"
     printf '%s - ERROR: no wallpaper path found\n' "$(date -Is)" \
