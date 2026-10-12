@@ -404,18 +404,22 @@ Singleton {
                 repair = root.needsPolicyMigration(parsed);
                 root.loadPolicy(parsed);
             } catch (error) {
-                console.warn("IdleService failed to load policy:", error);
+                console.warn("IdleService failed to load policy; leaving the existing file untouched:", error);
                 root.loadPolicy({});
-                repair = true;
+                repair = false;
             }
             if (repair)
                 root.savePolicy();
         }
 
-        onLoadFailed: {
+        onLoadFailed: error => {
             root.loadPolicy({});
-            root.savePolicy();
+            if (error === FileViewError.FileNotFound)
+                root.savePolicy();
+            else
+                console.warn("IdleService could not read the policy; leaving the existing file untouched:", error);
         }
+        onSaveFailed: error => console.warn("IdleService could not save the policy:", error)
     }
 
     Process {

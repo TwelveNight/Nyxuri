@@ -1233,6 +1233,106 @@ class TestConfigStoreFailureHandling(unittest.TestCase):
         handler = self._handler(self._source("UiPreferences.qml"), "onSaveFailed:", "Timer {")
         self.assertIn("console.warn", handler)
 
+    AUXILIARY_STORES = (
+        "app/services/IdleService.qml",
+        "modules/bar/tray/TrayService.qml",
+        "modules/quicksettings/QuickToggleConfig.qml",
+    )
+
+    def _relative(self, relative):
+        return (Path(__file__).resolve().parent.parent / "shell" / relative).read_text(encoding="utf-8")
+
+    @staticmethod
+    def _catch_block(source):
+        marker = "} catch (error) {"
+        start = source.index(marker)
+        depth = 0
+        for index in range(start + len(marker) - 1, len(source)):
+            if source[index] == "{":
+                depth += 1
+            elif source[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    return source[start:index + 1]
+        raise AssertionError("unterminated catch block")
+
+    def test_auxiliary_stores_keep_the_file_when_parsing_fails(self):
+        for relative in self.AUXILIARY_STORES:
+            block = self._catch_block(self._relative(relative))
+            self.assertNotIn("root.save", block, relative)
+            self.assertIn("leaving the existing", block, relative)
+
+    def test_auxiliary_stores_only_seed_a_missing_file(self):
+        for relative in self.AUXILIARY_STORES:
+            source = self._relative(relative)
+            handler = self._handler(source, "onLoadFailed:", "onSaveFailed:")
+            self.assertIn("error === FileViewError.FileNotFound", handler, relative)
+            self.assertIn("console.warn", handler, relative)
+
+    def test_auxiliary_stores_report_save_failures(self):
+        for relative in self.AUXILIARY_STORES:
+            source = self._relative(relative)
+            self.assertIn("onSaveFailed", source, relative)
+
+
+class TestEndOfInputCancelsPrompts(unittest.TestCase):
+    """A closed terminal must cancel the prompt instead of spinning the reader.
+
+    read_key() returns "EOF" once os.read() yields nothing, but no caller
+    matched it, so every menu looped forever at full CPU after the tty closed.
+    """
+
+    def _stub(self, tui):
+        calls = {"count": 0}
+
+        def fake_read_key():
+            calls["count"] += 1
+            if calls["count"] > 50:
+                raise AssertionError("read_key() never stopped being polled")
+            return "EOF"
+
+        self.enterContext(patch.object(tui, "read_key", fake_read_key))
+        self.enterContext(patch.object(tui, "interactive_screen",
+                                       lambda **kwargs: contextlib.nullcontext()))
+        self.enterContext(patch.object(tui.sys, "stdin",
+                                       type("Stdin", (), {"isatty": staticmethod(lambda: True)})()))
+        return calls
+
+    def test_menu_run_returns_on_end_of_input(self):
+        from nyxuri import tui
+        calls = self._stub(tui)
+        menu = tui.Menu("rollback_select_title", [tui.MenuItem(label="a"), tui.MenuItem(label="b")],
+                        hint_key="rollback_select_hint", compact=True)
+        self.assertEqual(menu.run(), len(menu.items) - 1)
+        self.assertEqual(calls["count"], 1)
+
+    def test_checkbox_list_run_cancels_on_end_of_input(self):
+        from nyxuri import tui
+        calls = self._stub(tui)
+        checklist = tui.CheckboxList("master_title", [
+            tui.CheckboxEntry(key="k1", label="a"),
+            tui.CheckboxEntry(key="k2", label="b"),
+        ], compact=True)
+        self.assertIsNone(checklist.run())
+        self.assertEqual(calls["count"], 1)
+
+    def test_raw_line_reader_cancels_on_end_of_input(self):
+        from nyxuri import tui
+        calls = self._stub(tui)
+        switcher = tui.PresetSwitcher.__new__(tui.PresetSwitcher)
+        self.assertIsNone(tui.PresetSwitcher._read_line_raw(switcher, "prompt: "))
+        self.assertEqual(calls["count"], 1)
+
+    def test_every_prompt_loop_matches_end_of_input(self):
+        source = (Path(__file__).resolve().parent.parent / "nyxuri" / "tui.py").read_text(encoding="utf-8")
+        for branch in (
+            'elif key in ("ESC", "EXIT", "EOF"):',
+            'elif key in ("0", "q", "Q", "ESC", "EXIT", "EOF"):',
+            'elif key in ("q", "Q", "ESC", "EXIT", "EOF"):',
+        ):
+            self.assertIn(branch, source)
+        self.assertEqual(source.count('elif k in ("ESC", "EXIT", "EOF"):'), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

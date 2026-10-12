@@ -125,16 +125,19 @@ Singleton {
             try {
                 root.loadFromObject(JSON.parse(configFile.text().trim() || "{}"));
             } catch (error) {
-                console.warn("TrayService failed to load:", error);
+                console.warn("TrayService failed to load; leaving the existing config untouched:", error);
                 root.loadFromObject(root.defaultConfig());
-                root.save();
             }
         }
 
-        onLoadFailed: {
+        onLoadFailed: error => {
             root.loadFromObject(root.defaultConfig());
-            root.save();
+            if (error === FileViewError.FileNotFound)
+                root.save();
+            else
+                console.warn("TrayService could not read the config; leaving the existing config untouched:", error);
         }
+        onSaveFailed: error => console.warn("TrayService could not save the config:", error)
     }
 
     Component.onDestruction: {

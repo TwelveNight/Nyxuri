@@ -882,11 +882,17 @@ import Quickshell
 import Quickshell.Io
 import qs.app
 import qs.app.services
+import qs.modules.bar.tray
+import qs.modules.quicksettings
 
 ShellRoot {
     IpcHandler {
         target: "configStore"
         function themeMode(): string { return String(PersonalizationConfig.themeMode); }
+        function auxiliaryStores(): string {
+            return String(IdleService.policyConfigPath) + "|" + String(TrayService.filePath)
+                 + "|" + String(QuickToggleConfig.filePath);
+        }
     }
 }
 '''
@@ -907,6 +913,12 @@ ShellRoot {
         self.output.flush()
         self.output.seek(0)
         return self.output.read()
+
+    def call(self, method):
+        done = subprocess.run(
+            [self.qs, "-p", str(self.shell), "ipc", "call", "configStore", method],
+            env=self.environment, capture_output=True, text=True, timeout=20)
+        return done.stdout
 
     def wait_until_ready(self):
         deadline = time.monotonic() + presentation_budget(300)
@@ -945,6 +957,27 @@ ShellRoot {
         parsed = json.loads(self.config_path.read_text(encoding="utf-8"))
         self.assertIn("theme", parsed)
         self.assertIn(parsed["theme"]["mode"], ("dark", "light"))
+
+    def test_corrupt_auxiliary_stores_are_left_untouched(self):
+        """The tray, quick toggle and idle stores must survive a parse failure too."""
+        corrupt = '{"broken":'
+        stores = [self.ctx.home / relative for relative in (
+            ".config/nyxuri/idle-policy.json",
+            ".config/nyxuri/tray.json",
+            ".config/nyxuri/quick-toggles.json",
+        )]
+        for store in stores:
+            store.parent.mkdir(parents=True, exist_ok=True)
+            store.write_text(corrupt, encoding="utf-8")
+        self.wait_until_ready()
+        self.assertTrue(self.call("auxiliaryStores").strip())
+        time.sleep(25)
+        for store in stores:
+            self.assertEqual(store.read_text(encoding="utf-8"), corrupt, store.name)
+        log = self.log_text()
+        for name in ("IdleService", "TrayService", "QuickToggleConfig"):
+            self.assertIn(name + " failed to load", log)
+            self.assertIn("leaving the existing", log)
 
 
 if __name__ == "__main__":

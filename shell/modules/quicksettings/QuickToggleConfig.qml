@@ -141,16 +141,20 @@ Singleton {
                 const parsed = JSON.parse(configFile.text().trim() || "{}");
                 root.toggles = root.normalizeToggles(parsed.toggles);
             } catch (error) {
-                console.warn("QuickToggleConfig failed to load:", error);
+                console.warn("QuickToggleConfig failed to load; leaving the existing config untouched:", error);
                 root.toggles = root.defaultToggles();
-                root.save();
             }
         }
 
-        onLoadFailed: {
+        onLoadFailed: error => {
             root.toggles = root.defaultToggles();
-            root.save();
+            if (error === FileViewError.FileNotFound)
+                root.save();
+            else
+                console.warn("QuickToggleConfig could not read the config; leaving the existing config untouched:",
+                             error);
         }
+        onSaveFailed: error => console.warn("QuickToggleConfig could not save the config:", error)
     }
 
     Component.onDestruction: {

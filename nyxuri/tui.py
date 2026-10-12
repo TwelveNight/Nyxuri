@@ -633,7 +633,7 @@ class Menu:
                     return int(key) - 1
                 elif key in ("0", "q", "Q"):
                     return max_idx
-                elif key in ("ESC", "EXIT"):
+                elif key in ("ESC", "EXIT", "EOF"):
                     return max_idx
 
 # --- Component: Checkbox Checklist ---
@@ -736,7 +736,7 @@ class CheckboxList:
                     for e in self.entries:
                         if not e.is_separator:
                             e.checked = False
-                elif key in ("0", "q", "Q", "ESC", "EXIT"):
+                elif key in ("0", "q", "Q", "ESC", "EXIT", "EOF"):
                     return None
                 elif key.isdecimal():
                     num = int(key) - 1
@@ -962,7 +962,7 @@ class CategoryCheckboxList:
                             e.checked = False
                 elif key == "ENTER":
                     return self._selected_keys()
-                elif key in ("0", "q", "Q", "ESC", "EXIT"):
+                elif key in ("0", "q", "Q", "ESC", "EXIT", "EOF"):
                     return None
 
 # --- Component: Dual-Pane Preset Switcher (§9) ---
@@ -1414,7 +1414,7 @@ class PresetSwitcher:
                         else:
                             active_pane = "right"
                             toast_msg = None
-                    elif key in ("q", "Q", "ESC", "EXIT"):
+                    elif key in ("q", "Q", "ESC", "EXIT", "EOF"):
                         return None
                 elif active_pane == "right":
                     curr_item = right_items[right_focus] if right_items else None
@@ -1496,7 +1496,7 @@ class PresetSwitcher:
                                     del parts_cache[cur_app]
                             else:
                                 return (cur_app, f"{slot_name}:{v_name}")
-                    elif key in ("q", "Q", "ESC", "EXIT"):
+                    elif key in ("q", "Q", "ESC", "EXIT", "EOF"):
                         return None
 
     def _read_line_raw(self, prompt_str: str) -> Optional[str]:
@@ -1508,7 +1508,7 @@ class PresetSwitcher:
             k = read_key()
             if k in ("ENTER", "\n", "\r"):
                 return "".join(chars).strip()
-            elif k in ("ESC", "EXIT"):
+            elif k in ("ESC", "EXIT", "EOF"):
                 return None
             elif k in ("BACKSPACE", "\x7f", "\x08"):
                 if chars:
@@ -1559,5 +1559,5 @@ def select_language() -> str:
                 set_lang(chosen)
                 clear_screen()
                 return chosen
-            elif key in ("ESC", "EXIT"):
+            elif key in ("ESC", "EXIT", "EOF"):
                 sys.exit(130)
