@@ -91,7 +91,7 @@ StyledMenu {
         const rows = [];
         const submenus = [];
         for (let i = 0; i < root.contents.count; ++i) {
-            const info = root.contents.model.get(i);
+            const info = root.contents.get(i);
             const nested = info.isDirectory && !info.isLink && ancestorUrls.indexOf(info.url) < 0;
             const item = nested ? createSubmenu(info) : fileItem.createObject(root.contentItem, {
                                                                                   info: info

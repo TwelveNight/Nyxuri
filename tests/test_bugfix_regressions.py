@@ -1021,6 +1021,38 @@ class TestWallpaperOverviewSymlink(unittest.TestCase):
             self.assertEqual(link.resolve(), picture.resolve())
 
 
+class TestDisabledOutputDetection(unittest.TestCase):
+
+    def _service(self):
+        return (Path(__file__).resolve().parent.parent / "shell" / "app" / "services"
+                / "NiriService.qml")
+
+    def test_enabled_state_is_derived_from_the_logical_output(self):
+        source = self._service().read_text(encoding="utf-8")
+        self.assertIn("enabled: !!out.logical,", source)
+        self.assertNotIn("out.disabled", source)
+
+
+class TestDockFolderMenuModelAccess(unittest.TestCase):
+
+    def _shell(self):
+        return Path(__file__).resolve().parent.parent / "shell"
+
+    def test_list_view_reads_entries_through_the_folder_model_wrapper(self):
+        menu = (self._shell() / "modules" / "dock" / "DockFolderMenu.qml").read_text(
+            encoding="utf-8")
+        self.assertIn("root.contents.get(i)", menu)
+        self.assertNotIn("root.contents.model.get(", menu)
+
+    def test_the_wrapper_owns_the_model_alias_that_the_menu_must_not_index(self):
+        model = (self._shell() / "modules" / "dock" / "DockFolderModel.qml").read_text(
+            encoding="utf-8")
+        self.assertIn("function get(index)", model)
+        self.assertIn("readonly property alias model: dirModel", model)
+        for field in ("name:", "url:", "isDirectory:"):
+            self.assertIn(field, model)
+
+
 class TestDesktopCardHostStructure(unittest.TestCase):
 
     def _source(self):

@@ -303,7 +303,7 @@ Singleton {
                                 refreshMilliHz: m.refresh_rate,
                                 preferred: !!m.is_preferred
                             })),
-            enabled: !out.disabled,
+            enabled: !!out.logical,
             vrrSupported: !!out.vrr_supported,
             vrrEnabled: !!out.vrr_enabled
         });
