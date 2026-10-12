@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from nyxuri import core
 from personal.autostart import disable_todesk
+from personal.cheatsheet_categories import annotate
 from nyxuri.deploy.atomic import atomic_replace_item
 from nyxuri.deploy.assets import deploy_wallpapers
 from nyxuri.deploy.deploy import _phase_atomic_deployment
@@ -33,6 +34,7 @@ def prepare_sources(destination: Path) -> None:
     for item in CONFIGS:
         shutil.copytree(ROOT / "configs" / item, destination / item, symlinks=True)
     shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")
+    shutil.copy2(ROOT / "personal/keybind-cheatsheet.toml", destination / "noctalia/zz-personal-cheatsheet.toml")
     # Rewrite the copied templates, never the upstream sources or live iNiR tree.
     for path in destination.rglob("*"):
         if path.is_symlink() or not path.is_file():
@@ -130,6 +132,9 @@ def prepare_sources(destination: Path) -> None:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
     policy += ['[widget.wallpaper.actions]', 'left = "exec skwd-wall-v2"']
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
+    for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):
+        target = destination / "niri" / name
+        target.write_text(annotate(target.read_text()))
 
 
 def main(argv=None, preflight=None) -> int:

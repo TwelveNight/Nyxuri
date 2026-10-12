@@ -178,3 +178,7 @@ Super+Q 与 Alt+Q 沿用 iNiR 的 Folia 行为：隐藏主窗口到自身托盘�
 初始尺寸、JetBrains 辅助窗口、Hermes pet 和明日方舟规则，单独部署到私有 Niri。
 不启用 iNiR 已关闭的全局透明度覆盖。浮动和初始尺寸需重新打开应用窗口才生效。
 临时个人覆盖仍可写入最后加载的 `__custom__.kdl`，安装更新会保留它。
+
+Super+/ 打开社区 Keybind Cheatsheet 的可搜索快捷键面板，读取本桌面的私有 Niri 配置。
+新安装首次需在 Noctalia 插件设置中启用 `kenn/keybind-cheatsheet`；
+更新键位后可执行 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh` 刷新缓存。

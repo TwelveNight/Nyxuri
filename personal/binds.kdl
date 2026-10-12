@@ -6,6 +6,8 @@ switch-events {
 }
 
 binds {
+    Mod+Slash repeat=false hotkey-overlay-title="Keybind cheatsheet" { spawn "noctalia" "msg" "panel-toggle" "kenn/keybind-cheatsheet:cheatsheet"; }
+
     // ═══════════════════════════════════════════════════════════════════════
     // System
     // ═══════════════════════════════════════════════════════════════════════

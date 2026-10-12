@@ -180,3 +180,22 @@ Firefox Nightly／Brave 与 JetBrains 按原有标题限定；Hermes pet 只匹�
 与无装饰；输出不可用时由 Niri 回退。游戏自行控制全屏，不强制 Heroic 或全部 Wine
 窗口全屏。窗口规则不覆盖已有上游游戏行为，只覆盖该规则明确声明的属性。
 这两个文件由仓库部署更新；实机额外覆盖仍放在最后加载、受保留的 __custom__.kdl。
+
+## 快捷键速查插件
+
+Super+/ 在个人 binds 中覆盖上游 show-hotkey-overlay，打开社区插件
+`kenn/keybind-cheatsheet:cheatsheet`。`personal/keybind-cheatsheet.toml` 复制为
+私有 Noctalia 的 `zz-personal-cheatsheet.toml`，指定 compositor=niri 及私有
+`nyxuri-desktop/niri/config.kdl`，避免读取公共 iNiR 快捷键。插件跟随递归 include
+解析分拆配置；缓存刷新命令为 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh`。
+
+插件源码由 Noctalia 自己的 community 源下载管理，不在仓库内复制第三方代码。
+当前实例已通过 `noctalia msg plugins enable kenn/keybind-cheatsheet` 安装启用，
+启用状态由私有 GUI 状态保存。首次新安装需同样启用一次；个人安装只部署键位和
+插件设置，不在部署循环里下载插件。Ctrl+Super+/ 编辑配置的键位不变。
+
+部署时 `personal/cheatsheet_categories.py` 只为私有副本的 config、binds 和两份
+个人 binds 添加插件支持的 `// #"分类"` 注释，不改快捷键动作或第三方插件源码。
+按动作区分窗口焦点、显示器／工作区、移动、尺寸、布局、浮动、全屏、音量、媒体、
+截图、壁纸、电源、终端及设置等用途。插件未知动作才落入“其他”；用户自定义文件
+仍原样保留，可用同样注释指定分类。
