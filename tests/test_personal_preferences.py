@@ -30,6 +30,33 @@ class PersonalPreferencesTests(unittest.TestCase):
             self.assertEqual(binds.count('"control-center"'), 3)
             self.assertTrue((source / "niri/scripts/niri-actions.py").is_file())
 
+    def test_inir_defaults_and_free_super_x_survive_redeployment(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            upstream = (install.ROOT / "configs/niri/binds.kdl").read_bytes()
+            for _ in range(2):
+                if (source / "niri").exists():
+                    import shutil
+                    shutil.rmtree(source)
+                    source.mkdir()
+                install.prepare_sources(source)
+                config = (source / "niri/config.kdl").read_text()
+                self.assertLess(config.index('include "personal-binds.kdl"'), config.index('include "75-personal-binds.kdl"'))
+                self.assertLess(config.index('include "75-personal-binds.kdl"'), config.index('include "__custom__.kdl"'))
+                defaults = (source / "niri/binds.kdl").read_text()
+                self.assertNotRegex(defaults, r'(?m)^\s*Mod\+X\s')
+                binds = (source / "niri/75-personal-binds.kdl").read_text()
+                self.assertIn('Mod+C { center-column; }', binds)
+                self.assertIn('Alt+C { center-column; }', binds)
+                self.assertIn('Mod+R { switch-preset-column-width; }', binds)
+                self.assertIn('Mod+Ctrl+Left { focus-monitor-left; }', binds)
+                self.assertIn('Alt+Tab { next-window; }', binds)
+                self.assertIn('Mod+Ctrl+9 { move-column-to-workspace 9; }', binds)
+                self.assertIn('Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session";', binds)
+                self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "noctalia" "msg" "panel-toggle" "launcher";', binds)
+            self.assertEqual((install.ROOT / "configs/niri/binds.kdl").read_bytes(), upstream)
+
     def test_xdg_entries_keep_user_changes_and_disable_todesk(self):
         with TempEnv() as ctx:
             config = ctx.home / ".config"

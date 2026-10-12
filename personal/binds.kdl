@@ -62,8 +62,7 @@ binds {
     // No on-screen keyboard in this shell; reserve the key for now.
     Mod+Shift+Alt+K repeat=false hotkey-overlay-title=null { spawn "/usr/bin/true"; }
 
-    // Niri Overview.
-    Alt+Space repeat=false hotkey-overlay-title="Niri Overview" { toggle-overview; }
+    // Search is configured in 75-personal-binds.kdl.
 
     // Settings.
     Mod+I repeat=false hotkey-overlay-title="Settings" { spawn "noctalia" "msg" "settings-toggle"; }

@@ -7,7 +7,7 @@
 
 ## [Unreleased]
 
-- 个人分支沿用现有快捷键与自启动选择，并禁用 ToDesk 自启动。
+- 个人分支沿用 iNiR 快捷键与自启动选择，Super+X 留给应用、电源菜单改为 Super+Alt+Delete，并禁用 ToDesk 自启动。
 
 - 个人分支沿用原安装命令，新增独立配置与登录项，保留 iNiR 与 ii 的主题，壁纸统一使用 skwd-wall，并支持合并官方更新。
 

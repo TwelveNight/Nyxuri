@@ -103,9 +103,14 @@ skwd 壁纸选择、媒体音量、输入法与普通应用配置仍是同一用
 
 ## 个人键位与自启动
 
-`personal/binds.kdl`、`personal/startup.kdl` 作为普通受仓库管理的文件复制到部署副本，
+`personal/binds.kdl`、`personal/75-personal-binds.kdl`、`personal/startup.kdl` 作为普通受仓库管理的文件复制到部署副本，
 主配置在默认 binds 后、用户 __custom__ 前 include。自定义覆盖仍由 Dunder 保留，
 不把个人键位内容塞进上游 binds 或仅存在实机的文件中。
+75-personal-binds 在 personal-binds 之后加载，补齐 iNiR 默认层的居中、列宽、
+显示器／工作区移动、原生 Alt+Tab 与媒体键；Alt+Space 调用 Noctalia 搜索。
+部署副本移除默认 Super+X，使其可供应用使用；电源菜单改用 Super+Alt+Delete，
+Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署更新，
+实机覆盖写入最后加载且受 Dunder 保留的 __custom__.kdl。
 `personal/niri_actions.py` 部署为 scripts/niri-actions.py，提供当前个人键位的稳定 ID
 工作区操作、居中浮动、Hermes HUD 聚焦、tmux 和文件管理器，不依赖 INIR_* 环境。
 侧栏键按用户选择映射到 Noctalia 控制中心，OCR 菜单键映射截图编辑，OSK 暂为空操作。

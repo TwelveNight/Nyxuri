@@ -109,17 +109,24 @@ journalctl --user -b -u skwd-walld.service
 ## 个人快捷键与自启动
 
 `personal/binds.kdl` 从当前个人 Niri 键位迁入，部署为私有
-`niri/personal-binds.kdl`，在上游 `binds.kdl` 之后、`__custom__.kdl` 之前加载。
+`niri/personal-binds.kdl`。新增的 `personal/75-personal-binds.kdl` 补齐 iNiR 默认层，
+部署为同名文件；顺序为上游 binds → personal-binds → 75-personal-binds → __custom__。
+仓库中的个人文件随部署更新；实机临时调整仍写进更新保留的 `__custom__.kdl`。
 应用、窗口、工作区、媒体和放大镜键位保持原习惯；HUD 聚焦、居中浮动、
 空工作区与 tmux 使用携带的 Niri helper，不调用 iNiR 或 ii。
 
+- Super+C / Alt+C：居中当前列；Alt+Space：Noctalia 搜索；Super+Space：Niri overview。
+- Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。
+- Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。
 - Mod+Tab：Nyxuri Orbit；Mod+S / A / B：Noctalia 控制中心。
-- Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
+- Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
 - Mod+Ctrl+W：skwd 选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；原 OCR 菜单键打开截图编辑，不提供 OCR。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。
 
+Noctalia 没有对应的 iNiR 十字准星、面板家族切换和 OCR／搜索截图；
+截图菜单键映射截图编辑，录屏插件未启用，Super+Shift+R 暂保留重新加载配置。
 屏幕键盘键暂为空操作；原 iNiR 的剪贴板监听不迁入，Noctalia 管理自己的历史。
 `personal/startup.kdl` 启动现有的可选 `niri-zoomd`，缺失时跳过。
 

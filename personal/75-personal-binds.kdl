@@ -1,0 +1,70 @@
+// Complete the iNiR default layer without changing upstream Nyxuri bindings.
+// Loaded after personal-binds.kdl; __custom__.kdl remains the final override.
+binds {
+    Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
+    Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+    Mod+R { switch-preset-column-width; }
+    Mod+Ctrl+R { reset-window-height; }
+    Mod+C { center-column; }
+    Alt+C { center-column; }
+    Mod+Shift+Minus { set-window-height "-10%"; }
+    Mod+Shift+Equal { set-window-height "+10%"; }
+    Mod+BracketLeft { consume-or-expel-window-left; }
+    Mod+BracketRight { consume-or-expel-window-right; }
+    Mod+Left { focus-column-left; }
+    Mod+Right { focus-column-right; }
+    Mod+Up { focus-window-up; }
+    Mod+Down { focus-window-down; }
+    Mod+Home { focus-column-first; }
+    Mod+End { focus-column-last; }
+    Mod+Ctrl+Home { move-column-to-first; }
+    Mod+Ctrl+End { move-column-to-last; }
+    Mod+Ctrl+Left { focus-monitor-left; }
+    Mod+Ctrl+Right { focus-monitor-right; }
+    Mod+Ctrl+Up { focus-monitor-up; }
+    Mod+Ctrl+Down { focus-monitor-down; }
+    Mod+Ctrl+Shift+Left { move-column-to-monitor-left; }
+    Mod+Ctrl+Shift+Right { move-column-to-monitor-right; }
+    Mod+Ctrl+Shift+Up { move-column-to-monitor-up; }
+    Mod+Ctrl+Shift+Down { move-column-to-monitor-down; }
+    Mod+Ctrl+1 { move-column-to-workspace 1; }
+    Mod+Ctrl+2 { move-column-to-workspace 2; }
+    Mod+Ctrl+3 { move-column-to-workspace 3; }
+    Mod+Ctrl+4 { move-column-to-workspace 4; }
+    Mod+Ctrl+5 { move-column-to-workspace 5; }
+    Mod+Ctrl+6 { move-column-to-workspace 6; }
+    Mod+Ctrl+7 { move-column-to-workspace 7; }
+    Mod+Ctrl+8 { move-column-to-workspace 8; }
+    Mod+Ctrl+9 { move-column-to-workspace 9; }
+    Mod+Page_Down { focus-workspace-down; }
+    Mod+Page_Up { focus-workspace-up; }
+    Mod+Ctrl+Page_Down { move-column-to-workspace-down; }
+    Mod+Ctrl+Page_Up { move-column-to-workspace-up; }
+    Mod+Print { screenshot-screen; }
+
+    Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session"; }
+    Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
+    Mod+T { spawn "kitty"; }
+    Mod+Comma { spawn "noctalia" "msg" "settings-toggle"; }
+    Ctrl+Alt+T { spawn "skwd-wall-v2"; }
+    XF86AudioPlay { spawn "noctalia" "msg" "media" "toggle"; }
+    XF86AudioPause { spawn "noctalia" "msg" "media" "toggle"; }
+    XF86AudioNext { spawn "noctalia" "msg" "media" "next"; }
+    XF86AudioPrev { spawn "noctalia" "msg" "media" "previous"; }
+    XF86AudioMicMute { spawn "noctalia" "msg" "mic-mute"; }
+    Ctrl+Mod+Space { spawn "noctalia" "msg" "media" "toggle"; }
+    Mod+Shift+P { spawn "noctalia" "msg" "media" "toggle"; }
+    Mod+Shift+N { spawn "noctalia" "msg" "media" "next"; }
+    Mod+Shift+B { spawn "noctalia" "msg" "media" "previous"; }
+    Mod+Shift+M { spawn "noctalia" "msg" "volume-mute"; }
+    Mod+Shift+X { spawn "noctalia" "msg" "screenshot-annotate"; }
+    Mod+Shift+A { spawn "noctalia" "msg" "screenshot-annotate"; }
+    Ctrl+Shift+S { spawn "noctalia" "msg" "screenshot-region"; }
+}
+
+recent-windows {
+    binds {
+        Alt+Tab { next-window; }
+        Alt+Shift+Tab { previous-window; }
+    }
+}
