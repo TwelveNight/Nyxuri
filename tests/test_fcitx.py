@@ -138,6 +138,47 @@ class TestFcitxStartup(unittest.TestCase):
         self.assertIn("DarkTheme=nyxmellow\n", content)
         self.assertIn("Font=Sans 10\n", content)
 
+    def test_theme_edit_applies_to_every_duplicate_key(self):
+        from nyxuri.modules.fcitx import fcitx_set_theme_conf
+        path = self.env.config_dir / "fcitx5/conf/classicui.conf"
+        path.parent.mkdir(parents=True)
+        path.write_text("[ClassicUI]\nTheme=old\nTheme=older\nDarkTheme=old-dark\n")
+        fcitx_set_theme_conf()
+        content = path.read_text()
+        self.assertNotIn("Theme=old\n", content)
+        self.assertNotIn("Theme=older\n", content)
+        self.assertEqual(content, "Theme=nyxmellow\nTheme=nyxmellow\nDarkTheme=nyxmellow\n")
+
+    def test_theme_edit_tolerates_duplicate_section(self):
+        from nyxuri.modules.fcitx import fcitx_set_theme_conf
+        path = self.env.config_dir / "fcitx5/conf/classicui.conf"
+        path.parent.mkdir(parents=True)
+        path.write_text("[ClassicUI]\nTheme=old\n[ClassicUI]\nDarkTheme=old-dark\n")
+        fcitx_set_theme_conf()
+        content = path.read_text()
+        self.assertIn("Theme=nyxmellow\n", content)
+        self.assertIn("DarkTheme=nyxmellow\n", content)
+
+    def test_theme_edit_still_refuses_unparseable_file(self):
+        import configparser
+        from nyxuri.modules.fcitx import fcitx_set_theme_conf
+        path = self.env.config_dir / "fcitx5/conf/classicui.conf"
+        path.parent.mkdir(parents=True)
+        original = "[ClassicUI]\nTheme=old\nthis line has no separator\n"
+        path.write_text(original)
+        with self.assertRaises(configparser.ParsingError):
+            fcitx_set_theme_conf()
+        self.assertEqual(path.read_text(), original)
+
+    def test_flat_edit_drops_a_key_restored_to_absent(self):
+        from nyxuri.modules.fcitx import _edit_flat_config
+        edited = _edit_flat_config("[ClassicUI]\nTheme=old\nFont=custom\n",
+                                   {"Theme": None, "DarkTheme": "new-dark"})
+        self.assertNotIn("Theme=old", edited)
+        self.assertNotIn("Theme=None", edited)
+        self.assertIn("Font=custom\n", edited)
+        self.assertIn("DarkTheme=new-dark\n", edited)
+
     def test_uninstall_keeps_user_changes_and_private_theme_files(self):
         from nyxuri.modules.fcitx import fcitx_set_theme_conf, fcitx_uninstall
         path = self.env.config_dir / "fcitx5/conf/classicui.conf"

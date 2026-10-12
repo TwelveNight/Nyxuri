@@ -112,7 +112,7 @@ def fcitx_deploy_templates() -> bool:
     return True
 
 def _parse_ini(content):
-    parser = configparser.ConfigParser(interpolation=None)
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
     parser.optionxform = str
     try:
         parser.read_string(content)
@@ -188,8 +188,11 @@ def _edit_flat_config(content, changes):
     updated = []
     for line in root:
         key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith(("#", ";")) else None
-        if key in pending:
-            updated.append(f"{key}={pending.pop(key)}\n")
+        if key in changes:
+            value = changes[key]
+            if value is not None:
+                updated.append(f"{key}={value}\n")
+            pending.pop(key, None)
         else:
             updated.append(line)
     updated.extend(f"{key}={value}\n" for key, value in pending.items() if value is not None)
