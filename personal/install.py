@@ -66,7 +66,7 @@ def prepare_sources(destination: Path) -> None:
     custom_include = 'include "__custom__.kdl"'
     if custom_include not in content:
         raise ValueError("Upstream Niri custom include contract changed; review before deployment")
-    content = content.replace(custom_include, 'include "personal-binds.kdl"\ninclude "75-personal-binds.kdl"\ninclude "personal-startup.kdl"\ninclude "personal-overview.kdl"\ninclude "personal-cursor.kdl"\ninclude "personal-gpu.kdl"\n' + custom_include)
+    content = content.replace(custom_include, 'include "personal-binds.kdl"\ninclude "75-personal-binds.kdl"\ninclude "personal-startup.kdl"\ninclude "personal-overview.kdl"\ninclude "personal-cursor.kdl"\ninclude "personal-gpu.kdl"\ninclude "personal-window-rules.kdl"\ninclude "personal-games.kdl"\n' + custom_include)
     niri.write_text(content)
     shutil.copy2(ROOT / "personal/binds.kdl", destination / "niri/personal-binds.kdl")
     shutil.copy2(ROOT / "personal/75-personal-binds.kdl", destination / "niri/75-personal-binds.kdl")
@@ -78,6 +78,8 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/overview.kdl", destination / "niri/personal-overview.kdl")
     shutil.copy2(ROOT / "personal/cursor.kdl", destination / "niri/personal-cursor.kdl")
     shutil.copy2(ROOT / "personal/gpu.kdl", destination / "niri/personal-gpu.kdl")
+    shutil.copy2(ROOT / "personal/window-rules.kdl", destination / "niri/personal-window-rules.kdl")
+    shutil.copy2(ROOT / "personal/games.kdl", destination / "niri/personal-games.kdl")
     shutil.copy2(ROOT / "personal/monitor.kdl", destination / "niri/monitor.kdl")
     scripts = destination / "niri/scripts"
     for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py"):

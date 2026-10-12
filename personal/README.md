@@ -171,3 +171,10 @@ Noctalia 内置剪贴板面板使用另一份历史，个人配置将其关闭�
 Niri Displays 插件的调整仍只临时生效。
 
 Super+Q 与 Alt+Q 沿用 iNiR 的 Folia 行为：隐藏主窗口到自身托盘，继续播放；托盘不可用时保留播放器。其他应用正常关闭，两键行为一致。
+
+## 个人窗口规则
+
+`personal/window-rules.kdl` 与 `personal/games.kdl` 沿用 iNiR 当前的应用浮动、
+初始尺寸、JetBrains 辅助窗口、Hermes pet 和明日方舟规则，单独部署到私有 Niri。
+不启用 iNiR 已关闭的全局透明度覆盖。浮动和初始尺寸需重新打开应用窗口才生效。
+临时个人覆盖仍可写入最后加载的 `__custom__.kdl`，安装更新会保留它。

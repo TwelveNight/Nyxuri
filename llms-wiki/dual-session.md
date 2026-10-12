@@ -159,3 +159,24 @@ iNiR 专属的 shell 变量，不改变公共默认配置或系统驱动。渲�
 已有私有 `niri/monitor.kdl` 继续由 manifest 保留，后续安装不强制恢复这套默认值。
 持久修改使用 `~/.config/nyxuri-desktop/niri/monitor.kdl`；Niri Displays 插件
 只通过 IPC 临时调整。`nwg-displays` 默认重载公共配置，不能直接用于本隔离会话。
+
+## 个人窗口规则
+
+`personal/window-rules.kdl` 和 `personal/games.kdl` 复制为私有 Niri 的
+`personal-window-rules.kdl`／`personal-games.kdl`，在上游 rules、effects、个人覆盖
+之后且用户 `__custom__.kdl` 之前加载；不修改公共 Niri 或仓库上游规则。
+来源是当前 iNiR 实机的 35-personal-window-rules 与 96-personal-games。
+实机已注释掉的全局透明度不迁移，普通窗口透明度沿用 Nyxuri 当前 effects。
+个人规则额外按精确 app-id `folia-major` 关闭 Folia 的 background-effect blur，
+不修改透明度或全局 blur；该动态属性可随配置热加载生效。
+
+应用规则保留通讯软件、1Password、WPS、scrcpy、音量与代理工具等浮动偏好，
+Portal 初始尺寸 960×700、Waydroid 540×960、代理工具 40%×60%，
+Firefox Nightly／Brave 与 JetBrains 按原有标题限定；Hermes pet 只匹配独有标题，
+关闭其装饰、阴影与模糊，不扩大到主窗口。浮动／尺寸／初始焦点在新窗口创建时应用，
+热加载不强制改动已打开窗口，也没有模拟 pin 或全生命周期焦点锁定。
+
+明日方舟以 app-id 和主窗口标题共同匹配，优先 HDMI-A-1，保留不透明、无圆角裁剪
+与无装饰；输出不可用时由 Niri 回退。游戏自行控制全屏，不强制 Heroic 或全部 Wine
+窗口全屏。窗口规则不覆盖已有上游游戏行为，只覆盖该规则明确声明的属性。
+这两个文件由仓库部署更新；实机额外覆盖仍放在最后加载、受保留的 __custom__.kdl。
