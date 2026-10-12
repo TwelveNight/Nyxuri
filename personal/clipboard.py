@@ -2,6 +2,7 @@
 """Use the same native cliphist history as iNiR and ii."""
 import fcntl
 import html
+import json
 import os
 from pathlib import Path
 import re
@@ -9,6 +10,11 @@ import signal
 import subprocess
 import sys
 import threading
+import tempfile
+import time
+
+PANEL_ID = "night/shared-clipboard:history"
+PLUGIN_ID = "night/shared-clipboard"
 
 
 def clean_text(payload):
@@ -40,28 +46,96 @@ def store(kind, payload):
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
 
 
-def pick():
+def list_entries():
     listed = subprocess.run(["cliphist", "list"], capture_output=True, check=True)
-    entries = listed.stdout.splitlines()
-    if not entries:
-        return 0
-    config = Path(__file__).resolve().with_name("clipboard-fuzzel.ini")
-    chosen = subprocess.run(["fuzzel", "--config", str(config), "--namespace=nyxuri-clipboard",
-                             "--dmenu", "--index", "--only-match", "--match-mode=fzf",
-                             "--prompt=剪贴板 > "], input=listed.stdout, capture_output=True)
-    if chosen.returncode != 0:
-        return 0 if chosen.returncode == 1 else chosen.returncode
-    index = int(chosen.stdout.strip())
-    if not 0 <= index < len(entries):
-        raise ValueError("Clipboard selection is outside the displayed history")
-    decoded = subprocess.run(["cliphist", "decode"], input=entries[index] + b"\n",
-                             capture_output=True, check=True)
-    payload = decoded.stdout
-    # Old browser-markup entries need the same cleanup iNiR applies on decode.
-    if b"\t[[" not in entries[index]:
+    entries = []
+    for line in listed.stdout.splitlines():
+        entry_id, separator, preview = line.partition(b"\t")
+        if not separator or not entry_id.isdigit():
+            continue
+        label = preview.decode("utf-8", "replace")
+        image = bool(re.fullmatch(r"\[\[.*binary data.*\d+x\d+.*\]\]", label))
+        entries.append({"id": entry_id.decode(), "text": label, "image": image})
+    return entries
+
+
+def decode(entry_id):
+    if not re.fullmatch(r"[0-9]+", entry_id):
+        raise ValueError("Invalid clipboard entry id")
+    return subprocess.run(["cliphist", "decode", entry_id], capture_output=True, check=True).stdout
+
+
+def copy_entry(entry_id):
+    payload = decode(entry_id)
+    if not is_image(payload):
         payload = clean_text(payload)
     return subprocess.run(["wl-copy"], input=payload,
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+
+
+def is_image(payload):
+    return (payload.startswith((b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a"))
+            or payload.startswith(b"RIFF") and payload[8:12] == b"WEBP")
+
+
+def preview_directory(session):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", session):
+        raise ValueError("Invalid clipboard preview session")
+    return Path(os.environ["XDG_RUNTIME_DIR"]) / "nyxuri-clipboard-previews" / session
+
+
+def preview_entry(entry_id, session="default"):
+    payload = decode(entry_id)
+    if is_image(payload):
+        directory = preview_directory(session)
+        directory.parent.mkdir(mode=0o700, exist_ok=True)
+        os.chmod(directory.parent, 0o700)
+        directory.mkdir(mode=0o700, exist_ok=True)
+        os.chmod(directory, 0o700)
+        # Only selected images are materialized; never write a history snapshot.
+        descriptor, name = tempfile.mkstemp(prefix=entry_id + "-", dir=directory)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(payload)
+        return {"path": name}
+    return {"text": clean_text(payload).decode("utf-8", "replace")[:16000]}
+
+
+def clear_previews(session="default"):
+    directory = preview_directory(session)
+    if directory.exists():
+        for path in directory.iterdir():
+            if path.is_file() and re.fullmatch(r"[0-9]+-[A-Za-z0-9_-]+", path.name):
+                path.unlink(missing_ok=True)
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
+
+
+def setup_panel():
+    # Adding our own named path source preserves all other enabled plugins and
+    # sources in Noctalia's private GUI settings; it does not touch shared data.
+    root = Path.home() / ".config/nyxuri-desktop/noctalia/personal-plugins"
+    subprocess.run(["noctalia", "msg", "plugins", "source", "add", "nyxuri-personal", "path", str(root)],
+                   capture_output=True, check=True)
+    subprocess.run(["noctalia", "msg", "plugins", "enable", PLUGIN_ID], capture_output=True, check=True)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        result = subprocess.run(["noctalia", "msg", "plugins", "list"], capture_output=True, text=True, check=True)
+        if any(line.startswith(PLUGIN_ID + " ") and re.search(r"\benabled\b", line)
+               for line in result.stdout.splitlines()):
+            return
+        time.sleep(0.1)
+    raise RuntimeError("The shared clipboard panel did not become ready")
+
+
+def pick():
+    command = ["noctalia", "msg", "panel-toggle", PANEL_ID]
+    result = subprocess.run(command, capture_output=True)
+    if result.returncode != 0:
+        setup_panel()
+        result = subprocess.run(command, capture_output=True, check=True)
+    return result.returncode
 
 
 def stop_workers(workers):
@@ -110,11 +184,33 @@ def watch():
 
 def main(arguments=None):
     arguments = sys.argv[1:] if arguments is None else arguments
-    if len(arguments) != 1 or arguments[0] not in ("pick", "watch", "store-text", "store-image"):
-        raise ValueError("Usage: clipboard.py {pick|watch|store-text|store-image}")
+    if not arguments:
+        raise ValueError("Clipboard action is required")
     action = arguments[0]
+    if action == "preview" and len(arguments) == 3:
+        print(json.dumps(preview_entry(arguments[1], arguments[2]), ensure_ascii=False))
+        return 0
+    if action == "clear-preview" and len(arguments) == 2:
+        clear_previews(arguments[1])
+        return 0
+    if action == "copy" and len(arguments) == 2:
+        if action == "copy":
+            return copy_entry(arguments[1])
+    if len(arguments) != 1 or action not in ("pick", "watch", "store-text", "store-image", "list", "clear-preview", "setup-panel"):
+        raise ValueError("Invalid clipboard action")
+    if action == "list":
+        print(json.dumps(list_entries(), ensure_ascii=False))
+        return 0
+    if action == "clear-preview":
+        clear_previews()
+        return 0
+    if action == "setup-panel":
+        setup_panel()
+        return 0
     if action.startswith("store-"):
         return store(action[6:], sys.stdin.buffer.read())
+    if action == "pick":
+        return pick()
     runtime = Path(os.environ["XDG_RUNTIME_DIR"])
     # Keep lock files in place; unlinking a locked inode allows two owners.
     with (runtime / f"nyxuri-clipboard-{action}.lock").open("a") as lock:

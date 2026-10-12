@@ -119,6 +119,7 @@ journalctl --user -b -u skwd-walld.service
 空工作区与 tmux 使用携带的 Niri helper，不调用 iNiR 或 ii。
 
 - Super+C / Alt+C：居中当前列；Alt+Space：Noctalia 搜索；Super+Space：Niri overview。
+- 搜索列表中 Ctrl+J 选择下一项，Ctrl+K 选择上一项，方向键仍可用；同样适用于 Noctalia 的其他内置列表。
 - Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。
 - Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。
 - Mod+Tab：Nyxuri Orbit；Mod+S / A / B：Noctalia 控制中心。
@@ -143,20 +144,22 @@ X-GNOME-Autostart-enabled 设为 false，保留其他字段；缺失时安装禁
 
 ## 共享剪贴板
 
-Super+V 打开个人 Fuzzel 历史选择器，选中后复制，再用 Ctrl+V 粘贴；Esc 取消。
+Super+V 开关 Noctalia 原生的个人共享历史面板，再按一次关闭；Esc 或点击外部也能关闭。
+方向键选择、Enter 或点击条目复制，再用 Ctrl+V 粘贴。面板沿用当前 Noctalia
+字体、圆角、透明度和壁纸配色，右侧预览文字或图片；翻页按钮可浏览全部历史。
 它读取 iNiR、ii 使用的原生 cliphist 配置和数据库（默认 `~/.cache/cliphist/db`），
-不导入、复制或清空现有历史。文字和图片都能恢复，图片在列表中显示格式与尺寸，
-暂不提供缩略图。普通文本与换行保留，浏览器 HTML 按 iNiR 的规则转成纯文字。
+不导入、复制或清空现有历史。文字和图片都能恢复，普通文本与换行保留，
+浏览器 HTML 按 iNiR 的规则转成纯文字。图片预览只放入私有运行目录，关闭面板时清理。
 
 `nyxuri-clipboard.service` 在私有 shell 完成显示连接交接后启动，记录文字和图片，
 并用 wl-clip-persist 保留应用关闭后的当前内容。退出私有 Niri 时自动停止，
 只清理自己启动的进程，不停止 iNiR／ii 的监听；不 enable 到公共用户 target。
-安装与更新会部署服务及脚本，依赖 cliphist、wl-clipboard、wl-clip-persist 和 fuzzel，
+安装与更新会部署服务、脚本及个人插件，依赖 cliphist、wl-clipboard 和 wl-clip-persist，
 缺失时安装预检会列出，不在安装时启动监听。
 
-Noctalia 原生面板使用另一份历史，个人配置将其关闭；原生历史文件保留，
-不会把旧 Noctalia 条目自动合入 cliphist。重复按 Super+V 不打开第二个选择器。
-
+Noctalia 内置剪贴板面板使用另一份历史，个人配置将其关闭；旧历史文件保留，
+不会自动合入 cliphist。共享面板插件放在私有 Noctalia 配置目录，首次按 Super+V
+通过 Noctalia 自身接口添加个人 path 源并启用，保留已有插件和源；以后直接 toggle。
 
 ### 显示器与显卡
 

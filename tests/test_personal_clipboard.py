@@ -26,17 +26,16 @@ class PersonalClipboardTests(unittest.TestCase):
             entries = run_native(["cliphist", "list"], capture_output=True, check=True).stdout.splitlines()
             self.assertEqual(len(entries), 2)
             self.assertTrue((ctx.home / ".cache/cliphist/db").is_file())
-            copied = []
-            for index, expected in ((0, png), (1, text)):
+            for entry, expected in zip(entries, (png, text)):
+                entry_id = entry.split(b"\t", 1)[0].decode()
+                copied = []
                 def select_and_copy(command, **kwargs):
-                    if command[0] == "fuzzel":
-                        return Mock(returncode=0, stdout=str(index).encode())
                     if command[0] == "wl-copy":
                         copied.append(kwargs["input"])
                         return Mock(returncode=0)
                     return run_native(command, **kwargs)
                 with patch.object(clipboard.subprocess, "run", side_effect=select_and_copy):
-                    self.assertEqual(clipboard.pick(), 0)
+                    self.assertEqual(clipboard.copy_entry(entry_id), 0)
                 self.assertEqual(copied[-1], expected)
 
     def test_store_and_decode_preserve_text_newlines_and_image_bytes(self):
@@ -46,20 +45,34 @@ class PersonalClipboardTests(unittest.TestCase):
                 self.assertEqual(run.call_args.args[0], ["cliphist", "store"])
                 self.assertEqual(run.call_args.kwargs["input"], payload)
                 run.reset_mock()
-                entries = b"17\t[[binary data 8 B png 1x1]]\n" if kind == "image" else b"17\tsource <div>\n"
-                run.side_effect = [Mock(returncode=0, stdout=entries),
-                                   Mock(returncode=0, stdout=b"0\n"),
-                                   Mock(returncode=0, stdout=payload), Mock(returncode=0)]
-                self.assertEqual(clipboard.pick(), 0)
+                run.side_effect = [Mock(returncode=0, stdout=payload), Mock(returncode=0)]
+                self.assertEqual(clipboard.copy_entry("17"), 0)
                 self.assertEqual([call.args[0] for call in run.call_args_list], [
-                    ["cliphist", "list"],
-                    ["fuzzel", "--config", str(Path(clipboard.__file__).with_name("clipboard-fuzzel.ini")),
-                     "--namespace=nyxuri-clipboard", "--dmenu", "--index", "--only-match",
-                     "--match-mode=fzf", "--prompt=剪贴板 > "],
-                    ["cliphist", "decode"], ["wl-copy"]])
-                self.assertEqual(run.call_args_list[2].kwargs["input"], entries)
+                    ["cliphist", "decode", "17"], ["wl-copy"]])
                 self.assertEqual(run.call_args.kwargs["input"], payload)
                 run.side_effect = None
+
+    def test_pick_uses_native_toggle_on_every_press_without_process_locks(self):
+        with TempEnv(), patch.object(clipboard.subprocess, "run", return_value=Mock(returncode=0)) as run:
+            self.assertEqual(clipboard.main(["pick"]), 0)
+            self.assertEqual(clipboard.main(["pick"]), 0)
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ["noctalia", "msg", "panel-toggle", "night/shared-clipboard:history"],
+                ["noctalia", "msg", "panel-toggle", "night/shared-clipboard:history"]])
+
+    def test_first_pick_registers_private_path_and_preserves_other_plugins(self):
+        with TempEnv() as ctx, patch.object(clipboard.subprocess, "run") as run:
+            run.side_effect = [Mock(returncode=1), Mock(returncode=0), Mock(returncode=0),
+                               Mock(returncode=0, stdout="night/shared-clipboard [nyxuri-personal] 1.0.0 enabled\n"),
+                               Mock(returncode=0)]
+            self.assertEqual(clipboard.pick(), 0)
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ["noctalia", "msg", "panel-toggle", "night/shared-clipboard:history"],
+                ["noctalia", "msg", "plugins", "source", "add", "nyxuri-personal", "path",
+                 str(ctx.home / ".config/nyxuri-desktop/noctalia/personal-plugins")],
+                ["noctalia", "msg", "plugins", "enable", "night/shared-clipboard"],
+                ["noctalia", "msg", "plugins", "list"],
+                ["noctalia", "msg", "panel-toggle", "night/shared-clipboard:history"]])
 
     def test_browser_markup_matches_inir_without_altering_code(self):
         with TempEnv():
@@ -68,22 +81,45 @@ class PersonalClipboardTests(unittest.TestCase):
             self.assertEqual(clipboard.clean_text(b'<html><body><!--StartFragment--><b>Hello</b><!--EndFragment--></body></html>'), b"Hello")
             self.assertEqual(clipboard.clean_text(b'<div>ordinary code</div>\n'), b'<div>ordinary code</div>\n')
 
-    def test_cancel_invalid_index_and_failed_decode_never_change_clipboard(self):
+    def test_image_metadata_with_html_markers_is_not_stripped(self):
+        payload = b"\x89PNG\r\n\x1a\nmetadata <!--StartFragment--> text"
+        with TempEnv(), patch.object(clipboard.subprocess, "run", side_effect=[Mock(stdout=payload), Mock(returncode=0)]) as run:
+            self.assertEqual(clipboard.copy_entry("17"), 0)
+            self.assertEqual(run.call_args.kwargs["input"], payload)
+
+    def test_invalid_id_and_failed_decode_never_change_clipboard(self):
         with TempEnv(), patch.object(clipboard.subprocess, "run") as run:
-            for choice in (Mock(returncode=1, stdout=b""), Mock(returncode=0, stdout=b"99\n")):
-                run.side_effect = [Mock(returncode=0, stdout=b"1\ttext\n"), choice]
-                if choice.returncode:
-                    self.assertEqual(clipboard.pick(), 0)
-                else:
-                    with self.assertRaises(ValueError):
-                        clipboard.pick()
-                self.assertEqual(run.call_count, 2)
-                run.reset_mock()
-            run.side_effect = [Mock(returncode=0, stdout=b"1\ttext\n"), Mock(returncode=0, stdout=b"0\n"),
-                               subprocess.CalledProcessError(1, ["cliphist", "decode"])]
+            for entry_id in ("1;echo bad", "../file", "-1", ""):
+                with self.assertRaises(ValueError):
+                    clipboard.copy_entry(entry_id)
+            run.assert_not_called()
+            run.side_effect = subprocess.CalledProcessError(1, ["cliphist", "decode", "1"])
             with self.assertRaises(subprocess.CalledProcessError):
-                clipboard.pick()
-            self.assertEqual(run.call_count, 3)
+                clipboard.copy_entry("1")
+            self.assertEqual(run.call_args.args[0], ["cliphist", "decode", "1"])
+
+    def test_json_list_keeps_ids_and_recognizes_image_metadata(self):
+        data = b"12\t[[binary data 1 KiB png 100x100]]\n11\tHello\ninvalid row\n"
+        with TempEnv(), patch.object(clipboard.subprocess, "run", return_value=Mock(stdout=data)) as run:
+            self.assertEqual(clipboard.list_entries(), [
+                {"id": "12", "text": "[[binary data 1 KiB png 100x100]]", "image": True},
+                {"id": "11", "text": "Hello", "image": False}])
+            self.assertEqual(run.call_args.args[0], ["cliphist", "list"])
+
+    def test_previews_use_private_runtime_and_are_removed_on_close(self):
+        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home)), \
+             patch.object(clipboard.subprocess, "run", return_value=Mock(stdout=b"\x89PNG\r\n\x1a\nimage")):
+            preview = clipboard.preview_entry("12")
+            target = Path(preview["path"])
+            self.assertEqual(target.read_bytes(), b"\x89PNG\r\n\x1a\nimage")
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(target.parent.stat().st_mode & 0o777, 0o700)
+            new_preview = clipboard.preview_entry("13", "next-panel")
+            clipboard.clear_previews()
+            self.assertFalse(target.exists())
+            self.assertTrue(Path(new_preview["path"]).exists())
+            clipboard.clear_previews("next-panel")
+            self.assertFalse(Path(new_preview["path"]).exists())
 
     def test_sensitive_and_empty_events_are_not_stored(self):
         with TempEnv(), patch.object(clipboard.subprocess, "run") as run:
@@ -119,17 +155,6 @@ class PersonalClipboardTests(unittest.TestCase):
                 clipboard.watch()
             kill.assert_called_once_with(111, signal.SIGTERM)
 
-    def test_second_invocation_does_not_open_a_duplicate_picker(self):
-        import fcntl
-        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home)), \
-             patch.object(clipboard.subprocess, "run") as run:
-            lock = ctx.home / "nyxuri-clipboard-pick.lock"
-            with lock.open("a") as owner:
-                fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                self.assertEqual(clipboard.main(["pick"]), 0)
-            self.assertTrue(lock.exists())
-            run.assert_not_called()
-
     def test_redeployment_preserves_shared_history_and_installs_private_service(self):
         with TempEnv() as ctx:
             kitty = ctx.home / ".config/kitty"
@@ -150,6 +175,7 @@ class PersonalClipboardTests(unittest.TestCase):
             action = (private / "niri/scripts/shell-action.sh").read_text()
             self.assertIn('exec python3 "$(dirname "$0")/clipboard.py" pick', action)
             self.assertNotIn("panel-toggle clipboard", action)
+            self.assertIn('Mod+V repeat=false { spawn', (private / "niri/binds.kdl").read_text())
             import tomllib
             self.assertFalse(tomllib.loads((private / "noctalia/zz-personal.toml").read_text())["shell"]["clipboard_enabled"])
             unit = ctx.home / ".config/systemd/user/nyxuri-clipboard.service"
@@ -158,10 +184,15 @@ class PersonalClipboardTests(unittest.TestCase):
             self.assertIn("After=nyxuri-niri.service nyxuri-shell.service", unit.read_text())
             self.assertNotIn("[Install]", unit.read_text())
             self.assertIn("nyxuri-clipboard.service", (unit.with_name("nyxuri-niri.service")).read_text())
-            for name in ("clipboard.py", "clipboard-fuzzel.ini"):
+            for name in ("clipboard.py",):
                 deployed = private / "niri/scripts" / name
                 self.assertFalse(deployed.is_symlink())
                 self.assertEqual(deployed.read_bytes(), (install.ROOT / "personal" / name).read_bytes())
+            plugin = private / "noctalia/personal-plugins/shared-clipboard"
+            self.assertFalse(plugin.is_symlink())
+            self.assertEqual((plugin / "backend.py").read_bytes(), (install.ROOT / "personal/clipboard.py").read_bytes())
+            self.assertTrue((plugin / "panel.luau").is_file())
+            self.assertNotIn("fuzzel", install.SESSION_TOOLS)
             for path, data in originals.items():
                 self.assertEqual(path.read_bytes(), data)
 

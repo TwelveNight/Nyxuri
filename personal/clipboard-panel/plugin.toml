@@ -1,0 +1,20 @@
+id = "night/shared-clipboard"
+name = "共享剪贴板"
+version = "1.0.0"
+plugin_api = 24
+author = "TwelveNight"
+license = "MIT"
+description = "与 iNiR、ii 共用 cliphist 文字和图片历史。"
+icon = "clipboard"
+dependencies = ["python3", "cliphist", "wl-copy"]
+
+[[panel]]
+id = "history"
+entry = "panel.luau"
+width = 760
+height = 540
+placement = "floating"
+position = "center"
+dismiss_on_outside_click = true
+keyboard_focus = "exclusive"
+capture_keys = ["Down", "Up", "ctrl+j", "ctrl+k"]

@@ -15,7 +15,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同�
 个人部署通过 `nyxuri-shell.service` 调用 runtime：先交接会话环境并重启 skwd，再启动 Noctalia 和单向预览监听；
 主配置不重复 spawn shell。应用的排序 drop-in 等 Noctalia 托盘总线就绪。
 `nyxuri-clipboard.service` 在私有 Shell 就绪后记录共用 cliphist 历史，只跟随私有 Niri；
-Super+V 使用个人 Fuzzel 选择器，Noctalia 原生历史面板关闭，见 [personal-clipboard](personal-clipboard.md)。
+Super+V 开关 Noctalia 个人共享历史插件，内置独立历史面板关闭，见 [personal-clipboard](personal-clipboard.md)。
 私有目录、独立 Niri 单元和壁纸桥接见 [dual-session](dual-session.md)。
 
 ```
@@ -32,7 +32,7 @@ Super+V 使用个人 Fuzzel 选择器，Noctalia 原生历史面板关闭，见 
   │     │     ├── launcher (Alt+Space)       ───────► Noctalia 面板: noctalia msg panel-toggle launcher
   │     │     ├── radial-launcher (Mod+Tab) ────► Orbit 星环: orbit-launcher.py (~/.config/nyxuri-desktop/noctalia/tools/)
   │     │     ├── wallpaper-picker ────────────► 壁纸选择器: wallpaper-picker.py (~/.config/nyxuri-desktop/noctalia/tools/)
-  │     │     ├── clipboard (Super+V) ──────────► clipboard.py pick / Fuzzel / cliphist decode / wl-copy
+  │     │     ├── clipboard (Super+V) ──────────► clipboard.py pick / Noctalia 原生个人面板 / cliphist decode / wl-copy
   │     │     └── session (Mod+Alt+Delete) / 等 ────────► 分发至 Shell IPC (noctalia msg / 未来自研 Shell)
   │     ├── Super + ~          ───────► niri-scratch-toggle.sh (Kitty 浮动终端切换)
   │     ├── Super + N          ───────► toggle-eyecare.sh (护眼色温与着色器切换)

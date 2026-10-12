@@ -8,7 +8,7 @@ Nyxuri (niri + Noctalia)。同一用户同时开启多个图形会话不在隔�
 | compositor 配置 | `~/.config/nyxuri-desktop/niri` | `~/.config/niri` | `~/.config/hypr` |
 | shell 配置 | `~/.config/nyxuri-desktop/noctalia` | `~/.config/inir`、`~/.config/quickshell/inir` | `~/.config/illogical-impulse`、`~/.config/quickshell/ii` |
 | shell 生命周期 | `nyxuri-shell.service` 跟随 `nyxuri-niri.service` | `inir.service` 跟随 `niri.service` | Hyprland 启动钩子 |
-| 剪贴板历史 | 私有服务记录共享 cliphist，Super+V 打开 Fuzzel | 原监听和面板使用 cliphist | 原监听和面板使用 cliphist |
+| 剪贴板历史 | 私有服务记录共享 cliphist，Super+V 开关 Noctalia 个人原生面板 | 原监听和面板使用 cliphist | 原监听和面板使用 cliphist |
 | 配色写入 | 私有 Kitty、Niri 和色板缓存 | 沿用已有主题机制 | 沿用已有主题机制 |
 | 壁纸 | skwd 直接切换，Noctalia 单向预览 | skwd-wall | skwd-wall |
 
@@ -132,3 +132,12 @@ TempEnv 测试实际启动生成副本的脚本并验证两个绑定、关闭命
 实机使用两个临时 Kitty 窗口执行同一绑定命令，均关闭成功，随后恢复原窗口焦点；
 没有关闭用户原有窗口。544 项测试通过（6 项跳过），静态检查、私有配置校验
 和沙箱部署通过。两个实际物理按键仍由用户验收。
+
+## 原生共享历史面板复核
+
+2026-10-12，个人共享历史改由 Noctalia 插件绘制，使用当前绿色主题和字体，
+在合成数据截图中确认图片预览。连续四次原生 toggle 的图层状态为开／关／开／关；
+方向键与 Enter 恢复文字的原始换行，图片字节与 image/png MIME 保持一致，Esc 关闭。
+测试后恢复原剪贴板、删除合成历史并恢复生产后端，保留所有既有启用插件。
+本次只原子替换剪贴板相关私有文件，没有部署并行的 GPU／显示器／键位修改，
+没有重启 Niri、Noctalia 或记录服务。跨桌面往返登录仍未执行。

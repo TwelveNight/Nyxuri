@@ -26,7 +26,7 @@ AUTOSTART_UNITS = (
     "app-org.fcitx.Fcitx5@autostart.service",
     "app-org.kde.kdeconnect.daemon@autostart.service",
 )
-SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify", "cliphist", "wl-paste", "wl-copy", "wl-clip-persist", "fuzzel")
+SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify", "cliphist", "wl-paste", "wl-copy", "wl-clip-persist")
 
 
 def prepare_sources(destination: Path) -> None:
@@ -72,14 +72,18 @@ def prepare_sources(destination: Path) -> None:
     # Remove the inherited chord so Super+X reaches applications again.
     binds = destination / "niri/binds.kdl"
     binds.write_text(re.sub(r'^    Mod\+X\s[^\n]*\n', "", binds.read_text(), flags=re.MULTILINE))
+    binds.write_text(binds.read_text().replace('Mod+V { spawn', 'Mod+V repeat=false { spawn'))
     shutil.copy2(ROOT / "personal/startup.kdl", destination / "niri/personal-startup.kdl")
     shutil.copy2(ROOT / "personal/overview.kdl", destination / "niri/personal-overview.kdl")
     shutil.copy2(ROOT / "personal/cursor.kdl", destination / "niri/personal-cursor.kdl")
     shutil.copy2(ROOT / "personal/gpu.kdl", destination / "niri/personal-gpu.kdl")
     shutil.copy2(ROOT / "personal/monitor.kdl", destination / "niri/monitor.kdl")
     scripts = destination / "niri/scripts"
-    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "clipboard-fuzzel.ini"):
+    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)
+    plugin = destination / "noctalia/personal-plugins/shared-clipboard"
+    shutil.copytree(ROOT / "personal/clipboard-panel", plugin)
+    shutil.copy2(ROOT / "personal/clipboard.py", plugin / "backend.py")
     shutil.copy2(ROOT / "personal/niri_actions.py", scripts / "niri-actions.py")
     (scripts / "session-shell.sh").write_text(
         '#!/bin/sh\nexec python3 "$(dirname "$0")/runtime.py"\n', encoding="utf-8")
