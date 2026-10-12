@@ -9,6 +9,11 @@
 光标与 Niri 子进程的 `XCURSOR_THEME`／`XCURSOR_SIZE`；用户最后加载的
 自定义文件仍可以覆盖它。该文件随 `./install.sh` 安装和更新原子部署。
 
+同一文件启用 Niri 原生 `focus-follows-mouse max-scroll-amount="100%"`，
+鼠标移入窗口时自动聚焦，部分露出的列也可滚入视野，沿用现有 iNiR 的行为。
+不启用将鼠标移到焦点窗口的 `warp-mouse-to-focus`。其他键盘、鼠标与触摸板
+设置继续由原有输入配置声明；最后加载的用户自定义仍优先。
+
 `nyxuri-niri.service` 与 `nyxuri-shell.service` 也声明相同的环境变量，
 避免依赖上一次登录残留的主题，并覆盖不由 Niri 直接 spawn 的 Noctalia 子进程。
 两单元只在 Nyxuri 会话中启动，不改变其他桌面的服务设置。

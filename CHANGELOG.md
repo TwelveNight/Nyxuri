@@ -9,6 +9,8 @@
 
 - 个人分支的 Nyxuri 光标与 iNiR、ii 一致，使用黑色 Bibata 光标。
 
+- 个人分支的 Nyxuri 支持鼠标移入窗口时自动聚焦。
+
 - 个人分支沿用 iNiR 快捷键与自启动选择，Super+X 留给应用、电源菜单改为 Super+Alt+Delete，并禁用 ToDesk 自启动。
 
 - 个人分支沿用原安装命令，新增独立配置与登录项，保留 iNiR 与 ii 的主题，桌面与概览壁纸交由 skwd-wall，概览沿用 iNiR 样式，并支持合并官方更新。

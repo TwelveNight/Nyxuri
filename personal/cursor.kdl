@@ -1,4 +1,8 @@
 // Match the existing iNiR and Hyprland + ii cursor.
+input {
+    focus-follows-mouse max-scroll-amount="100%"
+}
+
 cursor {
     xcursor-theme "Bibata-Modern-Classic"
     xcursor-size 24
