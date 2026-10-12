@@ -45,7 +45,7 @@ ensure_nyxuri_symlink 注册命令链接。安装期间不启动或重启 compos
 退出经过标准 `niri-shutdown.target` 释放图形会话。
 
 Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart target，
-用 Type=notify，runtime 验证托盘总线拥有者 PID 是本次 Noctalia 后报告就绪；不排在 graphical-session.target
+用 Type=notify，runtime 验证托盘总线拥有者 PID 是本次 Noctalia 且 IPC 可用后报告就绪；不排在 graphical-session.target
 之前，避免阻塞 Noctalia 所需的 Portal。部署副本移除原 shell 和 Fcitx spawn，避免重复。
 
 `personal/runtime.py` 先运行携带的 iNiR 个人 `desktop-session.py`，
@@ -55,8 +55,13 @@ Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart
 旧 display／GPU 变量在启动 compositor 时清除，私有 shell 单元也用 UnsetEnvironment
 清除未被 Niri 重新发布的旧 GPU 变量。helper 的锁、pidfd watcher 和会话记录与现有
 Hyprland helper 共用 `$XDG_RUNTIME_DIR/inir`，防止旧会话清理伤及新会话。
-Noctalia 配置／GUI 状态分别用 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME`
-指向私有目录；runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
+Noctalia 会在 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME` 后自行追加 `noctalia`。
+配置根变量设为 `~/.config/nyxuri-desktop`，实际读取其 `noctalia/*.toml`。
+状态根变量继续设为 `~/.local/state/nyxuri-desktop/noctalia`，实际 GUI 状态在
+其 `noctalia/settings.toml`，沿用已生成的私有状态以保留用户偏好。
+runtime 同时确认本次 Shell 拥有托盘总线且 IPC status 返回成功后才报告就绪、启动壁纸监听，
+避免初次同步抢在 IPC 前面。
+runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 与 Niri 键位打开的终端一致。这些私有路径只传给本会话子进程，不导入共享用户管理器。
 不改变所有应用的 XDG_CONFIG_HOME。
 

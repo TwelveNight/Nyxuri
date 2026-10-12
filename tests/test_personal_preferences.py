@@ -72,16 +72,34 @@ class PersonalTrayReadinessTests(unittest.TestCase):
     def test_only_current_shell_owner_reports_ready(self):
         shell = Mock(pid=123, poll=Mock(return_value=None))
         replies = [Mock(returncode=0, stdout='{"data": [999]}'),
-                   Mock(returncode=0, stdout='{"data": [123]}'), Mock(returncode=0)]
+                   Mock(returncode=0, stdout='{"data": [123]}'),
+                   Mock(returncode=0, stdout='{"locked": false}'), Mock(returncode=0)]
         with TempEnv(), patch.dict(os.environ, NOTIFY_SOCKET="/tmp/test-notify"), patch.object(runtime.subprocess, "run", side_effect=replies) as run, patch.object(runtime.time, "sleep") as sleep:
             runtime.wait_for_tray(shell)
             command = ["busctl", "--user", "--json=short", "--timeout=1", "call",
                        "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                        "GetConnectionUnixProcessID", "s", "org.kde.StatusNotifierWatcher"]
             self.assertEqual([call.args[0] for call in run.call_args_list], [
-                command, command, ["systemd-notify", "--ready", "--status=Noctalia tray ready"]])
+                command, command, ["noctalia", "msg", "status"],
+                ["systemd-notify", "--ready", "--status=Noctalia tray ready"]])
             self.assertEqual(run.call_args_list[0].kwargs, dict(capture_output=True, text=True, timeout=2, check=False))
             self.assertEqual(run.call_args_list[-1].kwargs, dict(check=True))
+            sleep.assert_called_once_with(0.1)
+
+    def test_tray_owner_does_not_report_ready_before_ipc(self):
+        shell = Mock(pid=123, poll=Mock(return_value=None))
+        replies = [Mock(returncode=0, stdout='{"data": [123]}'),
+                   Mock(returncode=1, stdout=""),
+                   Mock(returncode=0, stdout='{"data": [123]}'),
+                   Mock(returncode=0, stdout='{"locked": false}'), Mock(returncode=0)]
+        with TempEnv(), patch.dict(os.environ, NOTIFY_SOCKET="/tmp/test-notify"), patch.object(runtime.subprocess, "run", side_effect=replies) as run, patch.object(runtime.time, "sleep") as sleep:
+            runtime.wait_for_tray(shell)
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertEqual(commands[1], ["noctalia", "msg", "status"])
+            self.assertEqual(commands[3], ["noctalia", "msg", "status"])
+            self.assertEqual(commands[4][0], "systemd-notify")
+            self.assertEqual(run.call_args_list[1].kwargs,
+                             dict(capture_output=True, text=True, timeout=2, check=False))
             sleep.assert_called_once_with(0.1)
 
     def test_wrong_owner_times_out_without_notifying(self):

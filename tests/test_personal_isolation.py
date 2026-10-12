@@ -68,7 +68,8 @@ class PersonalIsolationTests(unittest.TestCase):
         with TempEnv() as ctx, patch.dict(os.environ, KITTY_CONFIG_DIRECTORY="/old/kitty"), patch.object(runtime.subprocess, "run") as run, patch.object(runtime.subprocess, "Popen", side_effect=spawn), patch.object(runtime, "wait_for_tray"):
             self.assertEqual(runtime.main(), 0)
             self.assertEqual(inherited[0]["KITTY_CONFIG_DIRECTORY"], str(ctx.home / ".config/nyxuri-desktop/kitty-nyxuri"))
-            self.assertEqual(inherited[0]["NOCTALIA_CONFIG_HOME"], str(ctx.home / ".config/nyxuri-desktop/noctalia"))
+            self.assertEqual(inherited[0]["NOCTALIA_CONFIG_HOME"], str(ctx.home / ".config/nyxuri-desktop"))
+            self.assertEqual(inherited[0]["NOCTALIA_STATE_HOME"], str(ctx.home / ".local/state/nyxuri-desktop/noctalia"))
             run.assert_called_once_with([sys.executable, str(install.ROOT / "personal/desktop-session.py"), "start", "niri", "--no-ii-theme"], check=True)
 
     def test_nyxuri_stops_ii_writer_before_wallpaper_restart_and_return_restores_it(self):

@@ -76,7 +76,7 @@ This documentation set provides an authoritative, complete, and dense technical 
 ## 3. Fast Reference: Paths & Precedence
 
 ### 3.1 File Locations
-- **Declarative User Config**: `~/.config/noctalia/*.toml` (or `$NOCTALIA_CONFIG_HOME`, `$XDG_CONFIG_HOME/noctalia/`)
+- **Declarative User Config**: `~/.config/noctalia/*.toml` (or `$NOCTALIA_CONFIG_HOME/noctalia/`, `$XDG_CONFIG_HOME/noctalia/`)
 - **State & Runtime Overrides (GUI / IPC writes)**: `~/.local/state/noctalia/settings.toml`
 - **Cached Community Palettes**: `~/.local/state/noctalia/community-palettes/`
 - **Cached Community Templates**: `~/.local/state/noctalia/community-templates/`
@@ -687,8 +687,8 @@ Noctalia uses a two-layer configuration system with three distinct storage owner
 
 | Layer / Purpose | Path | Description & Permissions |
 |-----------------|------|---------------------------|
-| **User Base Config** | `~/.config/noctalia/*.toml`<br>(or `$NOCTALIA_CONFIG_HOME`, `$XDG_CONFIG_HOME/noctalia/`) | Hand-written, declarative dotfiles. Noctalia reads and merges all root `*.toml` files alphabetically. |
-| **GUI Overrides** | `~/.local/state/noctalia/settings.toml`<br>(or `$NOCTALIA_STATE_HOME`, `$XDG_STATE_HOME/noctalia/`) | Written by Settings UI & runtime actions. Loads last and overrides hand-written values. |
+| **User Base Config** | `~/.config/noctalia/*.toml`<br>(or `$NOCTALIA_CONFIG_HOME/noctalia/`, `$XDG_CONFIG_HOME/noctalia/`) | Hand-written, declarative dotfiles. Noctalia reads and merges all root `*.toml` files alphabetically. |
+| **GUI Overrides** | `~/.local/state/noctalia/settings.toml`<br>(or `$NOCTALIA_STATE_HOME/noctalia/settings.toml`, `$XDG_STATE_HOME/noctalia/settings.toml`) | Written by Settings UI & runtime actions. Loads last and overrides hand-written values. |
 | **Internal UI State** | `~/.local/state/noctalia/state.toml` | App-managed state (last values, window positions, active choices). |
 | **Storage Master Key** | Desktop Secret Service or `key_file` | Master key for encrypted clipboard history & calendar cache. |
 | **Calendar Event Cache** | `$XDG_CACHE_HOME/noctalia/calendar/events.enc` | Encrypted local calendar cache. |

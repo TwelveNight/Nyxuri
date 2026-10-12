@@ -61,6 +61,10 @@ cd ~/Template/github/niri-dots/Nyxuri
 Noctalia 的桌面壁纸绘制、mpvpaper 插件及自动 Greeter 同步默认关闭。
 请保持 Noctalia 的壁纸绘制关闭，不在 GUI 中启用第二个桌面后端。
 
+Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` 使用
+`~/.config/nyxuri-desktop`，不是最终应用目录。GUI 状态继续沿用
+`~/.local/state/nyxuri-desktop/noctalia/noctalia/`，保留已有设置。
+
 skwd 外部切换通过 `watch` 同步到 Noctalia。视频取首帧、Wallpaper Engine
 读取已有缩略图，供 Noctalia 配色和锁屏使用；不会将预览图反向设成桌面壁纸。
 Kitty 继承原有设置，Nyxuri 颜色写入私有目录，Noctalia 和 Niri 键位启动终端时均使用此配置。
@@ -73,7 +77,7 @@ Niri 启动前清除旧桌面显示地址与 GPU 选择变量；shell 启动前�
 `desktop-session.py`，验证真实 compositor IPC、PID 和 Wayland socket，
 完成 systemd／D-Bus 环境交接，再重连 skwd 和启动 Noctalia。
 私有 shell 也清除上个桌面遗留的 GPU 变量；终端与 Noctalia 的私有路径只传给本会话子进程。
-Shell 单元验证 `org.kde.StatusNotifierWatcher` 的拥有者是本次 Noctalia，再报告就绪；
+Shell 单元验证 `org.kde.StatusNotifierWatcher` 的拥有者是本次 Noctalia，且 IPC 可用后再报告就绪；
 个人 XDG 应用的排序 drop-in 等待此单元，不会主动拉起它。
 该 helper 来源于 iNiR 的个人适配，与现有 Hyprland watcher 共用
 `$XDG_RUNTIME_DIR/inir` 的归属记录；旧 watcher 不会停止新会话。

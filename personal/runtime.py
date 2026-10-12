@@ -19,13 +19,18 @@ def wait_for_tray(shell, timeout=30):
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=2, check=False)
             if result.returncode == 0 and json.loads(result.stdout).get("data") == [shell.pid]:
-                if os.environ.get("NOTIFY_SOCKET"):
-                    subprocess.run(["systemd-notify", "--ready", "--status=Noctalia tray ready"], check=True)
-                return
+                # The tray bus is acquired before Noctalia opens its IPC socket.
+                # Wallpaper sync and startup apps need both to be available.
+                ipc = subprocess.run(["noctalia", "msg", "status"], capture_output=True,
+                                     text=True, timeout=2, check=False)
+                if ipc.returncode == 0 and isinstance(json.loads(ipc.stdout), dict):
+                    if os.environ.get("NOTIFY_SOCKET"):
+                        subprocess.run(["systemd-notify", "--ready", "--status=Noctalia tray ready"], check=True)
+                    return
         except (OSError, ValueError, subprocess.TimeoutExpired):
             pass
         if time.monotonic() >= deadline:
-            raise RuntimeError("Noctalia did not acquire the tray bus; refusing to start personal tray apps")
+            raise RuntimeError("Noctalia did not acquire the tray bus and IPC; refusing to start personal tray apps")
         time.sleep(0.1)
     raise RuntimeError("Noctalia exited before tray startup completed")
 
@@ -33,7 +38,9 @@ def wait_for_tray(shell, timeout=30):
 def main():
     scripts = Path(__file__).resolve().parent
     config = Path.home() / ".config/nyxuri-desktop"
-    os.environ["NOCTALIA_CONFIG_HOME"] = str(config / "noctalia")
+    # Noctalia appends /noctalia to these base directories itself.
+    os.environ["NOCTALIA_CONFIG_HOME"] = str(config)
+    # Keep the already-used private state root so GUI preferences survive.
     os.environ["NOCTALIA_STATE_HOME"] = str(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "nyxuri-desktop/noctalia")
     # Systemd does not inherit Niri's per-child environment block. Applications
     # opened by Noctalia must use the same Kitty profile as compositor bindings.
@@ -50,8 +57,8 @@ def main():
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
-        bridge = subprocess.Popen([sys.executable, str(scripts / "wallpaper.py"), "watch"], start_new_session=True)
         wait_for_tray(shell)
+        bridge = subprocess.Popen([sys.executable, str(scripts / "wallpaper.py"), "watch"], start_new_session=True)
         return shell.wait()
     finally:
         if bridge and bridge.poll() is None:

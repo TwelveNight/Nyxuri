@@ -51,7 +51,7 @@ def prepare_sources(destination: Path) -> None:
     if not effects.exists() and not effects.is_symlink():
         effects.symlink_to("effects_normal.kdl")
     niri = destination / "niri/config.kdl"
-    niri.write_text(niri.read_text().replace('environment {', 'environment {\n    NOCTALIA_CONFIG_HOME "/home/user/.config/nyxuri-desktop/noctalia"\n    NOCTALIA_STATE_HOME "/home/user/.local/state/nyxuri-desktop/noctalia"'))
+    niri.write_text(niri.read_text().replace('environment {', 'environment {\n    NOCTALIA_CONFIG_HOME "/home/user/.config/nyxuri-desktop"\n    NOCTALIA_STATE_HOME "/home/user/.local/state/nyxuri-desktop/noctalia"'))
     content = niri.read_text()
     content = re.sub(r'QT_QPA_PLATFORMTHEME "[^"]*"', 'QT_QPA_PLATFORMTHEME "kde"', content)
     if "KITTY_CONFIG_DIRECTORY" not in content:
@@ -76,7 +76,7 @@ def prepare_sources(destination: Path) -> None:
     hook.write_text('#!/bin/sh\nexec python3 "$HOME/.config/nyxuri-desktop/niri/scripts/wallpaper.py" hook\n', encoding="utf-8")
     action = scripts / "shell-action.sh"
     content = action.read_text().replace('exec noctalia msg wallpaper-random', 'exec skwd-helm random')
-    content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config/nyxuri-desktop/noctalia"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
+    content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config/nyxuri-desktop"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
     # This session always runs Noctalia. A legacy public shell selection must
     # never send its keyboard actions to a different desktop's executable.
     start = content.index('state_root=')

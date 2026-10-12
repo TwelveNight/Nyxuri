@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import unittest
@@ -74,6 +75,34 @@ class TestPersonalSession(unittest.TestCase):
             for command in (["niri", "validate", "--config", str(private / "niri/config.kdl")], ["noctalia", "config", "validate", str(private / "noctalia")], ["desktop-file-validate", str(private / "nyxuri.desktop")]):
                 result = subprocess.run(command, text=True, capture_output=True, timeout=15)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_noctalia_environment_loads_hooks_and_private_theme_policy(self):
+        import shutil
+        import tomllib
+        if not shutil.which("noctalia"):
+            self.skipTest("Noctalia is not installed")
+        with TempEnv() as ctx:
+            kitty = ctx.home / ".config/kitty"
+            kitty.mkdir()
+            (kitty / "kitty.conf").write_text("shell zsh\n")
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+                self.assertEqual(install.main(["--yes"]), 0)
+            private = ctx.home / ".config/nyxuri-desktop"
+            niri = (private / "niri/config.kdl").read_text()
+            environment = dict(os.environ)
+            environment.update(re.findall(r'(NOCTALIA_(?:CONFIG|STATE)_HOME) "([^"]+)"', niri))
+            # A validator accepts an empty directory too. Export through the
+            # actual launch environment to prove the intended files are read.
+            result = subprocess.run(["noctalia", "config", "export"], env=environment,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            config = tomllib.loads(result.stdout)
+            self.assertFalse(config["wallpaper"]["enabled"])
+            self.assertEqual(config["hooks"]["wallpaper_changed"],
+                             ["~/.config/nyxuri-desktop/noctalia/wallpaper-hook.sh"])
+            self.assertIn("bar", config["bar"])
+            self.assertEqual(config["theme"]["templates"]["builtin_ids"], [])
+            self.assertEqual(config["plugins"]["enabled"], [])
 
     def test_plan_does_not_write(self):
         with TempEnv() as ctx:

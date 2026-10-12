@@ -66,7 +66,7 @@ This documentation set provides an authoritative, complete, and dense technical 
 ## 3. Fast Reference: Paths & Precedence
 
 ### 3.1 File Locations
-- **Declarative User Config**: `~/.config/noctalia/*.toml` (or `$NOCTALIA_CONFIG_HOME`, `$XDG_CONFIG_HOME/noctalia/`)
+- **Declarative User Config**: `~/.config/noctalia/*.toml` (or `$NOCTALIA_CONFIG_HOME/noctalia/`, `$XDG_CONFIG_HOME/noctalia/`)
 - **State & Runtime Overrides (GUI / IPC writes)**: `~/.local/state/noctalia/settings.toml`
 - **Cached Community Palettes**: `~/.local/state/noctalia/community-palettes/`
 - **Cached Community Templates**: `~/.local/state/noctalia/community-templates/`
