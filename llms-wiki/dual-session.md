@@ -1,30 +1,92 @@
-# Personal dual session
+# Personal desktop coexistence
 
-此页面描述 `night/personal-overlay` 的双会话特例。实机安装步骤见
-[`personal/README.md`](../personal/README.md)。
+此页描述 `night/personal-overlay`；操作见
+[`personal/README.md`](../personal/README.md)。Hyprland + ii、iNiR 和
+Nyxuri + Noctalia 使用同一用户，按顺序登录，共享 skwd。
 
-## 部署边界
+## 部署与更新
 
-`personal/install.py` 是该分支的配置部署入口。它通过
-`_phase_atomic_deployment` 只部署 `niri`、`noctalia` 和 `kitty-nyxuri`，
-再用 `atomic_replace_item` 安装 niri 专属 Portal 路由，
-并向壁纸目录补齐离线基础图片。入口不运行默认安装后的
-主题同步、GTK 渲染、Fisher、Fcitx 皮肤或 Greeter 安装。
-成功后写入 `~/.config/nyxuri/personal-mode`；普通 CLI 的无参数、
-`install`、`deploy`、`update` 路径会拒绝执行，避免随后覆写已有应用配置。
+`personal/install.py` 列清单并确认后部署到
+`~/.config/nyxuri-desktop/{niri,noctalia,kitty-nyxuri}`。
+`--plan` 只展示，`--yes` 用于已审阅的自动化。
+它把 `configs/` 的相关目录复制到临时目录，替换私有路径、shell 入口和壁纸
+请求后，在局部 Environment 下调用 `_phase_atomic_deployment` 和
+`_phase_render_templates`。官方 Dunder／manifest 保留语义继续适用。
+首次部署副本含内部 `effects.kdl → effects_normal.kdl` 链接；更新保留现有链接。
+公共 `~/.config/niri`、ii/iNiR、用户 Portal 路由及 Kitty 基础配置均不部署。
 
-## 运行时
+私有管理状态在 `nyxuri-desktop/manager`，运行账本在
+`~/.local/state/nyxuri-desktop/manager`。标记为 `nyxuri-desktop/installed`。
+旧 `nyxuri/personal-mode` 标记仍让公共 CLI 拒绝完整 install/deploy/update，
+新部署不创建它。官方无参数／完整安装入口不是这套共存适配的入口。
 
-Hyprland 保持当前 Kitty 配置及 ii 生成的颜色；niri 设置
-`KITTY_CONFIG_DIRECTORY` 指向 `kitty-nyxuri`，加载现有 Kitty 设置后
-用 Noctalia 单独生成的颜色覆盖。Kitty 字体、键位和 Shell 仍取现有配置。
-Noctalia 的 GTK、Qt、Starship、Fcitx 输出关闭，niri 使用 KDE Qt 平台主题。
+`personal/update.py` 要求干净的 `night/personal-overlay` 和官方 HTTPS origin。
+fetch `origin main` 后 merge `FETCH_HEAD`，失败不部署，不自动 stash/reset/push。
+成功后新进程调用个人安装入口；`--no-deploy` 只合并源码。
+不会自动同步本次开发修改或绕过未提交改动检查。
 
-个人部署不改 ii/skwd 的用户服务和自启动链接。Noctalia 的壁纸及其配色
-由自身状态管理。壁纸资源目录可共用，壁纸选择状态分开；同一用户的
-systemd 服务可跨会话存活，需要登录后检查渲染进程是否重叠。
+## 会话
 
-## 范围
+部署 `nyxuri-niri.service`、`nyxuri-shell.service` 和带目标 HOME 的
+`nyxuri-desktop/nyxuri.desktop`。
+用户审阅后将生成的 desktop 文件安装到 GDM 系统目录。
+`personal/session.py` 采用标准 Niri 用户服务生命周期，但启动独立单元，
+使用私有 `--config`；它和 `niri.service` 互斥，避免启动 iNiR 的 shell。
+退出经过标准 `niri-shutdown.target` 释放图形会话。
 
-此分支只准备文件。GDM 的 `personal/nyxuri.desktop` 需在 niri 安装后
-部署到系统会话目录，往返登录实测才可确认两边视觉无串色。
+Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart target，
+用 Type=notify，runtime 验证托盘总线拥有者 PID 是本次 Noctalia 后报告就绪；不排在 graphical-session.target
+之前，避免阻塞 Noctalia 所需的 Portal。部署副本移除原 shell 和 Fcitx spawn，避免重复。
+
+`personal/runtime.py` 先运行携带的 iNiR 个人 `desktop-session.py`，
+验证 IPC 对端 PID／UID／compositor 名称和 Wayland socket，发布当前会话环境，
+重启共享 skwd，再启动 Noctalia 和壁纸监听。旧 display／GPU 变量在启动
+compositor 时清除。helper 的锁、pidfd watcher 和会话记录与现有
+Hyprland helper 共用 `$XDG_RUNTIME_DIR/inir`，防止旧会话清理伤及新会话。
+Noctalia 配置／GUI 状态分别用 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME`
+指向私有目录；不改变所有应用的 XDG_CONFIG_HOME。
+
+## 壁纸和颜色
+
+`zz-personal.toml` 再次关闭 builtin/community 配色模板，禁用输出到私有目录和
+Nyxuri palette 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
+临时部署副本关闭 Noctalia 桌面壁纸、mpvpaper 插件及 Greeter 自动同步。
+Python 选择器静态／视频均调用参数数组 `skwd-helm apply`，随机快捷键调用
+`skwd-helm random`；原生 Noctalia 选择经 wallpaper_changed hook 转交 skwd。
+`personal/wallpaper.py` watch 事件后读取 current，逐输出把静态图／视频首帧／
+已有 WE 缩略图传给 Noctalia 作配色和锁屏背景。相同预览不重复同步，hook
+识别活动路径／预览，避免把视频替换成缩略图。
+Noctalia 的壁纸绘制不能在 GUI 覆盖状态里重新打开。
+
+Kitty 基础设置仍来自原有 Kitty，颜色、Niri glow 和 Noctalia 模板路径在私有
+目录；共享 II 配色服务继续消费 skwd 状态。不安装 GTK/Fcitx/Fisher/Greeter。
+此适配不修改共享用户服务的启用关系及已有 Portal 路由。
+
+## 验证边界
+
+TempEnv 测试覆盖重复部署、公共配置不变、文件保留、参数数组、更新失败和
+启动顺序。另运行生成后的 Niri／Noctalia 配置校验及 desktop-file 校验。
+真正的往返登录、shell／托盘／输入法和动态壁纸仍须实机验收；共享用户
+服务不承诺同一用户多图形会话并发隔离。
+
+本次在官方 `origin/main` `ebafe03` 的临时副本验证了部署兼容性及配置语法；
+当前个人分支没有合并该提交。官方 main 已改写过历史，首次 merge 可能需要人工解冲突。
+
+## 个人键位与自启动
+
+`personal/binds.kdl`、`personal/startup.kdl` 作为普通受仓库管理的文件复制到部署副本，
+主配置在默认 binds 后、用户 __custom__ 前 include。自定义覆盖仍由 Dunder 保留，
+不把个人键位内容塞进上游 binds 或仅存在实机的文件中。
+`personal/niri_actions.py` 部署为 scripts/niri-actions.py，提供当前个人键位的稳定 ID
+工作区操作、居中浮动、Hermes HUD 聚焦、tmux 和文件管理器，不依赖 INIR_* 环境。
+侧栏键按用户选择映射到 Noctalia 控制中心，OCR 菜单键映射截图编辑，OSK 暂为空操作。
+
+`personal/autostart/` 记录个人 XDG 选择。1Password／Clash Verge 仅在公共 autostart
+条目缺失时原子补齐；已存在的命令与 Hidden 状态保持用户选择。
+ToDesk 是明确的禁用策略：`personal/autostart.py` 在原条目中仅更新 Hidden=true 和
+X-GNOME-Autostart-enabled=false；缺失时用禁用模板。此选择对所有桌面生效。
+Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选放大镜由 startup.kdl
+启动，Noctalia 使用自己的剪贴板，不复制 iNiR 的监听器。
+四个启用应用单元的 `50-nyxuri-shell.conf` 仅声明 After=nyxuri-shell.service，
+让当前 Nyxuri 启动事务中的应用等托盘就绪；没有 Wants/Requires，不会在其他桌面
+拉起 Nyxuri。它们同时沿用既有 iNiR 的 compositor ready ExecStartPre。

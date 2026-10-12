@@ -91,3 +91,9 @@ pull 成功后**当前进程不做任何部署**：菜单路径与 `nyxuri updat
 
 curl → AUR 迁移 = 装包 + 删 `~/.cache/nyxuri`，用户数据零迁移。**切换安装方式 = 换代码来源，
 不换用户数据**。
+
+## 个人共存分支
+
+三模式表描述官方通用入口。当前个人桌面使用 `personal/install.py` 私有部署，
+`personal/update.py` 在个人分支合并官方 main 后重新调用相同入口，
+不走全量 upgrade offer。具体隔离与失败行为见 [dual-session](dual-session.md)。

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=ToDesk
+Exec=/opt/todesk/bin/ToDesk
+Hidden=true
+X-GNOME-Autostart-enabled=false

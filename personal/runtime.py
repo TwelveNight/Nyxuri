@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Complete the compositor handoff before starting this session's shell."""
+import os
+import json
+import time
+from pathlib import Path
+import signal
+import subprocess
+import sys
+
+
+def wait_for_tray(shell, timeout=30):
+    """Only our Noctalia process can complete the private shell's startup."""
+    deadline = time.monotonic() + timeout
+    command = ["busctl", "--user", "--json=short", "--timeout=1", "call",
+               "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+               "GetConnectionUnixProcessID", "s", "org.kde.StatusNotifierWatcher"]
+    while shell.poll() is None:
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=2, check=False)
+            if result.returncode == 0 and json.loads(result.stdout).get("data") == [shell.pid]:
+                if os.environ.get("NOTIFY_SOCKET"):
+                    subprocess.run(["systemd-notify", "--ready", "--status=Noctalia tray ready"], check=True)
+                return
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            pass
+        if time.monotonic() >= deadline:
+            raise RuntimeError("Noctalia did not acquire the tray bus; refusing to start personal tray apps")
+        time.sleep(0.1)
+    raise RuntimeError("Noctalia exited before tray startup completed")
+
+
+def main():
+    scripts = Path(__file__).resolve().parent
+    config = Path.home() / ".config/nyxuri-desktop"
+    os.environ["NOCTALIA_CONFIG_HOME"] = str(config / "noctalia")
+    os.environ["NOCTALIA_STATE_HOME"] = str(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "nyxuri-desktop/noctalia")
+    # Reuse iNiR's socket/PID validation, environment handoff and stale-watcher
+    # protection. Shared runtime state is deliberate: both Niri entries agree
+    # with the existing Hyprland cleanup watcher on who owns skwd now.
+    subprocess.run([sys.executable, str(scripts / "desktop-session.py"), "start", "niri"], check=True)
+    shell = subprocess.Popen(["noctalia"])
+    bridge = None
+    def stop(_signum, _frame):
+        if shell.poll() is None:
+            shell.terminate()
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        bridge = subprocess.Popen([sys.executable, str(scripts / "wallpaper.py"), "watch"], start_new_session=True)
+        wait_for_tray(shell)
+        return shell.wait()
+    finally:
+        if bridge and bridge.poll() is None:
+            os.killpg(bridge.pid, signal.SIGTERM)
+            bridge.wait(timeout=5)
+        if shell.poll() is None:
+            shell.terminate()
+            shell.wait(timeout=5)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

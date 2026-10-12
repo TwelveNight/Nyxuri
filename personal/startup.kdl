@@ -1,0 +1,2 @@
+// Optional personal magnifier; XDG autostart owns ordinary desktop apps.
+spawn-at-startup "sh" "-c" "test ! -x \"$HOME/.local/bin/niri-zoomd\" || exec \"$HOME/.local/bin/niri-zoomd\""

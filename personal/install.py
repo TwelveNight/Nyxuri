@@ -1,63 +1,202 @@
 #!/usr/bin/env python3
-"""Install only the personal niri session files."""
-
+"""Deploy a private Nyxuri desktop using the upstream atomic engine."""
+import argparse
+import copy
 import os
+import re
+import tomllib
+from pathlib import Path
 import shutil
 import sys
-from pathlib import Path
+import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-
-from nyxuri.core import get_env  # noqa: E402
-from nyxuri.deploy.atomic import atomic_replace_item  # noqa: E402
-from nyxuri.deploy.assets import deploy_wallpapers  # noqa: E402
-from nyxuri.deploy.deploy import _phase_atomic_deployment  # noqa: E402
-from nyxuri.deploy.templates import _phase_render_templates  # noqa: E402
+from nyxuri import core
+from personal.autostart import disable_todesk
+from nyxuri.deploy.atomic import atomic_replace_item
+from nyxuri.deploy.assets import deploy_wallpapers
+from nyxuri.deploy.deploy import _phase_atomic_deployment
+from nyxuri.deploy.templates import _phase_render_templates
 
 CONFIGS = ("niri", "noctalia", "kitty-nyxuri")
-SESSION_TOOLS = ("niri", "noctalia", "kitty", "mpvpaper", "ffmpeg", "jq", "inotifywait", "wlsunset")
+AUTOSTART_UNITS = (
+    "app-com.onepassword.OnePassword@autostart.service",
+    r"app-clash\x2dverge@autostart.service",
+    "app-org.fcitx.Fcitx5@autostart.service",
+    "app-org.kde.kdeconnect.daemon@autostart.service",
+)
+SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify")
 
 
-def main() -> int:
+def prepare_sources(destination: Path) -> None:
+    for item in CONFIGS:
+        shutil.copytree(ROOT / "configs" / item, destination / item, symlinks=True)
+    # Rewrite the copied templates, never the upstream sources or live iNiR tree.
+    for path in destination.rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for app in ("niri", "noctalia", "kitty-nyxuri"):
+            content = content.replace(f".config/{app}", f".config/nyxuri-desktop/{app}")
+        path.write_text(content, encoding="utf-8")
+    effects = destination / "niri/effects.kdl"
+    if not effects.exists() and not effects.is_symlink():
+        effects.symlink_to("effects_normal.kdl")
+    niri = destination / "niri/config.kdl"
+    niri.write_text(niri.read_text().replace('environment {', 'environment {\n    NOCTALIA_CONFIG_HOME "/home/user/.config/nyxuri-desktop/noctalia"\n    NOCTALIA_STATE_HOME "/home/user/.local/state/nyxuri-desktop/noctalia"'))
+    content = niri.read_text()
+    content = re.sub(r'QT_QPA_PLATFORMTHEME "[^"]*"', 'QT_QPA_PLATFORMTHEME "kde"', content)
+    if "KITTY_CONFIG_DIRECTORY" not in content:
+        content = content.replace('environment {', 'environment {\n    KITTY_CONFIG_DIRECTORY "/home/user/.config/nyxuri-desktop/kitty-nyxuri"')
+    # The ordered shell unit owns startup; don't spawn a second shell or IME.
+    content = re.sub(r'^spawn-at-startup .*session-shell\.sh".*\n', '', content, flags=re.MULTILINE)
+    content = re.sub(r'^spawn-at-startup .*fcitx5.*\n', '', content, flags=re.MULTILINE)
+    custom_include = 'include "__custom__.kdl"'
+    if custom_include not in content:
+        raise ValueError("Upstream Niri custom include contract changed; review before deployment")
+    content = content.replace(custom_include, 'include "personal-binds.kdl"\ninclude "personal-startup.kdl"\n' + custom_include)
+    niri.write_text(content)
+    shutil.copy2(ROOT / "personal/binds.kdl", destination / "niri/personal-binds.kdl")
+    shutil.copy2(ROOT / "personal/startup.kdl", destination / "niri/personal-startup.kdl")
+    scripts = destination / "niri/scripts"
+    for name in ("desktop-session.py", "runtime.py", "wallpaper.py", "session.py"):
+        shutil.copy2(ROOT / "personal" / name, scripts / name)
+    shutil.copy2(ROOT / "personal/niri_actions.py", scripts / "niri-actions.py")
+    (scripts / "session-shell.sh").write_text(
+        '#!/bin/sh\nexec python3 "$(dirname "$0")/runtime.py"\n', encoding="utf-8")
+    hook = destination / "noctalia/wallpaper-hook.sh"
+    hook.write_text('#!/bin/sh\nexec python3 "$HOME/.config/nyxuri-desktop/niri/scripts/wallpaper.py" hook\n', encoding="utf-8")
+    action = scripts / "shell-action.sh"
+    content = action.read_text().replace('exec noctalia msg wallpaper-random', 'exec skwd-helm random')
+    content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config/nyxuri-desktop/noctalia"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
+    action.write_text(content)
+    backend = destination / "noctalia/tools/wallpaper_picker/backend.py"
+    backend.write_text('''"""All desktop images and videos are rendered by skwd-wall."""
+import subprocess
+import sys
+
+
+def apply_static_wallpaper(path):
+    try:
+        return subprocess.run(["skwd-helm", "apply", path], check=False, timeout=30).returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"Cannot apply wallpaper: {error}", file=sys.stderr)
+        return False
+
+
+def apply_dynamic_wallpaper(video_path, thumb_path=None):
+    return apply_static_wallpaper(video_path)
+
+
+def apply_wallpaper(item):
+    return apply_static_wallpaper(item.path)
+''')
+    conf = destination / "noctalia/noctalia-config.toml"
+    text = conf.read_text().replace('[wallpaper]\n', '[wallpaper]\nenabled = false\n')
+    text = text.replace('enabled = ["noctalia/mpvpaper"]', 'enabled = []')
+    text = text.replace('[shell.greeter_sync]\nauto_sync = true', '[shell.greeter_sync]\nauto_sync = false')
+    # Dormant mpvpaper settings no longer describe this backend.
+    text = text.split('[widget.mpvpaper]')[0].rstrip() + "\n"
+    conf.write_text(text)
+    # Reassert the personal output boundary against fresh upstream defaults.
+    data = tomllib.loads(text)
+    policy = ['[theme.templates]', 'builtin_ids = []', 'community_ids = []',
+              '[theme.templates.user.nyxuri_kitty]', 'index = 7',
+              'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/kitty-nyxuri.conf"',
+              'output_path = "/home/user/.config/nyxuri-desktop/kitty-nyxuri/colors__custom__.conf"',
+              "post_hook = 'pkill -SIGUSR1 -x kitty >/dev/null 2>&1 || true'"]
+    for name, template in data.get("theme", {}).get("templates", {}).get("user", {}).items():
+        output = template.get("output_path", "")
+        if "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri/" not in output:
+            policy += [f"[theme.templates.user.{name}]", "enabled = false"]
+    (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--yes", action="store_true", help="apply the printed deployment plan")
+    parser.add_argument("--plan", action="store_true", help="show the deployment without writing files")
+    args = parser.parse_args(argv)
     if os.geteuid() == 0:
         print("Run this installer as your desktop user.", file=sys.stderr)
         return 1
-    env = get_env()
-    marker_path = env.nyx_dir / "personal-mode"
-    if not marker_path.is_file() and any((env.config_dir / item).exists() for item in CONFIGS):
-        print("A session config already exists. Review it before the first personal deployment.", file=sys.stderr)
-        return 1
-    if not (env.config_dir / "kitty" / "kitty.conf").is_file():
+    env = core.get_env()
+    private = env.config_dir / "nyxuri-desktop"
+    print(f"Deploy: {private}/{{niri,noctalia,kitty-nyxuri}}")
+    print(f"User services: {env.config_dir}/systemd/user/nyxuri-{{niri,shell}}.service")
+    print("Personal shortcuts and startup; create absent XDG entries: 1Password, Clash Verge; disable ToDesk in all desktops")
+    print("Startup ordering: 1Password, Clash Verge, Fcitx5, KDE Connect wait for the private shell")
+    print("Wallpaper: shared skwd-wall; iNiR/ii config and Portal routes stay as installed.")
+    if args.plan:
+        return 0
+    if not (env.config_dir / "kitty/kitty.conf").is_file():
         print("Existing Kitty settings are required.", file=sys.stderr)
         return 1
-    missing = [binary for binary in SESSION_TOOLS if not shutil.which(binary)]
+    missing = [name for name in SESSION_TOOLS if not shutil.which(name)]
     if missing:
-        print(f"Install session tools before deploying: {', '.join(missing)}", file=sys.stderr)
+        print(f"Install session tools first: {', '.join(missing)}", file=sys.stderr)
         return 1
-
-    portal_source = ROOT / "configs/xdg-desktop-portal/niri-portals.conf"
-    portal_target = env.config_dir / "xdg-desktop-portal" / "niri-portals.conf"
-    if not portal_source.is_file() or (portal_target.is_symlink() and not portal_target.resolve().is_relative_to(env.home)):
-        print(f"Unsafe portal destination: {portal_target}", file=sys.stderr)
+    if private.is_symlink() or private.exists() and not (private / "installed").is_file():
+        print(f"Existing private directory needs review: {private}", file=sys.stderr)
         return 1
-    if not marker_path.is_file() and (portal_target.exists() or portal_target.is_symlink()):
-        print(f"Existing portal config needs review: {portal_target}", file=sys.stderr)
-        return 1
-
-    print("Deploy: niri, noctalia, kitty-nyxuri")
-    print("Portal: niri-portals.conf; wallpaper: offline starter image")
-    if _phase_atomic_deployment(list(CONFIGS)):
-        return 1
-    for item in CONFIGS:
-        _phase_render_templates(only_app=item)
-    deploy_wallpapers(do_download=False)
-    if not atomic_replace_item(portal_source, portal_target):
-        return 1
-    marker = ROOT / "personal" / "mode-enabled"
-    if not atomic_replace_item(marker, marker_path):
-        return 1
-    print("Session files installed. Log out and choose niri in GDM for the first session test.")
+    if not args.yes:
+        if not sys.stdin.isatty() or input("Apply this plan? [y/N] ").strip().lower() != "y":
+            return 2
+    scoped = copy.copy(env)
+    scoped.config_dir = private
+    scoped.nyx_dir = private / "manager"
+    scoped.presets_dir = scoped.nyx_dir / "presets"
+    scoped.state_dir = env.home / ".local/state/nyxuri-desktop/manager"
+    previous = core._ENV
+    try:
+        with tempfile.TemporaryDirectory(prefix="nyxuri-personal-") as temporary:
+            scoped.configs_src = Path(temporary)
+            prepare_sources(scoped.configs_src)
+            core._ENV = scoped
+            if _phase_atomic_deployment(list(CONFIGS)):
+                return 1
+            for item in CONFIGS:
+                _phase_render_templates(only_app=item)
+            kitty = private / "kitty-nyxuri/kitty.conf"
+            kitty.write_text(kitty.read_text().replace("/home/user", str(env.home)))
+            policy = private / "noctalia/zz-personal.toml"
+            policy.write_text(policy.read_text().replace("/home/user", str(env.home)))
+        # Wallpaper assets keep the upstream no-clobber contract.
+        core._ENV = env
+        deploy_wallpapers(do_download=False)
+        for name in ("nyxuri-niri.service", "nyxuri-shell.service"):
+            if not atomic_replace_item(ROOT / "personal" / name, env.config_dir / "systemd/user" / name):
+                return 1
+        for unit in AUTOSTART_UNITS:
+            target = env.config_dir / "systemd/user" / (unit + ".d") / "50-nyxuri-shell.conf"
+            if not atomic_replace_item(ROOT / "personal/autostart-order.conf", target):
+                return 1
+        # Shared XDG startup choices stay user-owned. Only create absent entries;
+        # never re-enable a Hidden entry or replace an existing app command.
+        if not disable_todesk(env.config_dir):
+            return 1
+        for source in sorted((ROOT / "personal/autostart").glob("*.desktop")):
+            if source.name == "todesk.desktop":
+                continue
+            target = env.config_dir / "autostart" / source.name
+            if target.exists() or target.is_symlink():
+                continue
+            if not atomic_replace_item(source, target):
+                return 1
+        with tempfile.TemporaryDirectory(prefix="nyxuri-entry-") as temporary:
+            desktop = Path(temporary) / "nyxuri.desktop"
+            desktop.write_text((ROOT / "personal/nyxuri.desktop").read_text().replace("/home/user", str(env.home)))
+            if not atomic_replace_item(desktop, private / "nyxuri.desktop"):
+                return 1
+        if not atomic_replace_item(ROOT / "personal/mode-enabled", private / "installed"):
+            return 1
+    finally:
+        core._ENV = previous
+    print("Files ready. Run systemctl --user daemon-reload, then install the GDM entry described in personal/README.md.")
     return 0
 
 

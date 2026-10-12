@@ -1,0 +1,354 @@
+// Personal bindings for Nyxuri; loaded after the upstream bindings.
+// Add live-only overrides to __custom__.kdl, loaded after this file.
+
+switch-events {
+    lid-open { spawn "niri" "msg" "output" "eDP-2" "on"; }
+}
+
+binds {
+    // ═══════════════════════════════════════════════════════════════════════
+    // System
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Hyprland custom frees Super+D; suppress the inherited maximize action.
+    Mod+D repeat=false hotkey-overlay-title=null { spawn "/usr/bin/true"; }
+
+    // Niri Overview.
+    Mod+Space repeat=false hotkey-overlay-title="Niri Overview" { toggle-overview; }
+
+    // Toggle focus between the existing Hermes HUD and the previous window.
+    Mod+Z repeat=false hotkey-overlay-title="Toggle Hermes HUD focus" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "hud-focus"; }
+
+    // Switch column width preset (same action as Mod+R).
+    Alt+R hotkey-overlay-title="Switch preset column width" { switch-preset-column-width; }
+
+    // Suspend computer.
+    Mod+Shift+BackSpace repeat=false hotkey-overlay-title="Suspend computer" { spawn "systemctl" "suspend"; }
+
+    // Quit Niri.
+    Mod+Ctrl+Alt+Escape repeat=false hotkey-overlay-title="Quit Niri" { quit; }
+
+    // Restart input method.
+    Mod+Alt+F repeat=false hotkey-overlay-title="Restart input method" { spawn "fcitx5" "--replace" "-d"; }
+
+    // Restart input method.
+    Ctrl+Mod+F repeat=false hotkey-overlay-title="Restart input method" { spawn "fcitx5" "--replace" "-d"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Noctalia
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Toggle Orbit; replace the upstream Mod+Tab Niri overview action.
+    Mod+Tab repeat=false hotkey-overlay-title="Orbit" { spawn "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh" "radial-launcher"; }
+
+    // Toggle the Noctalia Control Center.
+    Mod+S repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+
+    // Power menu.
+    Ctrl+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session"; }
+
+    // Lock screen.
+    Mod+BackSpace repeat=false hotkey-overlay-title="Lock screen" { spawn "noctalia" "msg" "session" "lock"; }
+
+    // Open Control Center (personal left-sidebar key).
+    Mod+A repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+
+    // Open Control Center (personal right-sidebar key).
+    Mod+B repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center"; }
+
+    // Toggle bar.
+    Mod+Shift+Alt+J repeat=false hotkey-overlay-title="Toggle bar" { spawn "noctalia" "msg" "bar-toggle"; }
+
+    // No on-screen keyboard in this shell; reserve the key for now.
+    Mod+Shift+Alt+K repeat=false hotkey-overlay-title=null { spawn "/usr/bin/true"; }
+
+    // Niri Overview.
+    Alt+Space repeat=false hotkey-overlay-title="Niri Overview" { toggle-overview; }
+
+    // Settings.
+    Mod+I repeat=false hotkey-overlay-title="Settings" { spawn "noctalia" "msg" "settings-toggle"; }
+
+    // Open wallpaper picker.
+    Mod+Ctrl+W repeat=false hotkey-overlay-title="Open wallpaper picker" { spawn "skwd-wall-v2"; }
+
+    // Edit shell configuration in Neovim.
+    Ctrl+Mod+Slash repeat=false hotkey-overlay-title="Edit shell configuration" { spawn "bash" "-c" "exec kitty nvim \"$HOME/.config/nyxuri-desktop/noctalia/noctalia-config.toml\""; }
+
+    // Edit personal key bindings.
+    Ctrl+Mod+Alt+Slash repeat=false hotkey-overlay-title="Edit custom key bindings" { spawn "bash" "-c" "exec xdg-open \"$HOME/.config/nyxuri-desktop/niri/__custom__.kdl\""; }
+
+    // Screen magnifier (niri-zoom). Leave Ctrl+wheel to application zoom,
+    // Mod+Ctrl+wheel to workspace movement, and Ctrl+Alt+wheel to volume.
+    Ctrl+Alt+Equal hotkey-overlay-title="Screen magnifier: zoom in" { spawn "~/.local/bin/niri-zoomctl" "in"; }
+    Ctrl+Alt+Minus hotkey-overlay-title="Screen magnifier: zoom out" { spawn "~/.local/bin/niri-zoomctl" "out"; }
+    Ctrl+Shift+WheelScrollUp cooldown-ms=0 hotkey-overlay-title="Screen magnifier: zoom in" { spawn "~/.local/bin/niri-zoomctl" "in"; }
+    Ctrl+Shift+WheelScrollDown cooldown-ms=0 hotkey-overlay-title="Screen magnifier: zoom out" { spawn "~/.local/bin/niri-zoomctl" "out"; }
+    Ctrl+Alt+Z repeat=false hotkey-overlay-title="Screen magnifier: reset" { spawn "~/.local/bin/niri-zoomctl" "reset"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Screenshots
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Screenshot region.
+    Ctrl+1 repeat=false hotkey-overlay-title="Screenshot region" { spawn "noctalia" "msg" "screenshot-region"; }
+
+    // Screenshot region.
+    Ctrl+Alt+MouseLeft repeat=false hotkey-overlay-title="Screenshot region" { spawn "noctalia" "msg" "screenshot-region"; }
+
+    // Screenshot editor.
+    Ctrl+Alt+MouseRight repeat=false hotkey-overlay-title="Screenshot editor" { spawn "noctalia" "msg" "screenshot-annotate"; }
+
+    // Screenshot editor.
+    Ctrl+Alt+S repeat=false hotkey-overlay-title="Screenshot editor" { spawn "noctalia" "msg" "screenshot-annotate"; }
+
+    // Screenshot editor.
+    Ctrl+Alt+A repeat=false hotkey-overlay-title="Screenshot editor" { spawn "noctalia" "msg" "screenshot-annotate"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Applications
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // System monitor (btop).
+    Ctrl+Shift+Escape repeat=false hotkey-overlay-title="System monitor (btop)" { spawn "/usr/bin/kitty" "--title" "btop" "/usr/bin/btop"; }
+
+    // Open or attach tmux session.
+    Ctrl+Shift+A repeat=false hotkey-overlay-title="Open or attach tmux session" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "tmux"; }
+
+    // File manager.
+    Mod+E repeat=false hotkey-overlay-title="File manager" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "files"; }
+
+    // Browser.
+    Mod+F repeat=false hotkey-overlay-title="Browser" { spawn "firefox"; }
+
+    // Toggle 1Password.
+    Ctrl+Shift+Z repeat=false hotkey-overlay-title="Toggle 1Password" { spawn "1password" "--toggle"; }
+
+    // 1Password quick access.
+    Ctrl+Shift+Space repeat=false hotkey-overlay-title="1Password quick access" { spawn "1password" "--quick-access"; }
+
+    // Open GNOME system settings.
+    Mod+Alt+I repeat=false hotkey-overlay-title="Open GNOME system settings" { spawn "env" "XDG_CURRENT_DESKTOP=GNOME" "XDG_SESSION_DESKTOP=gnome" "gnome-control-center"; }
+
+    // File manager.
+    Mod+Alt+E repeat=false hotkey-overlay-title="File manager" { spawn "env" "QT_QPA_PLATFORM=xcb" "pcmanfm-qt" "--profile" "xwayland" "--new-window"; }
+
+    // Browse files with Rofi.
+    Mod+Shift+E repeat=false hotkey-overlay-title="Browse files with Rofi" { spawn "rofi" "-show" "filebrowser"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Window Management
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Close focused window (same action as Mod+Q).
+    Alt+Q repeat=false hotkey-overlay-title="Close window" { close-window; }
+
+    // Maximize column.
+    Mod+O repeat=false hotkey-overlay-title="Maximize column" { maximize-column; }
+
+    // Maximize column (same action as Mod+O).
+    Alt+M repeat=false hotkey-overlay-title="Maximize column" { maximize-column; }
+    Mod+M repeat=false hotkey-overlay-title="Maximize column" { maximize-column; }
+
+    // True fullscreen: the focused window fills the monitor.
+    Mod+Shift+O repeat=false hotkey-overlay-title="Fullscreen" { fullscreen-window; }
+
+    // Toggle fake fullscreen: tell the app it is fullscreen without enlarging it.
+    Mod+Shift+F repeat=false hotkey-overlay-title="Fake fullscreen (windowed)" { toggle-windowed-fullscreen; }
+    Mod+Shift+MouseMiddle repeat=false hotkey-overlay-title="Fake fullscreen (windowed)" { toggle-windowed-fullscreen; }
+
+    // Fullscreen.
+    Mod+Alt+O repeat=false hotkey-overlay-title="Fullscreen" { fullscreen-window; }
+
+    // Maximize column.
+    Mod+MouseMiddle repeat=false hotkey-overlay-title="Maximize column" { maximize-column; }
+
+    // Fullscreen.
+    Mod+Alt+MouseMiddle repeat=false hotkey-overlay-title="Fullscreen" { fullscreen-window; }
+
+    // Toggle floating.
+    Ctrl+Mod+MouseRight repeat=false hotkey-overlay-title="Toggle floating" { toggle-window-floating; }
+
+    // Toggle centered floating window.
+    Mod+W repeat=false hotkey-overlay-title="Toggle centered floating window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "float"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Resize
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Shrink window width by 30 px.
+    Mod+Shift+H hotkey-overlay-title="Shrink window width by 30 px" { set-window-width "-30"; }
+
+    // Grow window width by 30 px.
+    Mod+Shift+L hotkey-overlay-title="Grow window width by 30 px" { set-window-width "+30"; }
+
+    // Shrink window height by 30 px.
+    Mod+Shift+K hotkey-overlay-title="Shrink window height by 30 px" { set-window-height "-30"; }
+
+    // Grow window height by 30 px.
+    Mod+Shift+J hotkey-overlay-title="Grow window height by 30 px" { set-window-height "+30"; }
+
+    // Shrink window width by 30 px.
+    Mod+Minus hotkey-overlay-title="Shrink window width by 30 px" { set-window-width "-30"; }
+
+    // Grow window width by 30 px.
+    Mod+Equal hotkey-overlay-title="Grow window width by 30 px" { set-window-width "+30"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Focus
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Alt+H/J/K/L focus within the layout, then cross to the monitor at its edge.
+    // Focus left.
+    Alt+H hotkey-overlay-title="Focus left" { focus-column-or-monitor-left; }
+
+    // Focus right.
+    Alt+L hotkey-overlay-title="Focus right" { focus-column-or-monitor-right; }
+
+    // Direct spatial focus, matching Alt+L and Alt+H respectively.
+    Alt+N hotkey-overlay-title="Focus right" { focus-column-or-monitor-right; }
+    Alt+P hotkey-overlay-title="Focus left" { focus-column-or-monitor-left; }
+
+    // Alt+wheel follows the horizontal column order; keep Shift+wheel for apps.
+    Alt+WheelScrollUp cooldown-ms=150 hotkey-overlay-title="Focus left" { focus-column-left; }
+
+    // Focus right.
+    Alt+WheelScrollDown cooldown-ms=150 hotkey-overlay-title="Focus right" { focus-column-right; }
+
+    // Focus up.
+    Alt+K hotkey-overlay-title="Focus up" { focus-window-or-monitor-up; }
+
+    // Focus down.
+    Alt+J hotkey-overlay-title="Focus down" { focus-window-or-monitor-down; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Move Windows
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Move left.
+    Mod+H hotkey-overlay-title="Move left" { move-column-left; }
+
+    // Move right.
+    Mod+L hotkey-overlay-title="Move right" { move-column-right; }
+
+    // Move up.
+    Mod+K hotkey-overlay-title="Move up" { move-window-up; }
+
+    // Move down.
+    Mod+J hotkey-overlay-title="Move down" { move-window-down; }
+
+    // Move left.
+    Mod+Shift+WheelScrollUp cooldown-ms=150 hotkey-overlay-title="Move left" { move-column-left; }
+
+    // Move right.
+    Mod+Shift+WheelScrollDown cooldown-ms=150 hotkey-overlay-title="Move right" { move-column-right; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Workspaces
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Next workspace.
+    Mod+N repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down; }
+
+    // Previous workspace.
+    Mod+P repeat=false hotkey-overlay-title="Previous workspace" { focus-workspace-up; }
+
+    // Move window to next workspace.
+    Mod+Alt+N hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
+
+    // Move window to previous workspace.
+    Mod+Alt+P hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
+
+    // Move window to previous workspace.
+    Mod+Alt+H hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
+
+    // Move window to next workspace.
+    Mod+Alt+L hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
+
+    // Move window to previous workspace.
+    Mod+Alt+Left hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
+
+    // Move window to next workspace.
+    Mod+Alt+Right hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
+
+    // Move window to previous workspace.
+    Mod+Alt+Up hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
+
+    // Move window to next workspace.
+    Mod+Alt+Down hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
+
+    // Move window to previous workspace.
+    Mod+Alt+WheelScrollUp cooldown-ms=150 hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
+
+    // Move window to next workspace.
+    Mod+Alt+WheelScrollDown cooldown-ms=150 hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
+
+    // Move window to previous workspace without following.
+    Mod+Ctrl+Shift+H hotkey-overlay-title="Move window to previous workspace without following" { move-window-to-workspace-up focus=false; }
+
+    // Move window to next workspace without following.
+    Mod+Ctrl+Shift+L hotkey-overlay-title="Move window to next workspace without following" { move-window-to-workspace-down focus=false; }
+
+    // Move window to previous workspace without following.
+    Ctrl+Shift+MouseLeft hotkey-overlay-title="Move window to previous workspace without following" { move-window-to-workspace-up focus=false; }
+
+    // Move window to next workspace without following.
+    Ctrl+Shift+MouseRight hotkey-overlay-title="Move window to next workspace without following" { move-window-to-workspace-down focus=false; }
+
+    // Move window to empty workspace.
+    Mod+Ctrl+Shift+N repeat=false hotkey-overlay-title="Move window to empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-move"; }
+
+    // Focus empty workspace.
+    Mod+Ctrl+Shift+O repeat=false hotkey-overlay-title="Focus empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-focus"; }
+
+    // Move window to empty workspace.
+    Alt+Shift+MouseLeft repeat=false hotkey-overlay-title="Move window to empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-move"; }
+
+    // Focus empty workspace.
+    Alt+Shift+MouseRight repeat=false hotkey-overlay-title="Focus empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-focus"; }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Media
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Play/Pause.
+    Ctrl+Alt+P allow-when-locked=true repeat=false hotkey-overlay-title="Play/Pause" { spawn "playerctl" "play-pause"; }
+
+    // Next track.
+    Ctrl+Alt+L allow-when-locked=true repeat=false hotkey-overlay-title="Next track" { spawn "playerctl" "next"; }
+
+    // Next track.
+    Ctrl+Alt+Right allow-when-locked=true repeat=false hotkey-overlay-title="Next track" { spawn "playerctl" "next"; }
+
+    // Previous track.
+    Ctrl+Alt+H allow-when-locked=true repeat=false hotkey-overlay-title="Previous track" { spawn "playerctl" "previous"; }
+
+    // Previous track.
+    Ctrl+Alt+Left allow-when-locked=true repeat=false hotkey-overlay-title="Previous track" { spawn "playerctl" "previous"; }
+
+    // Previous track.
+    Ctrl+Alt+MouseBack allow-when-locked=true repeat=false hotkey-overlay-title="Previous track" { spawn "playerctl" "previous"; }
+
+    // Next track.
+    Ctrl+Alt+MouseForward allow-when-locked=true repeat=false hotkey-overlay-title="Next track" { spawn "playerctl" "next"; }
+
+    // Mute through Noctalia.
+    Ctrl+Alt+M allow-when-locked=true repeat=false hotkey-overlay-title="Mute toggle" { spawn "noctalia" "msg" "volume-mute"; }
+
+    // Volume through Noctalia.
+    Ctrl+Alt+J allow-when-locked=true repeat=false hotkey-overlay-title="Volume down" { spawn "noctalia" "msg" "volume-down"; }
+    Ctrl+Alt+Down allow-when-locked=true repeat=false hotkey-overlay-title="Volume down" { spawn "noctalia" "msg" "volume-down"; }
+    Ctrl+Alt+K allow-when-locked=true repeat=false hotkey-overlay-title="Volume up" { spawn "noctalia" "msg" "volume-up"; }
+    Ctrl+Alt+Up allow-when-locked=true repeat=false hotkey-overlay-title="Volume up" { spawn "noctalia" "msg" "volume-up"; }
+    Ctrl+Alt+WheelScrollUp allow-when-locked=true repeat=false hotkey-overlay-title="Volume up" { spawn "noctalia" "msg" "volume-up"; }
+    Ctrl+Alt+WheelScrollDown allow-when-locked=true repeat=false hotkey-overlay-title="Volume down" { spawn "noctalia" "msg" "volume-down"; }
+}
+
+// Personal native switcher shortcuts, restricted to the current workspace.
+// Normal Alt+N/P binds above take precedence, matching Alt+H/L outside it.
+// Hold Alt to cycle through recent windows; releasing Alt confirms selection.
+recent-windows {
+    binds {
+        Alt+N hotkey-overlay-title="Next window in current workspace" { next-window scope="workspace"; }
+        Alt+P hotkey-overlay-title="Previous window in current workspace" { previous-window scope="workspace"; }
+    }
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Nyxuri Noctalia shell and personal session handoff
+PartOf=nyxuri-niri.service
+Requisite=nyxuri-niri.service
+After=nyxuri-niri.service
+Before=xdg-desktop-autostart.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=all
+ExecStart=/usr/bin/python3 %h/.config/nyxuri-desktop/niri/scripts/runtime.py
+TimeoutStartSec=40
+Restart=on-failure
+RestartSec=2

@@ -1,0 +1,154 @@
+"""Personal shortcuts and XDG startup stay separate from upstream defaults."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import unittest
+from unittest.mock import Mock, patch
+
+from tests.utils import TempEnv
+from personal import install, niri_actions, autostart, runtime
+
+
+class PersonalPreferencesTests(unittest.TestCase):
+    def test_personal_keys_load_between_upstream_and_user_customs(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            config = (source / "niri/config.kdl").read_text()
+            self.assertLess(config.index('include "binds.kdl"'), config.index('include "personal-binds.kdl"'))
+            self.assertLess(config.index('include "personal-binds.kdl"'), config.index('include "__custom__.kdl"'))
+            self.assertNotIn('spawn-at-startup "~/.config/nyxuri-desktop/niri/scripts/session-shell.sh"', config)
+            self.assertNotIn('exec fcitx5 -d', config)
+            binds = (source / "niri/personal-binds.kdl").read_text()
+            self.assertNotIn('INIR_', binds)
+            self.assertNotIn('/bin/inir', binds)
+            self.assertIn('Mod+N repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down;', binds)
+            self.assertIn('Alt+N hotkey-overlay-title="Focus right" { focus-column-or-monitor-right;', binds)
+            self.assertIn('screenshot-annotate', binds)
+            self.assertEqual(binds.count('"control-center"'), 3)
+            self.assertTrue((source / "niri/scripts/niri-actions.py").is_file())
+
+    def test_xdg_entries_keep_user_changes_and_disable_todesk(self):
+        with TempEnv() as ctx:
+            config = ctx.home / ".config"
+            kitty = config / "kitty"
+            kitty.mkdir()
+            (kitty / "kitty.conf").write_text('shell zsh\n')
+            apps = config / "autostart"
+            apps.mkdir()
+            password = apps / "com.onepassword.OnePassword.desktop"
+            original = '[Desktop Entry]\nType=Application\nName=1Password\nHidden=true\nExec=my-custom-launcher\n'
+            password.write_text(original)
+            todesk = apps / "todesk.desktop"
+            todesk.write_text('[Desktop Entry]\nType=Application\nName=ToDesk\nExec=my-custom-todesk\nHidden=false\n')
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+                self.assertEqual(install.main(["--yes"]), 0)
+            self.assertEqual(password.read_text(), original)
+            self.assertIn('Exec=my-custom-todesk\n', todesk.read_text())
+            self.assertIn('Hidden=true\n', todesk.read_text())
+            self.assertIn('X-GNOME-Autostart-enabled=false\n', todesk.read_text())
+            self.assertEqual(autostart.disabled_entry(todesk.read_text()), todesk.read_text())
+            self.assertTrue((apps / "clash-verge.desktop").is_file())
+            order = config / "systemd/user" / (install.AUTOSTART_UNITS[0] + ".d/50-nyxuri-shell.conf")
+            self.assertIn('After=nyxuri-shell.service', order.read_text())
+            self.assertNotIn('Wants=', order.read_text())
+            shell = (config / "systemd/user/nyxuri-shell.service").read_text()
+            self.assertIn('Type=notify\nNotifyAccess=all', shell)
+            self.assertNotIn('BusName=', shell)
+            self.assertIn('PartOf=nyxuri-niri.service', shell)
+            self.assertNotIn('Before=graphical-session.target', shell)
+
+    def test_todesk_disable_changes_only_desktop_entry(self):
+        with TempEnv():
+            text = '[Desktop Entry]\nName=ToDesk\nHidden=false\n[Other]\nHidden=false\n'
+            disabled = autostart.disabled_entry(text)
+            self.assertIn('[Other]\nHidden=false\n', disabled)
+            self.assertEqual(disabled, autostart.disabled_entry(disabled))
+
+
+class PersonalTrayReadinessTests(unittest.TestCase):
+    def test_only_current_shell_owner_reports_ready(self):
+        shell = Mock(pid=123, poll=Mock(return_value=None))
+        replies = [Mock(returncode=0, stdout='{"data": [999]}'),
+                   Mock(returncode=0, stdout='{"data": [123]}'), Mock(returncode=0)]
+        with TempEnv(), patch.dict(os.environ, NOTIFY_SOCKET="/tmp/test-notify"), patch.object(runtime.subprocess, "run", side_effect=replies) as run, patch.object(runtime.time, "sleep") as sleep:
+            runtime.wait_for_tray(shell)
+            command = ["busctl", "--user", "--json=short", "--timeout=1", "call",
+                       "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                       "GetConnectionUnixProcessID", "s", "org.kde.StatusNotifierWatcher"]
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                command, command, ["systemd-notify", "--ready", "--status=Noctalia tray ready"]])
+            self.assertEqual(run.call_args_list[0].kwargs, dict(capture_output=True, text=True, timeout=2, check=False))
+            self.assertEqual(run.call_args_list[-1].kwargs, dict(check=True))
+            sleep.assert_called_once_with(0.1)
+
+    def test_wrong_owner_times_out_without_notifying(self):
+        shell = Mock(pid=123, poll=Mock(return_value=None))
+        with TempEnv(), patch.object(runtime.subprocess, "run", return_value=Mock(returncode=0, stdout='{"data": [999]}')) as run:
+            with self.assertRaisesRegex(RuntimeError, "did not acquire"):
+                runtime.wait_for_tray(shell, timeout=0)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.args[0][0], "busctl")
+
+    def test_shell_exit_does_not_query_or_notify(self):
+        with TempEnv(), patch.object(runtime.subprocess, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "exited"):
+                runtime.wait_for_tray(Mock(poll=Mock(return_value=1)))
+            run.assert_not_called()
+
+
+class PersonalNiriActionsTests(unittest.TestCase):
+    def test_query_and_action_use_niri_argument_arrays(self):
+        with TempEnv(), patch.object(niri_actions.subprocess, "check_output", return_value='[]') as query, patch.object(niri_actions.subprocess, "run") as run:
+            self.assertEqual(niri_actions.query("windows"), [])
+            self.assertEqual(query.call_args.args[0], ["niri", "msg", "--json", "windows"])
+            niri_actions.action("focus-window", "--id", 12)
+            self.assertEqual(run.call_args.args[0], ["niri", "msg", "action", "focus-window", "--id", "12"])
+
+    def test_centered_float_keeps_target_window_id(self):
+        with TempEnv(), patch.object(niri_actions, "query", return_value={"id": 71, "is_floating": False}), patch.object(niri_actions.subprocess, "run") as run:
+            niri_actions.toggle_float()
+            self.assertEqual([c.args[0] for c in run.call_args_list], [
+                ["niri", "msg", "action", "move-window-to-floating", "--id", "71"],
+                ["niri", "msg", "action", "set-window-width", "--id", "71", "50%"],
+                ["niri", "msg", "action", "set-window-height", "--id", "71", "60%"],
+                ["niri", "msg", "action", "center-window", "--id", "71"],
+            ])
+
+    def test_empty_workspace_uses_stable_id_on_focused_output(self):
+        replies = {"workspaces": [{"id": 11, "idx": 1, "output": "DP-1", "is_focused": True}, {"id": 17, "idx": 3, "output": "DP-1"}, {"id": 90, "idx": 9, "output": "DP-2"}], "windows": [{"id": 71, "workspace_id": 11}], "focused-window": {"id": 71}}
+        with TempEnv(), patch.object(niri_actions, "query", side_effect=lambda name: replies[name]), patch.object(niri_actions, "request_action") as send:
+            niri_actions.empty_workspace(True)
+            send.assert_called_once_with({"MoveWindowToWorkspace": {"window_id": 71, "reference": {"Id": 17}, "focus": True}})
+            replies["windows"].append({"id": 72, "workspace_id": 17})
+            with self.assertRaises(RuntimeError):
+                niri_actions.empty_workspace(True)
+            self.assertEqual(send.call_count, 1)
+
+    def test_ipc_request_shape_and_error_response(self):
+        peer = Mock()
+        peer.makefile.return_value.__enter__ = Mock(return_value=Mock(readline=Mock(return_value='{"Ok": {}}')))
+        peer.makefile.return_value.__exit__ = Mock(return_value=None)
+        connection = Mock()
+        connection.__enter__ = Mock(return_value=peer)
+        connection.__exit__ = Mock(return_value=None)
+        with TempEnv(), patch.dict(os.environ, NIRI_SOCKET="/tmp/test-niri.sock"), patch.object(niri_actions.socket, "socket", return_value=connection):
+            request = {"FocusWorkspace": {"reference": {"Id": 17}}}
+            niri_actions.request_action(request)
+            self.assertEqual(peer.connect.call_args.args, ("/tmp/test-niri.sock",))
+            self.assertEqual(json.loads(peer.sendall.call_args.args[0]), {"Action": request})
+            peer.makefile.return_value.__enter__.return_value.readline.return_value = '{"Err": "rejected"}'
+            with self.assertRaises(RuntimeError):
+                niri_actions.request_action(request)
+
+    def test_tmux_attaches_without_inir_runtime(self):
+        with TempEnv(), patch.object(niri_actions.subprocess, "run", return_value=Mock(returncode=0)) as run, patch.object(niri_actions.os, "execvp") as execute:
+            niri_actions.main("tmux")
+            self.assertEqual(run.call_args.args[0], ["tmux", "has-session"])
+            execute.assert_called_once_with("kitty", ["kitty", "tmux", "attach-session"])
+
+
+if __name__ == "__main__":
+    unittest.main()

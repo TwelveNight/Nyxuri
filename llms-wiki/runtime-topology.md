@@ -8,17 +8,19 @@
 ## 1. 运行时架构
 
 个人分支的双会话配置：niri 设置 `KITTY_CONFIG_DIRECTORY` 指向
-`~/.config/kitty-nyxuri`。该入口先读用户原有 Kitty 设置，再由 Noctalia
+`~/.config/nyxuri-desktop/kitty-nyxuri`。该入口先读用户原有 Kitty 设置，再由 Noctalia
 渲染的 `colors__custom__.conf` 覆盖颜色；Hyprland 仍由 ii 生成原有颜色文件。
 Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
-`session-shell.sh` 启动 Noctalia，不改 ii/skwd 的用户级服务状态。
+个人部署通过 `nyxuri-shell.service` 调用 runtime：先交接会话环境并重连 skwd，再启动 Noctalia；
+主配置不重复 spawn shell。应用的排序 drop-in 等 Noctalia 托盘总线就绪。
+私有目录、独立 Niri 单元和壁纸桥接见 [dual-session](dual-session.md)。
 
 ```
 [ Niri Compositor 会话 (Wayland) ]
   │
   ├── 1. 启动阶段 (spawn-at-startup)
-  │     ├── session-shell.sh   ───────► Shell 启动网关 (读取 state.json 的 active_shell 路由: Noctalia vs 自研 Shell)
-  │     ├── fcitx5 -d          ───────► Fcitx5 输入法守护进程
+  │     ├── nyxuri-shell.service ────► 个人 runtime / Noctalia / skwd bridge (After compositor)
+  │     ├── XDG autostart        ────► Fcitx5 / 1Password / Clash Verge / KDE Connect
   │     └── toggle-eyecare.sh --sync ─► 同步护眼模式状态与色温
   │
   ├── 2. 交互脚本层 (Keybindings 触发)
@@ -42,11 +44,11 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
         │
         └── 壁纸切换事件 (wallpaper_changed hook)
               ▼
-            wallpaper-hook.sh (若为视频，ffmpeg 抽取首帧缩略图)
+            个人 wallpaper.py bridge (读取 skwd current，视频抽帧)
               ▼
             Noctalia Material You 调色算法
               ▼ (~6s 自动触发)
-            渲染 ~/.config/gtk-{3,4}.0/gtk.css (双 @media 块) + ~/.cache/nyxuri/palette.toml
+            渲染私有 Kitty / Niri 配色 + ~/.cache/nyxuri/palette.toml (个人分支关闭 GTK 输出)
 ```
 
 ---
@@ -56,10 +58,10 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
 | 进程 | 职责 | 拉起方式 | 存活策略 |
 |---|---|---|---|
 | **`niri`** | Wayland 合成器内核 | 登录管理器 (greetd / tty) | 根进程；退出即结束会话 |
-| **`noctalia`** | 状态栏、桌面部件、调色引擎、OSD | `session-shell.sh` | 会话期常驻；注销时由清理钩子回收避免孤儿 |
-| **`fcitx5`** | 中文与多语言输入法框架 | `spawn-at-startup "fcitx5 -d"` | 守护进程常驻 |
+| **`noctalia`** | 状态栏、桌面部件、调色引擎、OSD | `nyxuri-shell.service` | PartOf=nyxuri-niri.service，托盘总线就绪后应用启动 |
+| **`fcitx5`** | 中文与多语言输入法框架 | 系统 XDG autostart 条目 | 图形会话服务生命周期 |
 | **`xdg-desktop-portal`** | 桌面 Portal（文件、截图、色彩外观） | D-Bus 按需激活 / session 激活 | 由 `configs/xdg-desktop-portal/portals.conf` 分流路由 |
-| **`mpvpaper`** | 动态视频壁纸渲染器 | 壁纸选择器按需拉起 | 仅在选中动态壁纸时启动，换静态壁纸时终止 |
+| **`skwd-walld`** | 静态、视频与 WE 桌面壁纸 | 个人 runtime 完成环境交接后重连 | 共享服务；pidfd watcher 和 graphical-session 生命周期释放旧会话 |
 
 ---
 

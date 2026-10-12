@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Clash Verge
+Comment=Start Clash Verge in the graphical desktop session
+Exec=/usr/bin/clash-verge
+TryExec=/usr/bin/clash-verge
+Icon=clash-verge
+Terminal=false
+StartupWMClass=clash-verge
+Hidden=false
