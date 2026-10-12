@@ -50,16 +50,20 @@ Niri 单元 Wants 私有 Shell 单元，后者 After Niri、Before XDG autostart
 
 `personal/runtime.py` 先运行携带的 iNiR 个人 `desktop-session.py`，
 验证 IPC 对端 PID／UID／compositor 名称和 Wayland socket，发布当前会话环境，
-重启共享 skwd，再启动 Noctalia 和壁纸监听。旧 display／GPU 变量在启动
-compositor 时清除。helper 的锁、pidfd watcher 和会话记录与现有
+通过 --no-ii-theme 在重启 skwd 前停止 II 配色监听，再启动 Noctalia 和壁纸监听。
+返回 iNiR／Hyprland 时，它们原有 helper 会恢复 II 配色监听；共享服务的启用链接不改。
+旧 display／GPU 变量在启动 compositor 时清除，私有 shell 单元也用 UnsetEnvironment
+清除未被 Niri 重新发布的旧 GPU 变量。helper 的锁、pidfd watcher 和会话记录与现有
 Hyprland helper 共用 `$XDG_RUNTIME_DIR/inir`，防止旧会话清理伤及新会话。
 Noctalia 配置／GUI 状态分别用 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME`
-指向私有目录；不改变所有应用的 XDG_CONFIG_HOME。
+指向私有目录；runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
+与 Niri 键位打开的终端一致。这些私有路径只传给本会话子进程，不导入共享用户管理器。
+不改变所有应用的 XDG_CONFIG_HOME。
 
 ## 壁纸和颜色
 
 `zz-personal.toml` 再次关闭 builtin/community 配色模板，禁用输出到私有目录和
-Nyxuri palette 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
+`~/.cache/nyxuri-desktop/` 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
 临时部署副本关闭 Noctalia 桌面壁纸、mpvpaper 插件及 Greeter 自动同步。
 Python 选择器静态／视频均调用参数数组 `skwd-helm apply`，随机快捷键调用
 `skwd-helm random`；原生 Noctalia 选择经 wallpaper_changed hook 转交 skwd。
@@ -69,15 +73,25 @@ Python 选择器静态／视频均调用参数数组 `skwd-helm apply`，随机�
 Noctalia 的壁纸绘制不能在 GUI 覆盖状态里重新打开。
 
 Kitty 基础设置仍来自原有 Kitty，颜色、Niri glow 和 Noctalia 模板路径在私有
-目录；共享 II 配色服务继续消费 skwd 状态。不安装 GTK/Fcitx/Fisher/Greeter。
+目录；Nyxuri 会话中 II 配色监听保持停止，避免换壁纸改写共享 GTK／Qt／II 设置。
+不安装 GTK/Fcitx/Fisher/Greeter。
 此适配不修改共享用户服务的启用关系及已有 Portal 路由。
+
+复制模板时同时处理绝对路径、`${XDG_CONFIG_HOME:-$HOME/.config}` 拼接路径和 Orbit
+兼容 Python wrapper 的路径。私有 shell-action 直接控制 Noctalia，不读取公共
+nyxuri/NyxNiri 的 active_shell 账本。Orbit、壁纸选择器与模板色板缓存使用同一私有缓存目录。
 
 ## 验证边界
 
 TempEnv 测试覆盖重复部署、公共配置不变、文件保留、参数数组、更新失败和
-启动顺序。另运行生成后的 Niri／Noctalia 配置校验及 desktop-file 校验。
+启动顺序。隔离测试实际执行部署后的 shell／Python 工具入口，验证不会使用公共工具
+或旧 shell 选择；覆盖三环境六个方向的迟到 watcher 清理，以及 II 配色停止／恢复参数。
+另运行生成后的 Niri／Noctalia 配置校验及 desktop-file 校验。
 真正的往返登录、shell／托盘／输入法和动态壁纸仍须实机验收；共享用户
 服务不承诺同一用户多图形会话并发隔离。
+skwd 壁纸选择、媒体音量、输入法与普通应用配置仍是同一用户共享资源。
+切换指注销后在 GDM 选择另一登录项，不意味着保留原桌面窗口或同时运行三套 compositor。
+本次审计的证据与待验项见 [personal/ISOLATION.md](../personal/ISOLATION.md)。
 
 本次在官方 `origin/main` `ebafe03` 的临时副本验证了部署兼容性及配置语法；
 当前个人分支没有合并该提交。官方 main 已改写过历史，首次 merge 可能需要人工解冲突。

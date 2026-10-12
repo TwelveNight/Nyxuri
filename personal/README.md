@@ -63,19 +63,24 @@ Noctalia 的桌面壁纸绘制、mpvpaper 插件及自动 Greeter 同步默认�
 
 skwd 外部切换通过 `watch` 同步到 Noctalia。视频取首帧、Wallpaper Engine
 读取已有缩略图，供 Noctalia 配色和锁屏使用；不会将预览图反向设成桌面壁纸。
-Kitty 继承原有设置，Nyxuri 颜色写入私有目录。共享 II 配色监听仍照常工作。
+Kitty 继承原有设置，Nyxuri 颜色写入私有目录，Noctalia 和 Niri 键位启动终端时均使用此配置。
+Nyxuri 登录时先停止 II 配色监听，避免换壁纸串改共享主题；返回 iNiR／II 后由它们
+原有的启动钩子恢复监听。壁纸预览、色板和缩略图缓存位于 `~/.cache/nyxuri-desktop/`。
 多套桌面按顺序登录；共享 skwd 和用户 D-Bus 不支持同一用户同时运行它们。
 
 GDM 入口按标准 `niri-session` 的用户服务启动／关闭顺序运行，但使用独立服务。
 Niri 启动前清除旧桌面显示地址与 GPU 选择变量；shell 启动前调用随适配携带的
 `desktop-session.py`，验证真实 compositor IPC、PID 和 Wayland socket，
 完成 systemd／D-Bus 环境交接，再重连 skwd 和启动 Noctalia。
+私有 shell 也清除上个桌面遗留的 GPU 变量；终端与 Noctalia 的私有路径只传给本会话子进程。
 Shell 单元验证 `org.kde.StatusNotifierWatcher` 的拥有者是本次 Noctalia，再报告就绪；
 个人 XDG 应用的排序 drop-in 等待此单元，不会主动拉起它。
 该 helper 来源于 iNiR 的个人适配，与现有 Hyprland watcher 共用
 `$XDG_RUNTIME_DIR/inir` 的归属记录；旧 watcher 不会停止新会话。
 
 ## 验收与撤回
+
+三套环境的隔离范围、共享资源和最近一次验证见 [ISOLATION.md](ISOLATION.md)。
 
 隔离测试、配置校验只能证明部署文件和调用契约。实机应按
 Hyprland → Nyxuri → iNiR → Hyprland 往返登录，检查 shell、托盘、输入法、

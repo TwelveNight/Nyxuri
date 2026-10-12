@@ -10,7 +10,8 @@
 个人分支的双会话配置：niri 设置 `KITTY_CONFIG_DIRECTORY` 指向
 `~/.config/nyxuri-desktop/kitty-nyxuri`。该入口先读用户原有 Kitty 设置，再由 Noctalia
 渲染的 `colors__custom__.conf` 覆盖颜色；Hyprland 仍由 ii 生成原有颜色文件。
-Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
+Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。runtime 也设置同一 Kitty 路径，
+供 Noctalia 启动的应用继承；Nyxuri 登录时停止 II 配色监听，返回其他桌面时恢复。
 个人部署通过 `nyxuri-shell.service` 调用 runtime：先交接会话环境并重连 skwd，再启动 Noctalia；
 主配置不重复 spawn shell。应用的排序 drop-in 等 Noctalia 托盘总线就绪。
 私有目录、独立 Niri 单元和壁纸桥接见 [dual-session](dual-session.md)。
@@ -26,8 +27,8 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
   ├── 2. 交互脚本层 (Keybindings 触发)
   │     ├── shell-action.sh    ───────► 统一动作网关 (8大动作: launcher/session/settings/clipboard/lock/wallpaper-random/wallpaper-picker/radial-launcher)
   │     │     ├── launcher (Mod+R)       ───────► Noctalia 面板: noctalia msg panel-toggle launcher
-  │     │     ├── radial-launcher (Mod+A) ──────► Orbit 星环: orbit-launcher.py (~/.config/noctalia/tools/)
-  │     │     ├── wallpaper-picker (Mod+W) ─────► 壁纸选择器: wallpaper-picker.py (~/.config/noctalia/tools/)
+  │     │     ├── radial-launcher (Mod+Tab) ────► Orbit 星环: orbit-launcher.py (~/.config/nyxuri-desktop/noctalia/tools/)
+  │     │     ├── wallpaper-picker ────────────► 壁纸选择器: wallpaper-picker.py (~/.config/nyxuri-desktop/noctalia/tools/)
   │     │     └── session (Mod+X) / 等 ────────► 分发至 Shell IPC (noctalia msg / 未来自研 Shell)
   │     ├── Super + ~          ───────► niri-scratch-toggle.sh (Kitty 浮动终端切换)
   │     ├── Super + N          ───────► toggle-eyecare.sh (护眼色温与着色器切换)
@@ -48,7 +49,7 @@ Noctalia 关闭共享 GTK、Qt、Starship、Fcitx 模板。niri 的
               ▼
             Noctalia Material You 调色算法
               ▼ (~6s 自动触发)
-            渲染私有 Kitty / Niri 配色 + ~/.cache/nyxuri/palette.toml (个人分支关闭 GTK 输出)
+            渲染私有 Kitty / Niri 配色 + ~/.cache/nyxuri-desktop/palette.toml (个人分支关闭 GTK 输出)
 ```
 
 ---

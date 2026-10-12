@@ -42,6 +42,10 @@ def prepare_sources(destination: Path) -> None:
             continue
         for app in ("niri", "noctalia", "kitty-nyxuri"):
             content = content.replace(f".config/{app}", f".config/nyxuri-desktop/{app}")
+            content = content.replace('${XDG_CONFIG_HOME:-$HOME/.config}/' + app,
+                                      '${XDG_CONFIG_HOME:-$HOME/.config}/nyxuri-desktop/' + app)
+        for name in ("nyxuri", "nyxniri"):
+            content = content.replace(f".cache/{name}/", ".cache/nyxuri-desktop/")
         path.write_text(content, encoding="utf-8")
     effects = destination / "niri/effects.kdl"
     if not effects.exists() and not effects.is_symlink():
@@ -73,7 +77,15 @@ def prepare_sources(destination: Path) -> None:
     action = scripts / "shell-action.sh"
     content = action.read_text().replace('exec noctalia msg wallpaper-random', 'exec skwd-helm random')
     content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config/nyxuri-desktop/noctalia"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
+    # This session always runs Noctalia. A legacy public shell selection must
+    # never send its keyboard actions to a different desktop's executable.
+    start = content.index('state_root=')
+    end = content.index('case "$action" in')
+    content = content[:start] + content[end:]
     action.write_text(content)
+    orbit = scripts / "niri-scratch-menu.py"
+    orbit.write_text(orbit.read_text().replace('os.path.join(CONFIG_HOME, "noctalia",',
+                                             'os.path.join(CONFIG_HOME, "nyxuri-desktop", "noctalia",'))
     backend = destination / "noctalia/tools/wallpaper_picker/backend.py"
     backend.write_text('''"""All desktop images and videos are rendered by skwd-wall."""
 import subprocess
@@ -111,7 +123,7 @@ def apply_wallpaper(item):
               "post_hook = 'pkill -SIGUSR1 -x kitty >/dev/null 2>&1 || true'"]
     for name, template in data.get("theme", {}).get("templates", {}).get("user", {}).items():
         output = template.get("output_path", "")
-        if "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri/" not in output:
+        if "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
 

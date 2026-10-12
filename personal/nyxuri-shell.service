@@ -10,6 +10,9 @@ StartLimitBurst=3
 [Service]
 Type=notify
 NotifyAccess=all
+# Niri publishes its new display before this unit starts, but GPU overrides
+# omitted from import-environment can still belong to the previous desktop.
+UnsetEnvironment=HYPRLAND_INSTANCE_SIGNATURE AQ_DRM_DEVICES WLR_NO_HARDWARE_CURSORS WLR_DRM_NO_ATOMIC LIBVA_DRIVER_NAME __GL_VRR_ALLOWED DRI_PRIME __NV_PRIME_RENDER_OFFLOAD __GLX_VENDOR_LIBRARY_NAME __VK_LAYER_NV_optimus __EGL_VENDOR_LIBRARY_FILENAMES VK_LOADER_DRIVERS_DISABLE MESA_VK_DEVICE_SELECT MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE VDPAU_DRIVER QT_FFMPEG_DECODING_HW_DEVICE_TYPES INIR_SHELL_GPU_PREFERENCE
 ExecStart=/usr/bin/python3 %h/.config/nyxuri-desktop/niri/scripts/runtime.py
 TimeoutStartSec=40
 Restart=on-failure

@@ -35,10 +35,13 @@ def main():
     config = Path.home() / ".config/nyxuri-desktop"
     os.environ["NOCTALIA_CONFIG_HOME"] = str(config / "noctalia")
     os.environ["NOCTALIA_STATE_HOME"] = str(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "nyxuri-desktop/noctalia")
+    # Systemd does not inherit Niri's per-child environment block. Applications
+    # opened by Noctalia must use the same Kitty profile as compositor bindings.
+    os.environ["KITTY_CONFIG_DIRECTORY"] = str(config / "kitty-nyxuri")
     # Reuse iNiR's socket/PID validation, environment handoff and stale-watcher
     # protection. Shared runtime state is deliberate: both Niri entries agree
     # with the existing Hyprland cleanup watcher on who owns skwd now.
-    subprocess.run([sys.executable, str(scripts / "desktop-session.py"), "start", "niri"], check=True)
+    subprocess.run([sys.executable, str(scripts / "desktop-session.py"), "start", "niri", "--no-ii-theme"], check=True)
     shell = subprocess.Popen(["noctalia"])
     bridge = None
     def stop(_signum, _frame):
