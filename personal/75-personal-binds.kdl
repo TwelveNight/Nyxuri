@@ -44,7 +44,7 @@ binds {
     Mod+Print { screenshot-screen; }
 
     Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session"; }
-    Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "noctalia" "msg" "panel-toggle" "launcher"; }
+    Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/nyxuri-desktop/niri/scripts/launcher.py"; }
     Mod+T { spawn "kitty"; }
     Mod+Comma { spawn "noctalia" "msg" "settings-toggle"; }
     Ctrl+Alt+T { spawn "sh" "-c" "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh wallpaper-picker"; }

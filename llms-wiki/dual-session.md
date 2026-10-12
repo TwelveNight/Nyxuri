@@ -133,7 +133,11 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 主配置在默认 binds 后、用户 __custom__ 前 include。自定义覆盖仍由 Dunder 保留，
 不把个人键位内容塞进上游 binds 或仅存在实机的文件中。
 75-personal-binds 在 personal-binds 之后加载，补齐 iNiR 默认层的居中、列宽、
-显示器／工作区移动、原生 Alt+Tab 与媒体键；Alt+Space 调用 Noctalia 搜索。
+显示器／工作区移动、原生 Alt+Tab 与媒体键；Alt+Space 通过个人 `launcher.py`
+向当前 Wayland display 的 Noctalia IPC 发送 `panel-toggle launcher`。
+脚本以 Python `-S` 启动，避免为一次面板请求加载完整 Noctalia 二进制及其动态库。
+请求遵循 Noctalia 5.2 的纯文本协议、写端关闭和 EOF 响应；失败直接报错，不重发 toggle。
+搜索界面、应用列表和排序仍由 Noctalia 管理，不添加后台轮询或定时打开面板。
 `personal/noctalia-keybinds.toml` 复制为私有 Noctalia 的 `zz-personal-keybinds.toml`，
 通过原生 `[keybinds]` 给 down/up 添加 Ctrl+J/Ctrl+K，保留方向键；搜索和其他
 使用通用上下导航的内置列表均生效，不注册 compositor 全局键位。

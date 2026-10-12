@@ -60,7 +60,7 @@ class PersonalPreferencesTests(unittest.TestCase):
                 self.assertIn('Alt+Tab { next-window; }', binds)
                 self.assertIn('Mod+Ctrl+9 { move-column-to-workspace 9; }', binds)
                 self.assertIn('Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session";', binds)
-                self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "noctalia" "msg" "panel-toggle" "launcher";', binds)
+                self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/nyxuri-desktop/niri/scripts/launcher.py";', binds)
             self.assertEqual((install.ROOT / "configs/niri/binds.kdl").read_bytes(), upstream)
 
     def test_xdg_entries_keep_user_changes_and_disable_todesk(self):
