@@ -1515,7 +1515,7 @@ class PresetSwitcher:
                     chars.pop()
                     sys.stdout.write("\b \b")
                     sys.stdout.flush()
-            elif len(k) == 1 and k.isprintable():
+            elif isinstance(k, str) and len(k) == 1 and k.isprintable():
                 chars.append(k)
                 sys.stdout.write(k)
                 sys.stdout.flush()

@@ -1359,5 +1359,39 @@ class TestEndOfInputCancelsPrompts(unittest.TestCase):
         self.assertEqual(source.count('elif k in ("ESC", "EXIT", "EOF"):'), 1)
 
 
+class TestMouseEventsDoNotBreakTextPrompts(unittest.TestCase):
+    """read_key() yields MouseEvent rather than str inside a mouse-tracking screen.
+
+    _read_line_raw runs from PresetSwitcher.run(), which enables SGR mouse
+    tracking, so a click on the save-name prompt fed a MouseEvent into len(k).
+    Every earlier branch compared with ``in``, which tolerates a non-string, so
+    only the printable branch could raise, and it raised TypeError.
+    """
+
+    def _switcher(self, tui, keys):
+        self.enterContext(patch.object(tui, "read_key", side_effect=list(keys)))
+        return tui.PresetSwitcher.__new__(tui.PresetSwitcher)
+
+    def test_mouse_events_are_ignored_while_typing(self):
+        from nyxuri import tui
+        switcher = self._switcher(tui, ["a", tui.MouseEvent("PRESS", 10, 5), "b", "ENTER"])
+        self.assertEqual(tui.PresetSwitcher._read_line_raw(switcher, "name> "), "ab")
+
+    def test_wheel_events_are_ignored_while_typing(self):
+        from nyxuri import tui
+        switcher = self._switcher(tui, [tui.MouseEvent("WHEEL_UP", 3, 3), "c", "ENTER"])
+        self.assertEqual(tui.PresetSwitcher._read_line_raw(switcher, "name> "), "c")
+
+    def test_mouse_event_before_escape_still_cancels(self):
+        from nyxuri import tui
+        switcher = self._switcher(tui, [tui.MouseEvent("PRESS", 1, 1), "ESC"])
+        self.assertIsNone(tui.PresetSwitcher._read_line_raw(switcher, "name> "))
+
+    def test_only_string_keys_reach_the_printable_branch(self):
+        source = (Path(__file__).resolve().parent.parent / "nyxuri" / "tui.py").read_text(encoding="utf-8")
+        self.assertIn("elif isinstance(k, str) and len(k) == 1 and k.isprintable():", source)
+        self.assertNotIn("elif len(k) == 1 and k.isprintable():", source)
+
+
 if __name__ == "__main__":
     unittest.main()
