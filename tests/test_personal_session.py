@@ -188,7 +188,7 @@ class TestPersonalUpdate(unittest.TestCase):
             self.assertEqual(update.main([]), 0)
         self.assertIn(["git", "-c", "http.lowSpeedTime=15", "-c", "http.lowSpeedLimit=1000", "fetch", "origin", "main"], calls)
         self.assertIn(["git", "merge", "--no-edit", "FETCH_HEAD"], calls)
-        self.assertEqual(calls[-1][1], str(update.ROOT / "personal/install.py"))
+        self.assertEqual(calls[-1], [str(update.ROOT / "install.sh"), "install"])
 
     def test_dirty_tree_and_merge_conflict_do_not_deploy(self):
         with TempEnv(), patch("personal.update.subprocess.run", return_value=Mock(stdout=" M local.py")) as run:

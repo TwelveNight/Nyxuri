@@ -15,6 +15,7 @@ def git(*args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-deploy", action="store_true")
+    parser.add_argument("--yes", action="store_true", help="apply the installation plan after merging")
     args = parser.parse_args(argv)
     if git("status", "--porcelain"):
         print("Working tree has local changes. Finish or save them before updating.", file=sys.stderr)
@@ -32,7 +33,10 @@ def main(argv=None):
     if args.no_deploy:
         return 0
     # Fresh process loads the newly merged upstream deployment engine.
-    return subprocess.run([sys.executable, str(ROOT / "personal/install.py")], cwd=ROOT).returncode
+    command = [str(ROOT / "install.sh"), "install"]
+    if args.yes:
+        command.append("--yes")
+    return subprocess.run(command, cwd=ROOT).returncode
 
 
 if __name__ == "__main__":

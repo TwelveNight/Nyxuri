@@ -94,6 +94,8 @@ curl → AUR 迁移 = 装包 + 删 `~/.cache/nyxuri`，用户数据零迁移。*
 
 ## 个人共存分支
 
-三模式表描述官方通用入口。当前个人桌面使用 `personal/install.py` 私有部署，
-`personal/update.py` 在个人分支合并官方 main 后重新调用相同入口，
-不走全量 upgrade offer。具体隔离与失败行为见 [dual-session](dual-session.md)。
+三模式表描述官方通用入口。本分支的 `install.sh` 在目标源码含 `personal/entry.py`
+时交接给个人入口，无参数／install／deploy 部署私有桌面，update 合并官方 main 后
+重新运行标准 install.sh，不走全量 upgrade offer。--plan 不写文件，安装成功后注册
+GDM 登录项和官方 CLI 链接。首次克隆即生效，其他不含 personal 入口的源码仍走官方模式。
+具体隔离与失败行为见 [dual-session](dual-session.md)。

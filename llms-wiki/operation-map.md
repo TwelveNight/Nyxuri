@@ -2,8 +2,10 @@
 
 > 命令分发在 `nyxuri/cli.py` 的 `COMMANDS` dict。退出码自动传播。aliases 并列。
 
-个人双会话部署成功后，`~/.config/nyxuri/personal-mode` 会让无参数入口、
-`install`、`deploy`、`update` 提示改用 `personal/install.py` 和 Git。
+本分支的 `install.sh` 检测源码中的 `personal/entry.py`：无参数、`install`、`deploy`
+进入私有部署，`update [--no-deploy] [--yes]` 合并官方 main 后重新运行标准入口；
+`--plan` 只展示个人部署清单。install/deploy 的 full/config 参数范围相同。
+其他显式命令仍走下表的官方 CLI；旧 personal-mode 标记只保护直接 Python 引擎入口。
 这是个人分支保护已有应用配置的边界，见 [dual-session](dual-session.md)。
 
 ## 管"配置内容"的

@@ -116,7 +116,7 @@ def apply_wallpaper(item):
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
 
 
-def main(argv=None) -> int:
+def main(argv=None, preflight=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--yes", action="store_true", help="apply the printed deployment plan")
     parser.add_argument("--plan", action="store_true", help="show the deployment without writing files")
@@ -131,6 +131,8 @@ def main(argv=None) -> int:
     print("Personal shortcuts and startup; create absent XDG entries: 1Password, Clash Verge; disable ToDesk in all desktops")
     print("Startup ordering: 1Password, Clash Verge, Fcitx5, KDE Connect wait for the private shell")
     print("Wallpaper: shared skwd-wall; iNiR/ii config and Portal routes stay as installed.")
+    if preflight is not None:
+        print("Register: Nyxuri GDM login entry; reload user service definitions.")
     if args.plan:
         return 0
     if not (env.config_dir / "kitty/kitty.conf").is_file():
@@ -146,6 +148,8 @@ def main(argv=None) -> int:
     if not args.yes:
         if not sys.stdin.isatty() or input("Apply this plan? [y/N] ").strip().lower() != "y":
             return 2
+    if preflight is not None:
+        preflight(env)
     scoped = copy.copy(env)
     scoped.config_dir = private
     scoped.nyx_dir = private / "manager"
@@ -196,7 +200,8 @@ def main(argv=None) -> int:
             return 1
     finally:
         core._ENV = previous
-    print("Files ready. Run systemctl --user daemon-reload, then install the GDM entry described in personal/README.md.")
+    if preflight is None:
+        print("Files ready. Run systemctl --user daemon-reload, then install the GDM entry described in personal/README.md.")
     return 0
 
 

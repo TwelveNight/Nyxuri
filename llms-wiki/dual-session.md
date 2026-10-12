@@ -6,9 +6,14 @@ Nyxuri + Noctalia 使用同一用户，按顺序登录，共享 skwd。
 
 ## 部署与更新
 
+本分支的 `./install.sh` 保留官方引导校验，在 `exec_python_engine` 中检测目标源码的
+`personal/entry.py`，从隔离 Python 进程进入个人命令分发。没有该文件的源码仍走
+官方 CLI，不以用户安装标记或 cwd 判断。无参数、install、deploy 调用个人部署，
+兼容 full/config 参数但范围相同；--plan 只读，--yes 用于已审阅自动化。
+
 `personal/install.py` 列清单并确认后部署到
 `~/.config/nyxuri-desktop/{niri,noctalia,kitty-nyxuri}`。
-`--plan` 只展示，`--yes` 用于已审阅的自动化。
+它也可供测试独立调用，不注册 GDM 或 CLI 链接。
 它把 `configs/` 的相关目录复制到临时目录，替换私有路径、shell 入口和壁纸
 请求后，在局部 Environment 下调用 `_phase_atomic_deployment` 和
 `_phase_render_templates`。官方 Dunder／manifest 保留语义继续适用。
@@ -18,18 +23,23 @@ Nyxuri + Noctalia 使用同一用户，按顺序登录，共享 skwd。
 私有管理状态在 `nyxuri-desktop/manager`，运行账本在
 `~/.local/state/nyxuri-desktop/manager`。标记为 `nyxuri-desktop/installed`。
 旧 `nyxuri/personal-mode` 标记仍让公共 CLI 拒绝完整 install/deploy/update，
-新部署不创建它。官方无参数／完整安装入口不是这套共存适配的入口。
+新部署不创建它。本分支的标准 bootstrap 先走个人入口，避免触发旧标记的拒绝。
+直接 `python3 -m nyxuri` 仍是公共引擎入口，不用于个人安装更新。
 
 `personal/update.py` 要求干净的 `night/personal-overlay` 和官方 HTTPS origin。
 fetch `origin main` 后 merge `FETCH_HEAD`，失败不部署，不自动 stash/reset/push。
-成功后新进程调用个人安装入口；`--no-deploy` 只合并源码。
+成功后新进程调用 `./install.sh install`，`--yes` 传给该进程；`--no-deploy` 只合并源码。
 不会自动同步本次开发修改或绕过未提交改动检查。
 
 ## 会话
 
 部署 `nyxuri-niri.service`、`nyxuri-shell.service` 和带目标 HOME 的
 `nyxuri-desktop/nyxuri.desktop`。
-用户审阅后将生成的 desktop 文件安装到 GDM 系统目录。
+标准入口在清单确认后，若 GDM 条目缺失或不同，先执行 sudo -v（非交互为 sudo -n -v）。
+认证失败不部署配置。文件部署成功后执行 systemctl --user daemon-reload，再用 sudo install
+注册生成的 desktop 文件到 GDM 系统目录；条目已匹配时跳过 sudo。最后沿用官方
+ensure_nyxuri_symlink 注册命令链接。安装期间不启动或重启 compositor/shell。
+安装部署持有官方进程锁；--plan 不获取锁或写链接。
 `personal/session.py` 采用标准 Niri 用户服务生命周期，但启动独立单元，
 使用私有 `--config`；它和 `niri.service` 互斥，避免启动 iNiR 的 shell。
 退出经过标准 `niri-shutdown.target` 释放图形会话。

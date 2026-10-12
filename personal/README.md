@@ -11,8 +11,9 @@
 共享配色监听和 Niri Portal 路由。原有 Kitty 配置必须存在。
 
 ```bash
-python3 personal/install.py --plan
-python3 personal/install.py
+cd ~/Template/github/niri-dots/Nyxuri
+./install.sh --plan
+./install.sh
 ```
 
 入口先列出变更，再确认。自动化已审阅清单后可用 `--yes`。
@@ -20,12 +21,11 @@ python3 personal/install.py
 独立用户服务为 `nyxuri-niri.service` 和 `nyxuri-shell.service`；只随 Nyxuri 登录启动。
 `~/.config/niri` 和 `niri.service` 继续属于 iNiR。
 
-确认部署成功后，安装生成的 GDM 入口：
-
-```bash
-systemctl --user daemon-reload
-sudo install -Dm644 ~/.config/nyxuri-desktop/nyxuri.desktop /usr/share/wayland-sessions/nyxuri.desktop
-```
+同一入口支持 `./install.sh install`、`deploy` 以及兼容的 `full` / `config` 参数，
+它们都使用相同的个人部署范围。安装成功后自动重载用户服务并注册 GDM 登录项，
+不会启动当前桌面之外的会话。登录项已匹配时不需要 sudo；需要新增或更新时，
+在确认清单后、写入任何配置前验证 sudo 权限，非交互运行使用 `sudo -n`。
+成功后沿用官方规则让 `~/.local/bin/nyxuri` 指向本仓库入口。
 
 注销后选择 Nyxuri。不要在当前图形会话中手动启动它的 Niri 服务。
 此前的 `personal/install.py` 曾部署到公共 Niri 目录；新版不会搬迁或删除
@@ -34,14 +34,20 @@ sudo install -Dm644 ~/.config/nyxuri-desktop/nyxuri.desktop /usr/share/wayland-s
 ## 更新
 
 ```bash
-python3 personal/update.py
+./install.sh update
 ```
 
 更新要求干净的个人分支和官方 `origin`。它 fetch 官方 `main`，merge 到
-`night/personal-overlay`，然后用新进程运行相同的个人安装入口，再列清单确认。
+`night/personal-overlay`，然后用新进程运行 `./install.sh install`，再列清单确认。
 不 push，不丢弃本地提交。官方已改写过 main 历史，首次合并可能需要人工解决冲突。遇到冲突立即停止，解决冲突并完成 Git 合并后，
-重新运行 `python3 personal/install.py`。只更新源码可用 `--no-deploy`。
-普通 `nyxuri install/update` 仍是官方完整桌面入口，不用于这套共存适配。
+重新运行 `./install.sh`。只更新源码可用 `--no-deploy`，已审阅的自动化可用 `--yes`。
+本仓库的 `nyxuri install/update` 也会进入个人部署；其他仓库、官方远程安装和系统包
+仍使用各自入口，不会因为本机的安装标记切换到个人适配。
+
+`install.sh` 保留官方的 Python 版本检查、隔离启动和源码完整性校验，只在目标源码
+包含 `personal/entry.py` 时交接给个人命令入口。首次克隆无需已有安装标记。
+`doctor`、`test`、`pkg` 等其他显式命令仍交给官方 CLI；直接运行 Python 引擎不会经过此交接。
+`personal/install.py` 保留为底层文件部署工具，测试可独立调用它，不会注册系统登录项。
 
 个人入口从最新 `configs/` 制作临时副本，只替换私有路径和壁纸接口，再调用
 官方原子部署、模板渲染和素材补齐。没有第二份永久配置副本。
