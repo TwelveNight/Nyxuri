@@ -170,7 +170,7 @@ Singleton {
         if (String(icon).startsWith("file://"))
             return String(icon);
         if (String(icon).startsWith("/"))
-            return "file://" + icon;
+            return Paths.fileUrl(icon);
         return "image://icon/" + icon;
     }
 

@@ -30,7 +30,7 @@ StyledFlickable {
         iconName: "open_in_new"
         tooltipText: I18n.tr("Open folder")
         accessibleName: I18n.tr("Open folder")
-        onClicked: ApplicationService.openUrl("file://" + folderPath)
+        onClicked: ApplicationService.openUrl(Paths.fileUrl(folderPath))
 
         property string folderPath: ""
     }

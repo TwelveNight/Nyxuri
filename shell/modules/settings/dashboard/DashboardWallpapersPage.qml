@@ -207,7 +207,7 @@ Item {
 
                         Image {
                             anchors.fill: parent
-                            source: "file://" + cell.modelData
+                            source: Paths.fileUrl(cell.modelData)
                             asynchronous: true
                             cache: false
                             fillMode: Image.PreserveAspectCrop

@@ -1,5 +1,6 @@
 """Behavior checks for the source launcher, tooling scope and presentation owners."""
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -1001,6 +1002,175 @@ ShellRoot {
         log = self.log_text()
         for name in ("InfoDrawerState", "TodoService"):
             self.assertIn(name + " failed to load", log)
+
+
+class ShellFileUrlTests(unittest.TestCase):
+    """A file whose name carries URL-significant characters still has to load."""
+
+    SPECIAL_NAMES = (
+        "plain.png",
+        "has #hash.png",
+        "has?question.png",
+        "50%percent.png",
+        "sp ace.png",
+    )
+    PNG = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+    def setUp(self):
+        self.ctx = TempEnv()
+        self.ctx.__enter__()
+        self.addCleanup(self.ctx.__exit__)
+        self.qs = shutil.which("qs")
+        weston = shutil.which("weston")
+        if not self.qs or not weston:
+            self.skipTest("Quickshell and Weston required for file URL tests")
+        self.shell = self.ctx.home / "preview"
+        shutil.copytree(SHELL, self.shell, ignore=shutil.ignore_patterns(
+            "native", "build", "wiki", "tests", ".qmlls.ini", "__pycache__"))
+        self.pictures = self.ctx.home / "pictures"
+        self.pictures.mkdir()
+        for name in self.SPECIAL_NAMES:
+            (self.pictures / name).write_bytes(self.PNG)
+        runtime = self.ctx.home / "runtime"
+        runtime.mkdir(mode=0o700)
+        fallback = str(SHELL / "fallback")
+        self.environment = {
+            key: value for key, value in os.environ.items()
+            if not key.startswith(("CLAVIS_", "QS_", "NYXURI_"))
+            and key not in {"NIRI_SOCKET", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS"}
+        }
+        self.environment.update(
+            QT_QPA_PLATFORM="wayland", QT_QUICK_BACKEND="software",
+            XDG_RUNTIME_DIR=str(runtime), XDG_DATA_HOME=str(self.ctx.home / "data"),
+            WAYLAND_DISPLAY="file-url-wayland",
+            QML_IMPORT_PATH=fallback, QML2_IMPORT_PATH=fallback,
+        )
+        compositor_log = open(self.ctx.home / "compositor.log", "w+")
+        self.addCleanup(compositor_log.close)
+        compositor = subprocess.Popen(
+            [weston, "--backend=headless", "--renderer=pixman", "--no-config",
+             "--socket=file-url-wayland", "--idle-time=0"],
+            env=self.environment, stdout=compositor_log, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        self.addCleanup(self.stop_process, compositor)
+        deadline = time.monotonic() + 10
+        while not (runtime / "file-url-wayland").exists():
+            if compositor.poll() is not None or time.monotonic() >= deadline:
+                compositor_log.seek(0)
+                self.fail("Private compositor did not start:\n" + compositor_log.read())
+            time.sleep(0.05)
+        (self.shell / "shell.qml").write_text(self._harness_qml())
+        self.output = open(self.ctx.home / "preview.log", "w+")
+        self.addCleanup(self.output.close)
+        self.process = subprocess.Popen(
+            [self.qs, "-p", str(self.shell), "--no-duplicate"],
+            env=self.environment, stdout=self.output, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        self.addCleanup(self.stop_process, self.process)
+
+    def _harness_qml(self):
+        images = "\n".join(
+            '    Image { id: image%d; source: Paths.fileUrl(base + "/%s") }' % (index, name)
+            for index, name in enumerate(self.SPECIAL_NAMES))
+        statuses = " + \"|\" + ".join(
+            'name%d + "=" + status(image%d)' % (index, index)
+            for index in range(len(self.SPECIAL_NAMES)))
+        names = "\n".join(
+            '    property string name%d: "%s"' % (index, name)
+            for index, name in enumerate(self.SPECIAL_NAMES))
+        return '''import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.app
+
+ShellRoot {
+    property string base: "%s"
+%s
+%s
+
+    function status(image): string {
+        if (image.status === Image.Ready) return "Ready";
+        if (image.status === Image.Error) return "Error";
+        if (image.status === Image.Loading) return "Loading";
+        return "Null";
+    }
+
+    IpcHandler {
+        target: "fileUrl"
+        function statuses(): string { return %s; }
+        function shapes(): string {
+            return "hash=" + Paths.fileUrl("/p/has #hash.png")
+                 + "|question=" + Paths.fileUrl("/p/has?question.png")
+                 + "|space=" + Paths.fileUrl("/p/sp ace.png")
+                 + "|percent=" + Paths.fileUrl("/p/50%%percent.png")
+                 + "|plain=" + Paths.fileUrl("/p/plain.png")
+                 + "|empty=" + Paths.fileUrl("")
+                 + "|already=" + Paths.fileUrl("file:///p/already%%20encoded.png");
+        }
+    }
+}
+''' % (self.pictures, names, images, statuses)
+
+    def stop_process(self, process):
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+
+    def log_text(self):
+        self.output.flush()
+        self.output.seek(0)
+        return self.output.read()
+
+    def call(self, method):
+        done = subprocess.run(
+            [self.qs, "-p", str(self.shell), "ipc", "call", "fileUrl", method],
+            env=self.environment, capture_output=True, text=True, timeout=20)
+        return done.stdout
+
+    def wait_until_ready(self):
+        deadline = time.monotonic() + presentation_budget(300)
+        while time.monotonic() < deadline:
+            if self.process.poll() is not None:
+                break
+            try:
+                done = subprocess.run(
+                    [self.qs, "-p", str(self.shell), "ipc", "call", "fileUrl", "shapes"],
+                    env=self.environment, capture_output=True, text=True, timeout=10)
+            except subprocess.TimeoutExpired:
+                continue
+            if done.returncode == 0 and done.stdout.strip():
+                return
+            time.sleep(1)
+        self.fail("Shell never reported readiness:\n" + self.log_text())
+
+    def test_special_characters_still_load(self):
+        """A hash or question mark in the file name used to make the image fail outright."""
+        self.wait_until_ready()
+        time.sleep(25)
+        statuses = self.call("statuses").strip()
+        self.assertTrue(statuses)
+        for entry in statuses.split("|"):
+            self.assertTrue(entry.endswith("=Ready"), entry)
+
+    def test_reserved_characters_are_percent_encoded(self):
+        """Every character that URL parsing would otherwise consume has to be escaped."""
+        self.wait_until_ready()
+        time.sleep(25)
+        shapes = self.call("shapes").strip()
+        self.assertTrue(shapes)
+        self.assertIn("hash=file:///p/has%20%23hash.png", shapes)
+        self.assertIn("question=file:///p/has%3Fquestion.png", shapes)
+        self.assertIn("space=file:///p/sp%20ace.png", shapes)
+        self.assertIn("percent=file:///p/50%25percent.png", shapes)
+        self.assertIn("plain=file:///p/plain.png", shapes)
+        self.assertIn("empty=", shapes)
+        self.assertIn("already=file:///p/already%20encoded.png", shapes)
 
 
 if __name__ == "__main__":

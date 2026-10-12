@@ -50,7 +50,7 @@ Singleton {
         const value = String(url || "").trim();
         if (value === "")
             return "";
-        return value.startsWith("/") ? "file://" + value : value;
+        return value.startsWith("/") ? Paths.fileUrl(value) : value;
     }
 
     function _useFallback(fallback) {

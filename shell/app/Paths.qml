@@ -84,7 +84,9 @@ Singleton {
         if (!path || String(path).trim() === "")
             return "";
         const value = String(path);
-        return value.startsWith("file://") ? value : "file://" + value;
+        if (value.startsWith("file://"))
+            return value;
+        return "file://" + value.split("/").map(segment => encodeURIComponent(segment)).join("/");
     }
 
     function icon(name) {

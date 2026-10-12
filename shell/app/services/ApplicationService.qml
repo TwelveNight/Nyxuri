@@ -180,7 +180,7 @@ Singleton {
         if (value.startsWith("file://") || value.startsWith("image://"))
             return value;
         if (value.startsWith("/"))
-            return "file://" + value;
+            return Paths.fileUrl(value);
         const resolved = Quickshell.iconPath(value || "application-x-executable", "application-x-executable");
         return resolved && resolved !== "" ? resolved : "image://icon/application-x-executable";
     }

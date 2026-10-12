@@ -32,7 +32,10 @@ Item {
         if (!source)
             return "";
 
-        return source.startsWith("/") ? "file://" + source : source;
+        if (!source.startsWith("/"))
+            return source;
+
+        return "file://" + source.split("/").map(segment => encodeURIComponent(segment)).join("/");
     }
 
     implicitWidth: 44
