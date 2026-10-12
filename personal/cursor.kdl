@@ -3,6 +3,14 @@ input {
     focus-follows-mouse max-scroll-amount="100%"
 }
 
+// Keep neighboring columns reachable by pushing the pointer to either edge.
+layout {
+    struts {
+        left 24
+        right 24
+    }
+}
+
 cursor {
     xcursor-theme "Bibata-Modern-Classic"
     xcursor-size 24
