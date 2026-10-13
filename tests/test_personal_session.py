@@ -124,6 +124,12 @@ class TestPersonalSession(unittest.TestCase):
                 self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "assets/fcitx5/nyxmellow/templates" / filename).read_bytes())
             self.assertIn("ReloadAddonConfig s classicui", templates["nyxmellow_highlight"]["post_hook"])
             self.assertNotIn("pkill", templates["nyxmellow_highlight"]["post_hook"])
+            for version in (3, 4):
+                entry = templates[f"nyxuri_gtk{version}"]
+                self.assertTrue(entry["enabled"])
+                self.assertEqual(entry["input_path"], str(private / f"noctalia/templates/gtk-{version}.0.css"))
+                self.assertEqual(entry["output_path"], str(ctx.home / f".config/gtk-{version}.0/gtk.css"))
+
 
 
     def test_plan_does_not_write(self):

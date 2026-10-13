@@ -185,3 +185,5 @@ Super+Q 与 Alt+Q 沿用 iNiR 的 Folia 行为：隐藏主窗口到自身托盘�
 Super+/ 打开社区 Keybind Cheatsheet 的可搜索快捷键面板，读取本桌面的私有 Niri 配置。
 新安装首次需在 Noctalia 插件设置中启用 `kenn/keybind-cheatsheet`；
 更新键位后可执行 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh` 刷新缓存。
+
+GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctalia 素材，输出共享 `~/.config/gtk-3.0/gtk.css` 与 `gtk-4.0/gtk.css`。壁纸变化渲染当前色板；`theme sync` 仍负责深浅模式。已打开的 GTK 应用可能需要重新打开才能加载新 CSS。

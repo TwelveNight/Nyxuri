@@ -123,6 +123,7 @@ def prepare_sources(destination: Path) -> None:
     # Reassert the personal output boundary against fresh upstream defaults.
     data = tomllib.loads(text)
     fcitx_names = {f"nyxmellow_{suffix}" for suffix in ("theme", "panel", "highlight")}
+    shared_templates = fcitx_names | {"nyxuri_gtk3", "nyxuri_gtk4"}
     policy = ['[shell]', 'clipboard_enabled = false', '[theme.templates]', 'builtin_ids = []', 'community_ids = []',
               '[theme.templates.user.nyxuri_kitty]', 'index = 7',
               'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/kitty-nyxuri.conf"',
@@ -130,7 +131,7 @@ def prepare_sources(destination: Path) -> None:
               "post_hook = 'pkill -SIGUSR1 -x kitty >/dev/null 2>&1 || true'"]
     for name, template in data.get("theme", {}).get("templates", {}).get("user", {}).items():
         output = template.get("output_path", "")
-        if name not in fcitx_names and "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
+        if name not in shared_templates and "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
     # Fcitx is an explicitly shared application theme, owned by the current desktop.
     fcitx_templates = destination / "noctalia/templates/fcitx5"
@@ -141,6 +142,11 @@ def prepare_sources(destination: Path) -> None:
                    f'output_path = "/home/user/.local/share/fcitx5/themes/nyxmellow/{filename}"']
         if suffix == "highlight":
             policy += [f"post_hook = '{FCITX_CLASSICUI_RELOAD_HOOK}'"]
+    # Shared GTK apps follow the current wallpaper, alongside the shared input method.
+    for index, version in enumerate((3, 4), 11):
+        policy += [f"[theme.templates.user.nyxuri_gtk{version}]", "enabled = true", f"index = {index}",
+                   f'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/gtk-{version}.0.css"',
+                   f'output_path = "/home/user/.config/gtk-{version}.0/gtk.css"']
     policy += ['[widget.wallpaper.actions]', 'left = "exec skwd-wall-v2"']
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
     for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):
