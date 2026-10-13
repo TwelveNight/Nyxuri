@@ -1200,6 +1200,53 @@ class TestShellPageSingletonImports(unittest.TestCase):
         self.assertIn("import qs.modules.keystone.tools", imports)
 
 
+class TestQmlSingletonImports(unittest.TestCase):
+    """Every QML file must import the module that declares a singleton it reads.
+
+    QML resolves identifiers against the importing file's own scope, so a
+    singleton from another module is invisible unless that module is imported.
+    The read silently yields a ReferenceError at runtime instead of a load
+    failure, which is how three pages shipped with blank rows and dead buttons.
+    """
+
+    def _shell(self):
+        return Path(__file__).resolve().parents[1] / "shell"
+
+    def _singletons(self, shell):
+        found = {}
+        for path in shell.rglob("*.qml"):
+            head = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:4]
+            if not any("pragma Singleton" in line for line in head):
+                continue
+            relative = path.relative_to(shell)
+            module = "qs" if len(relative.parts) == 1 else "qs." + ".".join(relative.parts[:-1])
+            found[path.stem] = (module, relative.parent)
+        return found
+
+    def test_files_read_singletons_only_from_modules_they_import(self):
+        shell = self._shell()
+        singletons = self._singletons(shell)
+        self.assertGreater(len(singletons), 50)
+        offenders = []
+        for path in sorted(shell.rglob("*.qml")):
+            relative = path.relative_to(shell)
+            source = path.read_text(encoding="utf-8", errors="ignore")
+            code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
+            imports = set(re.findall(r"^import\s+([\w.]+)", source, re.M))
+            for name in sorted(set(re.findall(r"\b([A-Z][A-Za-z0-9_]*)\.", code))):
+                entry = singletons.get(name)
+                if entry is None:
+                    continue
+                module, parent = entry
+                if parent == relative.parent:
+                    continue
+                if any(module == i or module.startswith(i + ".") or i.startswith(module + ".")
+                       for i in imports):
+                    continue
+                offenders.append("%s reads %s from %s" % (relative, name, module))
+        self.assertEqual(offenders, [])
+
+
 class TestSystemThemeProbeGuard(unittest.TestCase):
     """The poller must only adopt a mode the system actually reported.
 

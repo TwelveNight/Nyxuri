@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import qs.shared.theme
 
 // Canvas-based audio visualizer fed by cava's raw stdout ("1;2;3" frames).
 // Frames arrive far faster than a repaint can afford, so pointsChanged

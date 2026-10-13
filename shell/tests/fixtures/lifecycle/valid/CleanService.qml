@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.app
 
 // Fixture: a Service-suffixed domain file may own a Process; the UI-facing
 // dispatch still routes through the Action Gateway with an owner.
