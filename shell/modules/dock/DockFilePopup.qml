@@ -213,7 +213,7 @@ Item {
         anchors.fill: parent
         visible: root.fan && root.presented
         enabled: !root.closing
-        model: root.presented && directory.item ? directory.item.model : null
+        model: root.presented && directory.item ? directory.item : null
         count: root.presented ? root.count : 0
         edge: root.edge
         labelsLeft: root.labelsLeft

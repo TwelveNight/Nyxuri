@@ -1077,6 +1077,85 @@ class TestTranslatePtyTimeoutScaling(unittest.TestCase):
         self.assertEqual(self._timeout_default("wait_for", None), 4.0)
 
 
+class TestFolderListModelRoleNames(unittest.TestCase):
+
+    def _shell(self):
+        return Path(__file__).resolve().parents[1] / "shell"
+
+    def _source(self, relative):
+        return (self._shell() / relative).read_text(encoding="utf-8")
+
+    def test_the_wrapper_reads_the_role_the_plugin_exposes(self):
+        source = self._source("modules/dock/DockFolderModel.qml")
+        self.assertIn('directory.get(index, "fileUrl")', source)
+        self.assertNotIn("fileURL", source)
+        self.assertNotIn("fileInfo", source)
+
+    def test_the_fan_view_indexes_the_wrapper_instead_of_the_raw_model(self):
+        fan = self._source("modules/dock/DockFolderFan.qml")
+        self.assertIn("model: root.count", fan)
+        self.assertIn("required property int index", fan)
+        self.assertIn("readonly property var fileInfo: root.model ? root.model.get(index) : ({})", fan)
+        popup = self._source("modules/dock/DockFilePopup.qml")
+        self.assertIn("model: root.presented && directory.item ? directory.item : null", popup)
+
+    def test_the_deployed_wrapper_returns_real_urls(self):
+        runner = Path("/usr/lib/qt6/bin/qml")
+        if not runner.exists():
+            self.skipTest("qml runtime not available")
+        probe = """import QtQuick
+import qs.modules.dock
+Item {
+    DockFolderModel { id: model; folder: "___FOLDER___" }
+    Timer {
+        interval: 100; running: true; repeat: true
+        onTriggered: {
+            if (!model.ready || model.count < 1)
+                return;
+            running = false;
+            for (var i = 0; i < model.count; ++i)
+                console.log("PROBE " + model.get(i).name + "=" + JSON.stringify(model.get(i).url));
+            Qt.quit();
+        }
+    }
+    Timer {
+        interval: 20000; running: true
+        onTriggered: Qt.quit()
+    }
+}
+"""
+        with tempfile.TemporaryDirectory() as workspace:
+            root = Path(workspace)
+            shell = self._shell()
+            (root / "dir" / "sub").mkdir(parents=True)
+            (root / "dir" / "a.txt").write_text("x", encoding="utf-8")
+            imports = root / "imports"
+            (imports / "qs" / "app" / "services").mkdir(parents=True)
+            (imports / "qs" / "modules" / "dock").mkdir(parents=True)
+            (imports / "qs" / "qmldir").write_text("module qs\n", encoding="utf-8")
+            (imports / "qs" / "app" / "qmldir").write_text("module qs.app\n", encoding="utf-8")
+            (imports / "qs" / "modules" / "qmldir").write_text("module qs.modules\n", encoding="utf-8")
+            (imports / "qs" / "app" / "services" / "qmldir").write_text(
+                "module qs.app.services\nsingleton DesktopFiles 1.0 DesktopFiles.qml\n", encoding="utf-8")
+            (imports / "qs" / "modules" / "dock" / "qmldir").write_text(
+                "module qs.modules.dock\nDockFolderModel 1.0 DockFolderModel.qml\n", encoding="utf-8")
+            os.symlink(shell / "modules" / "dock" / "DesktopFiles.qml",
+                       imports / "qs" / "app" / "services" / "DesktopFiles.qml")
+            os.symlink(shell / "modules" / "dock" / "DockFolderModel.qml",
+                       imports / "qs" / "modules" / "dock" / "DockFolderModel.qml")
+            script = root / "probe.qml"
+            script.write_text(probe.replace("___FOLDER___", "file://" + str(root / "dir")), encoding="utf-8")
+            result = subprocess.run([str(runner), str(script)], capture_output=True, text=True, timeout=120,
+                                    cwd=str(root), env={**os.environ, "QT_QPA_PLATFORM": "offscreen",
+                                                        "QT_FORCE_STDERR_LOGGING": "1",
+                                                        "QML_IMPORT_PATH": str(imports),
+                                                        "QML2_IMPORT_PATH": str(imports),
+                                                        "LC_ALL": "C.UTF-8"})
+        output = result.stdout + result.stderr
+        self.assertRegex(output, r'PROBE a\.txt="file://[^"]+/dir/a\.txt"')
+        self.assertRegex(output, r'PROBE sub="file://[^"]+/dir/sub"')
+
+
 class TestDesktopCardHostStructure(unittest.TestCase):
 
     def _source(self):

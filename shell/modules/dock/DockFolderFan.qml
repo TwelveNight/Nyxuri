@@ -63,7 +63,7 @@ Item {
         orientation: root.horizontal ? ListView.Horizontal : ListView.Vertical
         verticalLayoutDirection: ListView.BottomToTop
         layoutDirection: root.edge === "right" ? Qt.RightToLeft : Qt.LeftToRight
-        model: root.model
+        model: root.count
         // Render the next few entries outside the normal scroll viewport;
         // their artwork folds back into the small overflow stack.
         displayMarginBeginning: root.geometry.step * 3
@@ -74,7 +74,8 @@ Item {
         interactive: root.progress === 1 && !DockService.fileDragActive
         delegate: Item {
             id: row
-            required property var fileInfo
+            required property int index
+            readonly property var fileInfo: root.model ? root.model.get(index) : ({})
             readonly property alias fileTile: tile
             readonly property var blurRegion: labelBlur
             width: root.horizontal ? root.geometry.step : view.width

@@ -10,7 +10,7 @@ QtObject {
         const length = root.count;
         return {
             name: directory.get(index, "fileName") || "",
-            url: directory.get(index, "fileURL") || "",
+            url: directory.get(index, "fileUrl") || "",
             filePath: directory.get(index, "filePath") || "",
             isFolder: directory.isFolder(index),
             isDirectory: directory.isFolder(index),
