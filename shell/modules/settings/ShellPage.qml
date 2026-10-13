@@ -1,7 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
+import qs.app
 import qs.shared.theme
 import qs.app.services
+import qs.modules.keystone.tools
 import qs.shared.controls
 import qs.shared.i18n
 

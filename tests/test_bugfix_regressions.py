@@ -1184,6 +1184,22 @@ class TestTrayMenuScreenContract(unittest.TestCase):
         self.assertIn("screen: root.screen", source)
 
 
+class TestShellPageSingletonImports(unittest.TestCase):
+
+    def _page(self):
+        return (Path(__file__).resolve().parents[1] / "shell" / "modules" / "settings"
+                / "ShellPage.qml").read_text(encoding="utf-8")
+
+    def test_the_control_page_imports_the_singletons_it_binds_to(self):
+        source = self._page()
+        self.assertIn("Paths.configHome", source)
+        self.assertIn("Paths.fileUrl", source)
+        self.assertIn("ColorPickerService.probeFinished", source)
+        imports = [line.strip() for line in source.splitlines() if line.startswith("import ")]
+        self.assertIn("import qs.app", imports)
+        self.assertIn("import qs.modules.keystone.tools", imports)
+
+
 class TestSystemThemeProbeGuard(unittest.TestCase):
     """The poller must only adopt a mode the system actually reported.
 
