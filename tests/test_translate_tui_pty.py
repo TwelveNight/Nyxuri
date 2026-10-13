@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from tests.test_shell_runtime import presentation_budget
 from tests.translate_support import ENTRY, setUpModule, tearDownModule  # noqa: F401
 
 import fcntl
@@ -52,7 +53,7 @@ class TerminalApp:
     def send(self, value: str) -> None:
         os.write(self.master, value.encode("utf-8"))
 
-    def wait_for(self, value: str, timeout: float = 4.0) -> None:
+    def wait_for(self, value: str, timeout: float = presentation_budget(4.0)) -> None:
         wanted = value.encode("utf-8")
         start = len(self.output)
         deadline = time.monotonic() + timeout
@@ -65,7 +66,7 @@ class TerminalApp:
         if wanted not in self.output[start:]:
             raise AssertionError(f"Terminal did not reach expected fixture state: {value}")
 
-    def send_until(self, value: str, keys: str, timeout: float = 4.0) -> None:
+    def send_until(self, value: str, keys: str, timeout: float = presentation_budget(4.0)) -> None:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self.send(keys)
@@ -127,7 +128,7 @@ class TerminalAcceptanceTests(unittest.TestCase):
         self.app.resize(8, 35)
         self.app.send("\x1b")
         time.sleep(0.05)
-        deadline = time.monotonic() + 4
+        deadline = time.monotonic() + presentation_budget(4)
         while True:
             self.app.resize(24, 100)
             self.app.send("\t")
@@ -138,7 +139,7 @@ class TerminalAcceptanceTests(unittest.TestCase):
                 if time.monotonic() >= deadline:
                     raise
         # ncurses remains in noecho mode after leaving the masked prompt.
-        deadline = time.monotonic() + 1
+        deadline = time.monotonic() + presentation_budget(1)
         while termios.tcgetattr(self.app.master)[3] & termios.ECHO and time.monotonic() < deadline:
             time.sleep(0.02)
         self.assertFalse(termios.tcgetattr(self.app.master)[3] & termios.ECHO)
