@@ -157,9 +157,9 @@ Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署
 Super+Q 与 Alt+Q 通过个人 niri-actions 的 close 动作捕获窗口 ID；Folia 主窗口调用同进程
 托盘的隐藏菜单，托盘缺失、菜单不可用或进程不匹配时保留播放器，不退回关闭。
 已隐藏时不重复切回显示；其他应用按捕获 ID 原生关闭。两键行为一致，均只对 Folia 主窗口作特殊处理。
-Super+S 使用 control-center home，Super+B／D 分别指定 bluetooth／network 上下文。
-Super+A 恢复上游 radial-launcher 网关，Super+Tab 保留同一星环入口；在星环中直接输入
-或按 Tab 进入内置多引擎／AI 搜索，不添加独立搜索程序或改动上游工具。OCR 菜单键映射截图编辑，OSK 暂为空操作。
+Super+S／A／B／D 分别打开 control-center 的 home／audio／bluetooth／network 页面。
+Super+Tab 保留 Star-Ring 入口；在星环中直接输入或按 Tab 进入内置多引擎／AI 搜索，
+不添加独立搜索程序或改动上游工具。OCR 菜单键映射截图编辑，OSK 暂为空操作。
 
 `personal/autostart/` 记录个人 XDG 选择。1Password／Clash Verge 仅在公共 autostart
 条目缺失时原子补齐；已存在的命令与 Hidden 状态保持用户选择。

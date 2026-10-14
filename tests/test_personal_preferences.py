@@ -27,12 +27,10 @@ class PersonalPreferencesTests(unittest.TestCase):
             self.assertIn('Mod+N repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down;', binds)
             self.assertIn('Alt+N hotkey-overlay-title="Focus right" { focus-column-or-monitor-right;', binds)
             self.assertIn('screenshot-annotate', binds)
-            self.assertEqual(binds.count('"control-center"'), 3)
-            for key, page in (("S", "home"), ("B", "bluetooth"), ("D", "network")):
+            self.assertEqual(binds.count('"control-center"'), 4)
+            for key, page in (("S", "home"), ("A", "audio"), ("B", "bluetooth"), ("D", "network")):
                 line = next(line for line in binds.splitlines() if line.strip().startswith(f"Mod+{key} "))
                 self.assertIn(f'"panel-toggle" "control-center" "{page}"', line)
-            orbit = next(line for line in binds.splitlines() if line.strip().startswith("Mod+A "))
-            self.assertIn('"~/.config/nyxuri-desktop/niri/scripts/shell-action.sh" "radial-launcher"', orbit)
             self.assertTrue((source / "noctalia/tools/orbit-launcher.py").is_file())
             self.assertTrue((source / "niri/scripts/niri-actions.py").is_file())
 

@@ -52,8 +52,8 @@ binds {
     // Lock screen.
     Mod+BackSpace repeat=false hotkey-overlay-title="Lock screen" { spawn "noctalia" "msg" "session" "lock"; }
 
-    // Restore the upstream Star-Ring and its integrated search.
-    Mod+A repeat=false hotkey-overlay-title="Star-Ring / Search" { spawn "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh" "radial-launcher"; }
+    // Open the audio controls directly.
+    Mod+A repeat=false hotkey-overlay-title="Audio settings" { spawn "noctalia" "msg" "panel-toggle" "control-center" "audio"; }
 
     // Open the Bluetooth page directly.
     Mod+B repeat=false hotkey-overlay-title="Bluetooth" { spawn "noctalia" "msg" "panel-toggle" "control-center" "bluetooth"; }
