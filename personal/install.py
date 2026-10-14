@@ -60,6 +60,9 @@ def prepare_sources(destination: Path) -> None:
     niri = destination / "niri/config.kdl"
     niri.write_text(niri.read_text().replace('environment {', 'environment {\n    NOCTALIA_CONFIG_HOME "/home/user/.config/nyxuri-desktop"\n    NOCTALIA_STATE_HOME "/home/user/.local/state/nyxuri-desktop/noctalia"'))
     content = niri.read_text()
+    content = content.replace('environment {', 'environment {\n    XMODIFIERS "@im=fcitx"')
+    content = re.sub(r'GTK_IM_MODULE "[^"]*"', 'GTK_IM_MODULE null', content)
+    content = content.replace('environment {', 'environment {\n    QT_IM_MODULE null\n    SDL_IM_MODULE null')
     content = re.sub(r'QT_QPA_PLATFORMTHEME "[^"]*"', 'QT_QPA_PLATFORMTHEME "kde"', content)
     if "KITTY_CONFIG_DIRECTORY" not in content:
         content = content.replace('environment {', 'environment {\n    KITTY_CONFIG_DIRECTORY "/home/user/.config/nyxuri-desktop/kitty-nyxuri"')

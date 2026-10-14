@@ -81,19 +81,23 @@ class PersonalIsolationTests(unittest.TestCase):
                 self.assertNotIn(".cache/nyxniri/", text)
             self.assertNotIn('[theme.templates.user.palette]\nenabled = false', (source / "noctalia/zz-personal.toml").read_text())
 
-    def test_noctalia_children_inherit_private_kitty_without_publishing_it(self):
+    def test_noctalia_children_inherit_private_kitty_and_wayland_input_policy(self):
         shell = Mock(poll=Mock(return_value=0), wait=Mock(return_value=0))
         bridge = Mock(poll=Mock(return_value=0))
         inherited = []
         def spawn(command, **kwargs):
             inherited.append(dict(os.environ))
             return shell if command == ["noctalia"] else bridge
-        with TempEnv() as ctx, patch.dict(os.environ, KITTY_CONFIG_DIRECTORY="/old/kitty"), patch.object(runtime.subprocess, "run") as run, patch.object(runtime.subprocess, "Popen", side_effect=spawn), patch.object(runtime, "wait_for_tray"):
+        with TempEnv() as ctx, patch.dict(os.environ, KITTY_CONFIG_DIRECTORY="/old/kitty", XMODIFIERS="@im=ibus", GTK_IM_MODULE="ibus", QT_IM_MODULE="ibus", SDL_IM_MODULE="ibus"), patch.object(runtime.subprocess, "run") as run, patch.object(runtime.subprocess, "Popen", side_effect=spawn), patch.object(runtime, "wait_for_tray"):
             self.assertEqual(runtime.main(), 0)
             self.assertEqual(inherited[0]["KITTY_CONFIG_DIRECTORY"], str(ctx.home / ".config/nyxuri-desktop/kitty-nyxuri"))
             self.assertEqual(inherited[0]["NOCTALIA_CONFIG_HOME"], str(ctx.home / ".config/nyxuri-desktop"))
             self.assertEqual(inherited[0]["NOCTALIA_STATE_HOME"], str(ctx.home / ".local/state/nyxuri-desktop/noctalia"))
             self.assertEqual(len(inherited), 2)
+            for environment in inherited:
+                self.assertEqual(environment["XMODIFIERS"], "@im=fcitx")
+                for name in ("GTK_IM_MODULE", "QT_IM_MODULE", "SDL_IM_MODULE"):
+                    self.assertNotIn(name, environment)
             run.assert_called_once_with([sys.executable, str(install.ROOT / "personal/desktop-session.py"), "start", "niri", "--no-ii-theme"], check=True)
 
     def test_no_ii_theme_stops_writer_before_wallpaper_restart_and_default_restores_it(self):

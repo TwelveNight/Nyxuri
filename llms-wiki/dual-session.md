@@ -75,6 +75,14 @@ runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 与 Niri 键位打开的终端一致。这些私有路径只传给本会话子进程，不导入共享用户管理器。
 不改变所有应用的 XDG_CONFIG_HOME。
 
+输入法环境与 iNiR 对齐：私有 Niri 配置与 runtime 父进程都设置
+`XMODIFIERS=@im=fcitx`，并移除 GTK／Qt／SDL 的全局 IM_MODULE，原生 Wayland 应用使用 text-input。
+runtime 必须在调用交接子进程和启动 Noctalia 前设置自身环境；只导入 systemd／D-Bus
+不会改变已运行的父进程，Noctalia 启动的应用也不会继承管理器后续的更新。
+微信 Universal 的 XCB 启动脚本依据 XMODIFIERS 为微信单独设置 GTK／Qt Fcitx 模块。
+验收检查 Noctalia 与微信的实际进程环境，并确认 Fcitx DebugInfo 中微信连接到输入模块；
+仅配置校验或管理器变量正确不算中文输入恢复。
+
 ## 壁纸和颜色
 
 按用户选择保留上游 theme_mode_changed = "nyxuri theme sync"，切换深浅主题时

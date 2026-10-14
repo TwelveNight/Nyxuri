@@ -45,6 +45,12 @@ def main():
     # Systemd does not inherit Niri's per-child environment block. Applications
     # opened by Noctalia must use the same Kitty profile as compositor bindings.
     os.environ["KITTY_CONFIG_DIRECTORY"] = str(config / "kitty-nyxuri")
+    # This systemd-started parent does not receive changes published by the
+    # handoff subprocess. Match iNiR before launching it and Noctalia: native
+    # Wayland uses text-input; XWayland launchers detect Fcitx via XMODIFIERS.
+    os.environ["XMODIFIERS"] = "@im=fcitx"
+    for name in ("GTK_IM_MODULE", "QT_IM_MODULE", "SDL_IM_MODULE"):
+        os.environ.pop(name, None)
     # Reuse iNiR's socket/PID validation, environment handoff and stale-watcher
     # protection. Shared runtime state is deliberate: both Niri entries agree
     # with the existing Hyprland cleanup watcher on who owns the session.

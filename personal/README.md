@@ -142,6 +142,9 @@ Noctalia 没有对应的 iNiR 十字准星、面板家族切换和 OCR／搜索�
 `personal/autostart/` 记录 1Password、Clash Verge 的 XDG 条目，安装只补齐缺失文件，
 不会覆盖已有命令或重新启用用户隐藏的条目。Fcitx5 与 KDE Connect 使用系统
 XDG 条目，不额外 spawn；CC Switch 继续手动启动。
+输入法沿用 iNiR：Niri 与 Noctalia 的父进程都设置 `XMODIFIERS=@im=fcitx`，
+原生 Wayland 应用不全局强制 GTK／Qt／SDL 输入模块。微信 Universal 根据该变量
+为自身启用 Fcitx 模块。部署后重启私有 shell 和微信即可更新启动环境。
 **ToDesk 在所有桌面禁止自启动**：安装会将已有 XDG 条目的 Hidden 设为 true、
 X-GNOME-Autostart-enabled 设为 false，保留其他字段；缺失时安装禁用条目。
 共享 XDG 选择对该用户的所有桌面生效。排序 drop-in 只有 Nyxuri shell 被安排

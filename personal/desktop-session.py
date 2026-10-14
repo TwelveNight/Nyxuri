@@ -70,6 +70,8 @@ def publish_environment(desktop, env):
     for name in opposite:
         env.pop(name, None)
     names = IDENTITY + GPU + TOOLKIT
+    if desktop == "niri":
+        env["XMODIFIERS"] = "@im=fcitx"
     missing = [name for name in names if name not in env]
     # D-Bus cannot unset variables: clear missing names explicitly, then import
     # only present names into systemd. Never publish Shell-only Mesa overrides.

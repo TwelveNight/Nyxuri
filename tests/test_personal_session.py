@@ -42,6 +42,9 @@ class TestPersonalSession(unittest.TestCase):
                 niri = (private / "niri/config.kdl").read_text()
                 self.assertIn(str(private / "kitty-nyxuri"), niri)
                 self.assertNotIn('"~/.config/niri/', niri)
+                self.assertIn('XMODIFIERS "@im=fcitx"', niri)
+                for name in ("GTK_IM_MODULE", "QT_IM_MODULE", "SDL_IM_MODULE"):
+                    self.assertIn(f'{name} null', niri)
                 self.assertLess(niri.index('include "personal-gpu.kdl"'), niri.index('include "__custom__.kdl"'))
                 self.assertIn('pci-0000:01:00.0-render', (private / "niri/personal-gpu.kdl").read_text())
                 self.assertIn('2560x1440@143.995', (private / "niri/monitor.kdl").read_text())
@@ -195,10 +198,12 @@ class TestDesktopHandoff(unittest.TestCase):
         self.assertIn("HYPRLAND_INSTANCE_SIGNATURE=", calls[0])
         self.assertIn("AQ_DRM_DEVICES=", calls[0])
         self.assertIn("WAYLAND_DISPLAY=wayland-2", calls[0])
+        self.assertIn("XMODIFIERS=@im=fcitx", calls[0])
         self.assertEqual(calls[1][:3], ("systemctl", "--user", "unset-environment"))
         self.assertIn("AQ_DRM_DEVICES", calls[1])
         self.assertEqual(calls[2][:3], ("systemctl", "--user", "import-environment"))
         self.assertEqual(run.call_args_list[2].kwargs["env"]["NIRI_SOCKET"], "/run/new-niri.sock")
+        self.assertEqual(run.call_args_list[2].kwargs["env"]["XMODIFIERS"], "@im=fcitx")
         self.assertNotIn("HYPRLAND_INSTANCE_SIGNATURE", run.call_args_list[2].kwargs["env"])
 
     def test_old_watcher_cannot_stop_new_session(self):
