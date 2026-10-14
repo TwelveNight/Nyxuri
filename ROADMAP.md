@@ -5,6 +5,12 @@
 > [archive/roadmap-history](llms-wiki/archive/roadmap-history.md)；
 > 设计哲学与五条简洁标准见 [vision](llms-wiki/vision.md)。
 
+## 个人适配
+
+[个人光标](llms-wiki/personal-cursor.md) — 已完成（Nyxuri 焦点切换启用原生光标跟随，保留个人覆盖与其他桌面设置）。
+
+[NVIDIA 插电时钟策略](llms-wiki/personal-nvidia-clock-policy.md) — 已完成（三套桌面共用服务；Nyxuri 手感已验收，iNiR／Hyprland 切换与物理拔插电／熄屏未实机操作）。
+
 ## 主线：插件市场化改造
 
 > 当前未启动；前置：Shell P4 验收通过。

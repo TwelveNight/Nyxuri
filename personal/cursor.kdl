@@ -1,6 +1,7 @@
 // Match the existing iNiR and Hyprland + ii cursor.
 input {
     focus-follows-mouse max-scroll-amount="100%"
+    warp-mouse-to-focus
 }
 
 // Keep neighboring columns reachable by pushing the pointer to either edge.

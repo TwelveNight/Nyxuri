@@ -171,6 +171,9 @@ Noctalia 内置剪贴板面板使用另一份历史，个人配置将其关闭�
 
 ### 显示器与显卡
 
+本机三套桌面共用 [NVIDIA 插电时钟策略](../llms-wiki/personal-nvidia-clock-policy.md)，
+解决空闲后首次切换的升频停顿；它是独立的系统服务，不随普通桌面安装自动部署。
+
 显示器持久设置在 `~/.config/nyxuri-desktop/niri/monitor.kdl`，安装更新会保留。
 首次部署沿用当前外屏 144 Hz、内屏关闭的布局。个人显卡配置与 iNiR 一致，
 由 NVIDIA 渲染 Niri，并为 Noctalia 启动的应用设置 NVIDIA 选择变量；重新登录生效。

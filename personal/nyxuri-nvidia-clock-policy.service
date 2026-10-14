@@ -1,0 +1,21 @@
+[Unit]
+Description=NVIDIA clock floors for Nyxuri, iNiR and Hyprland on AC with active HDMI
+After=systemd-udev-trigger.service
+ConditionPathExists=/sys/bus/pci/devices/0000:01:00.0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/nyxuri-nvidia-clock-policy.py run --user @USER@
+ExecStopPost=/usr/bin/python3 -I /usr/local/libexec/nyxuri-nvidia-clock-policy.py reset
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

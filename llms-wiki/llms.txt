@@ -51,6 +51,8 @@
 
 ## Guidelines & Standards
 
+- [personal-nvidia-clock-policy](personal-nvidia-clock-policy.md): 本机 NVIDIA 插电／外屏／Nyxuri 会话时钟策略、系统副本与恢复边界
+
 - [docs-charter](docs-charter.md): 文档宪章——真值拓扑、生命周期、命名与链接门禁（本体系唯一规则源）
 - [writing-voice](writing-voice.md): 文案风格、去 AI 味、清楚自然的人格语调
 - [changelog-spec](changelog-spec.md): Changelog 规范、真实净变更原则与中间态 Bug 拦截
