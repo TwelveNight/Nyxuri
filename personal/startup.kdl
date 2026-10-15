@@ -1,2 +1,6 @@
 // Optional personal magnifier; XDG autostart owns ordinary desktop apps.
 spawn-at-startup "sh" "-c" "test ! -x \"$HOME/.local/bin/niri-zoomd\" || exec \"$HOME/.local/bin/niri-zoomd\""
+
+// Xwayland WPS mini-toolbar: keep app placement instead of centering a toplevel.
+// Requires python-xlib; changes no normal document/dialog or compositor focus.
+spawn-at-startup "sh" "-c" "exec /usr/bin/python3 \"$HOME/.config/nyxuri-desktop/niri/scripts/wps_toolbar.py\""
