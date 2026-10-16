@@ -387,6 +387,8 @@ class TestGreeterInstall(unittest.TestCase):
             return _result()
 
         with patch("nyxuri.modules.greeter.GREETER_ETC_CFG", config), \
+             patch("nyxuri.modules.greeter.GREETER_STATE_DIR", self._ctx.env.home / "greeter-state"), \
+             patch("nyxuri.modules.greeter.GREETER_POLKIT_RULE", self._ctx.env.home / "noctalia.rules"), \
              patch("nyxuri.modules.greeter.shutil.which", return_value="/usr/bin/env"), \
              patch("nyxuri.modules.greeter.subprocess.run", side_effect=fake_run), \
              patch("nyxuri.modules.greeter.greeter_install_packages", return_value=True), \

@@ -1222,10 +1222,12 @@ class TestQmlSingletonImports(unittest.TestCase):
     def _singletons(self, shell):
         found = {}
         for path in shell.rglob("*.qml"):
+            relative = path.relative_to(shell)
+            if "references" in relative.parts:
+                continue  # gitignored local upstream snapshots, not shipped QML
             head = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:4]
             if not any("pragma Singleton" in line for line in head):
                 continue
-            relative = path.relative_to(shell)
             module = "qs" if len(relative.parts) == 1 else "qs." + ".".join(relative.parts[:-1])
             found[path.stem] = (module, relative.parent)
         return found
@@ -1237,6 +1239,8 @@ class TestQmlSingletonImports(unittest.TestCase):
         offenders = []
         for path in sorted(shell.rglob("*.qml")):
             relative = path.relative_to(shell)
+            if "references" in relative.parts:
+                continue  # gitignored local upstream snapshots, not shipped QML
             source = path.read_text(encoding="utf-8", errors="ignore")
             code = "\n".join(line.split("//", 1)[0] for line in source.splitlines())
             imports = set(re.findall(r"^import\s+([\w.]+)", source, re.M))
