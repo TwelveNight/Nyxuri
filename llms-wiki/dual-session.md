@@ -153,7 +153,7 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署更新，
 实机覆盖写入最后加载且受 Dunder 保留的 __custom__.kdl。
 `personal/niri_actions.py` 部署为 scripts/niri-actions.py，提供当前个人键位的稳定 ID
-工作区操作、浮动窗口、Hermes HUD 聚焦、tmux 和文件管理器，不依赖 INIR_* 环境。
+工作区操作、居中浮动、Hermes HUD 聚焦、tmux 和文件管理器，不依赖 INIR_* 环境。
 Super+Q 与 Alt+Q 通过个人 niri-actions 的 close 动作捕获窗口 ID；Folia 主窗口调用同进程
 托盘的隐藏菜单，托盘缺失、菜单不可用或进程不匹配时保留播放器，不退回关闭。
 已隐藏时不重复切回显示；其他应用按捕获 ID 原生关闭。两键行为一致，均只对 Folia 主窗口作特殊处理。
