@@ -566,17 +566,21 @@ class TestMultibyteInput(unittest.TestCase):
 
     def test_read_key_decodes_multibyte_utf8(self):
         import pty
+        import threading
         import time
         from nyxuri import tui
         for text in ("中", "é", "😀", "日"):
             master, slave = pty.openpty()
             saved = sys.stdin
             sys.stdin = os.fdopen(os.dup(slave), "r", buffering=1, errors="replace")
-            os.write(master, text.encode("utf-8"))
-            time.sleep(0.15)
+            # Type AFTER the TUI goes raw: read_key's tty.setraw uses
+            # TCSAFLUSH, which would flush bytes queued before the switch.
+            typer = threading.Timer(0.3, os.write, args=(master, text.encode("utf-8")))
+            typer.start()
             try:
                 self.assertEqual(tui.read_key(), text)
             finally:
+                typer.join()
                 sys.stdin.close()
                 sys.stdin = saved
                 os.close(master)
@@ -1008,6 +1012,9 @@ class TestWallpaperOverviewSymlink(unittest.TestCase):
             magick.chmod(0o755)
             (home / "run").mkdir()
             environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"),
+                               XDG_DATA_HOME=str(home / ".local" / "share"),
+                               XDG_STATE_HOME=str(home / ".local" / "state"),
+                               XDG_CACHE_HOME=str(home / ".cache"),
                                XDG_RUNTIME_DIR=str(home / "run"),
                                PATH=str(binaries) + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"))
             first = subprocess.run(["bash", str(self._script()), str(picture)],
