@@ -169,8 +169,8 @@ binds {
     // Toggle floating.
     Ctrl+Mod+MouseRight repeat=false hotkey-overlay-title="Toggle floating" { toggle-window-floating; }
 
-    // Toggle centered floating window.
-    Mod+W repeat=false hotkey-overlay-title="Toggle centered floating window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "float"; }
+    // Toggle floating window.
+    Mod+W repeat=false hotkey-overlay-title="Toggle floating window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "float"; }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Resize

@@ -57,9 +57,6 @@ def toggle_float():
         action("move-window-to-tiling", "--id", window_id)
         return
     action("move-window-to-floating", "--id", window_id)
-    action("set-window-width", "--id", window_id, "50%")
-    action("set-window-height", "--id", window_id, "60%")
-    action("center-window", "--id", window_id)
 
 
 def toggle_hud_focus():

@@ -120,7 +120,7 @@ journalctl --user -b -u skwd-walld.service
 `niri/personal-binds.kdl`。新增的 `personal/75-personal-binds.kdl` 补齐 iNiR 默认层，
 部署为同名文件；顺序为上游 binds → personal-binds → 75-personal-binds → __custom__。
 仓库中的个人文件随部署更新；实机临时调整仍写进更新保留的 `__custom__.kdl`。
-应用、窗口、工作区、媒体和放大镜键位保持原习惯；HUD 聚焦、居中浮动、
+应用、窗口、工作区、媒体和放大镜键位保持原习惯；HUD 聚焦、浮动窗口、
 空工作区与 tmux 使用携带的 Niri helper，不调用 iNiR 或 ii。
 
 - Super+C / Alt+C：居中当前列；Alt+Space：Noctalia 搜索；Super+Space：Niri overview。
@@ -129,7 +129,7 @@ journalctl --user -b -u skwd-walld.service
 - Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。
 - Mod+Tab：Nyxuri Orbit；Mod+S：控制中心首页；Mod+A：音频设置；Mod+B：蓝牙；Mod+D：网络／Wi-Fi。Orbit 中直接输入或按 Tab 进入多引擎／AI 搜索。
 - Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
-- Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动。
+- Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：浮动窗口切换。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；原 OCR 菜单键打开截图编辑，不提供 OCR。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。

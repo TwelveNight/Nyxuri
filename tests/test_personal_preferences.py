@@ -156,14 +156,11 @@ class PersonalNiriActionsTests(unittest.TestCase):
             niri_actions.action("focus-window", "--id", 12)
             self.assertEqual(run.call_args.args[0], ["niri", "msg", "action", "focus-window", "--id", "12"])
 
-    def test_centered_float_keeps_target_window_id(self):
+    def test_float_keeps_target_window_id(self):
         with TempEnv(), patch.object(niri_actions, "query", return_value={"id": 71, "is_floating": False}), patch.object(niri_actions.subprocess, "run") as run:
             niri_actions.toggle_float()
             self.assertEqual([c.args[0] for c in run.call_args_list], [
                 ["niri", "msg", "action", "move-window-to-floating", "--id", "71"],
-                ["niri", "msg", "action", "set-window-width", "--id", "71", "50%"],
-                ["niri", "msg", "action", "set-window-height", "--id", "71", "60%"],
-                ["niri", "msg", "action", "center-window", "--id", "71"],
             ])
 
     def test_empty_workspace_uses_stable_id_on_focused_output(self):
