@@ -303,7 +303,9 @@ def stop_all_shell_instances(shell_name: str, bin_path: str = "", timeout: float
 def spawn_shell(shell_name: str, bin_path: str) -> subprocess.Popen:
     """Launch target shell in an independent session with logging."""
     norm = normalize_shell_name(shell_name)
-    log_dir = Path.home() / ".local" / "state" / "nyxuri"
+    # Honor XDG_STATE_HOME (TempEnv sandbox relies on it); same pattern as doctor.py.
+    state_base = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local" / "state")))
+    log_dir = state_base / "nyxuri"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = open(log_dir / f"{norm}-session.log", "a", encoding="utf-8")
     cmd = [bin_path]
