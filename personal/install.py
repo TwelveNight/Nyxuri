@@ -36,6 +36,7 @@ def prepare_sources(destination: Path) -> None:
         shutil.copytree(ROOT / "configs" / item, destination / item, symlinks=True)
     shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")
     shutil.copy2(ROOT / "personal/keybind-cheatsheet.toml", destination / "noctalia/zz-personal-cheatsheet.toml")
+    shutil.copy2(ROOT / "personal/noctalia-bongocat.toml", destination / "noctalia/zz-personal-bongocat.toml")
     # Rewrite the copied templates, never the upstream sources or live iNiR tree.
     for path in destination.rglob("*"):
         if path.is_symlink() or not path.is_file():
@@ -88,7 +89,7 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/games.kdl", destination / "niri/personal-games.kdl")
     shutil.copy2(ROOT / "personal/monitor.kdl", destination / "niri/monitor.kdl")
     scripts = destination / "niri/scripts"
-    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "launcher.py"):
+    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "launcher.py", "bongocat_input.py"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)
     plugin = destination / "noctalia/personal-plugins/shared-clipboard"
     shutil.copytree(ROOT / "personal/clipboard-panel", plugin)
@@ -211,6 +212,8 @@ def main(argv=None, preflight=None) -> int:
             kitty.write_text(kitty.read_text().replace("/home/user", str(env.home)))
             policy = private / "noctalia/zz-personal.toml"
             policy.write_text(policy.read_text().replace("/home/user", str(env.home)))
+            bongocat = private / "noctalia/zz-personal-bongocat.toml"
+            bongocat.write_text(bongocat.read_text().replace("/home/user", str(env.home)))
         # Wallpaper assets keep the upstream no-clobber contract.
         core._ENV = env
         deploy_wallpapers(do_download=False)
