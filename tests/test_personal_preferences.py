@@ -55,6 +55,9 @@ class PersonalPreferencesTests(unittest.TestCase):
                 self.assertIn('Alt+C { center-column; }', binds)
                 self.assertIn('Mod+R { switch-preset-column-width; }', binds)
                 self.assertIn('Mod+Ctrl+Left { focus-monitor-left; }', binds)
+                for key, action in (("Left", "move-column-left"), ("Right", "move-column-right"),
+                                    ("Up", "move-window-up"), ("Down", "move-window-down")):
+                    self.assertIn(f'Mod+{key} {{ {action}; }}', binds)
                 self.assertIn('Alt+Tab { next-window; }', binds)
                 self.assertIn('Mod+Ctrl+9 { move-column-to-workspace 9; }', binds)
                 self.assertIn('Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session";', binds)
