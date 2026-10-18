@@ -267,10 +267,10 @@ binds {
     Mod+Alt+P hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
 
     // Move window to previous workspace.
-    Mod+Alt+H hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
+    Mod+Alt+K hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
 
     // Move window to next workspace.
-    Mod+Alt+L hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
+    Mod+Alt+J hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
 
     // Move window to previous workspace.
     Mod+Alt+Left hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }

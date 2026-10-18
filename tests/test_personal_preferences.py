@@ -45,6 +45,9 @@ class PersonalPreferencesTests(unittest.TestCase):
                 for key in (arrow, letter):
                     self.assertIn(f'Alt+{key} hotkey-overlay-title="Focus {direction}" {{ {action}; }}', binds)
             self.assertIn('screenshot-annotate', binds)
+            self.assertIn('Mod+Alt+K hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }', binds)
+            self.assertIn('Mod+Alt+J hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }', binds)
+            self.assertNotRegex(binds, r'(?m)^\s*Mod\+Alt\+[HL]\s')
             self.assertEqual(binds.count('"control-center"'), 4)
             for key, page in (("S", "home"), ("A", "audio"), ("B", "bluetooth"), ("D", "network")):
                 line = next(line for line in binds.splitlines() if line.strip().startswith(f"Mod+{key} "))
