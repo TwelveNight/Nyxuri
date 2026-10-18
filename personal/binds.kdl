@@ -204,9 +204,11 @@ binds {
     // Alt+H/J/K/L focus within the layout, then cross to the monitor at its edge.
     // Focus left.
     Alt+H hotkey-overlay-title="Focus left" { focus-column-or-monitor-left; }
+    Alt+Left hotkey-overlay-title="Focus left" { focus-column-or-monitor-left; }
 
     // Focus right.
     Alt+L hotkey-overlay-title="Focus right" { focus-column-or-monitor-right; }
+    Alt+Right hotkey-overlay-title="Focus right" { focus-column-or-monitor-right; }
 
     // Direct spatial focus, matching Alt+L and Alt+H respectively.
     Alt+N hotkey-overlay-title="Focus right" { focus-column-or-monitor-right; }
@@ -220,9 +222,11 @@ binds {
 
     // Focus up.
     Alt+K hotkey-overlay-title="Focus up" { focus-window-or-monitor-up; }
+    Alt+Up hotkey-overlay-title="Focus up" { focus-window-or-monitor-up; }
 
     // Focus down.
     Alt+J hotkey-overlay-title="Focus down" { focus-window-or-monitor-down; }
+    Alt+Down hotkey-overlay-title="Focus down" { focus-window-or-monitor-down; }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Move Windows

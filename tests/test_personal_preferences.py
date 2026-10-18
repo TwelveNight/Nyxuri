@@ -36,6 +36,14 @@ class PersonalPreferencesTests(unittest.TestCase):
             self.assertNotIn('/bin/inir', binds)
             self.assertIn('Mod+N repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down;', binds)
             self.assertIn('Alt+N hotkey-overlay-title="Focus right" { focus-column-or-monitor-right;', binds)
+            for arrow, letter, direction, action in (
+                ("Left", "H", "left", "focus-column-or-monitor-left"),
+                ("Right", "L", "right", "focus-column-or-monitor-right"),
+                ("Up", "K", "up", "focus-window-or-monitor-up"),
+                ("Down", "J", "down", "focus-window-or-monitor-down"),
+            ):
+                for key in (arrow, letter):
+                    self.assertIn(f'Alt+{key} hotkey-overlay-title="Focus {direction}" {{ {action}; }}', binds)
             self.assertIn('screenshot-annotate', binds)
             self.assertEqual(binds.count('"control-center"'), 4)
             for key, page in (("S", "home"), ("A", "audio"), ("B", "bluetooth"), ("D", "network")):
