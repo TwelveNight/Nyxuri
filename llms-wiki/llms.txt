@@ -25,6 +25,7 @@
 - [runtime-topology](runtime-topology.md): 运行时进程树与 IPC 拓扑（会话启动、守护进程、脚本层、信号广播流）
 - [dual-session](dual-session.md): 个人分支的三套桌面隔离部署与上游更新
 - [personal-cursor](personal-cursor.md): 个人光标与私有 Niri 覆盖
+- [personal-appearance](personal-appearance.md): Nyxuri 私有动态颜色、旧模板迁移与 GTK3 兼容边界
 - [personal-clipboard](personal-clipboard.md): 三套桌面共用 cliphist 的私有监听与面板
 - [personal-bongocat](personal-bongocat.md): Bongo Cat 按键盘身份选择输入、稳定回退与私有部署
 

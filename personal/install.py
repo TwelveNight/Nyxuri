@@ -156,6 +156,10 @@ def prepare_sources(destination: Path) -> None:
                    f'output_path = "/home/user/.config/gtk-{version}.0/gtk.css"']
     policy += ['[widget.wallpaper.actions]', 'left = "exec skwd-wall-v2"']
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
+    # GTK3 cannot parse GTK4's color-mix(); keep each preceding solid fallback.
+    gtk3 = destination / "noctalia/templates/gtk-3.0.css"
+    gtk3.write_text("".join(line for line in gtk3.read_text().splitlines(keepends=True)
+                            if "color-mix(" not in line))
     for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):
         target = destination / "niri" / name
         target.write_text(annotate(target.read_text()))
