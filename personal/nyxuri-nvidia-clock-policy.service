@@ -1,5 +1,5 @@
 [Unit]
-Description=NVIDIA clock floors for Nyxuri, iNiR and Hyprland on AC with active HDMI
+Description=NVIDIA clock floors for Nyxuri, iNiR and Hyprland on AC with an awake display
 After=systemd-udev-trigger.service
 ConditionPathExists=/sys/bus/pci/devices/0000:01:00.0
 

@@ -43,11 +43,10 @@ class Conditions:
         return any(read(p / "type") == "Mains" and read(p / "online") == "1"
                    for p in (self.sys / "class/power_supply").glob("*"))
 
-    def external_on(self):
-        # Resolve card numbers from the stable GPU PCI address after every boot.
-        drm = self.sys / "bus/pci/devices" / PCI / "drm"
-        for card in drm.glob("card[0-9]*"):
-            output = card / (card.name + "-HDMI-A-1")
+    def display_on(self):
+        # The internal panel belongs to AMD while Niri can render on NVIDIA.
+        # Scan both GPUs; require at least one enabled, awake connector.
+        for output in (self.sys / "class/drm").glob("card[0-9]*-*"):
             if (read(output / "status") == "connected"
                     and read(output / "enabled") == "enabled"
                     and read(output / "dpms") == "On"):
@@ -97,11 +96,11 @@ class Conditions:
     def wanted(self):
         if not self.on_ac():
             return False, "battery or AC unavailable"
-        if not self.external_on():
-            return False, "HDMI disabled, disconnected or asleep"
+        if not self.display_on():
+            return False, "all displays disabled, disconnected or asleep"
         if not self.session_active():
             return False, "Nyxuri, iNiR or Hyprland session absent"
-        return True, "AC + active HDMI + supported desktop session"
+        return True, "AC + awake display + supported desktop session"
 
 
 def smi(option, value=None):

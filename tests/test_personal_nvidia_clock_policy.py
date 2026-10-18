@@ -24,7 +24,7 @@ class TestPersonalNvidiaClockPolicy(unittest.TestCase):
         proc = self.ctx.home / "proc"
         config = self.ctx.home / ".config/nyxuri-desktop/niri/config.kdl"
         ac = sys / "class/power_supply/ADP0"
-        output = sys / "bus/pci/devices" / policy.PCI / "drm/card7/card7-HDMI-A-1"
+        output = sys / "class/drm/card7-HDMI-A-1"
         session = proc / "1234"
         for directory in (ac, output, session):
             directory.mkdir(parents=True)
@@ -34,6 +34,26 @@ class TestPersonalNvidiaClockPolicy(unittest.TestCase):
             path.write_text(value)
         (session / "cmdline").write_bytes(b"/usr/bin/niri\0--session\0--config\0" + os.fsencode(config) + b"\0")
         return policy.Conditions(os.getuid(), config, sys, proc), ac, output, session
+
+    def test_internal_only_and_mixed_displays_require_one_awake_connector(self):
+        conditions, ac, external, session = self.conditions()
+        external.joinpath('status').write_text('disconnected')
+        external.joinpath('enabled').write_text('disabled')
+        internal = conditions.sys / 'class/drm/card1-eDP-2'
+        internal.mkdir(parents=True)
+        for name, value in [('status', 'connected'), ('enabled', 'enabled'), ('dpms', 'On')]:
+            (internal / name).write_text(value)
+        self.assertTrue(conditions.wanted()[0])
+        (ac / 'online').write_text('0')
+        self.assertFalse(conditions.wanted()[0])
+        (ac / 'online').write_text('1')
+        (internal / 'dpms').write_text('Off')
+        self.assertFalse(conditions.wanted()[0])
+        (external / 'status').write_text('connected')
+        (external / 'enabled').write_text('enabled')
+        self.assertTrue(conditions.wanted()[0])
+        (external / 'dpms').unlink()
+        self.assertFalse(conditions.wanted()[0])
 
     def test_conditions_fail_closed_on_battery_sleep_disconnect_or_other_session(self):
         conditions, ac, output, session = self.conditions()
