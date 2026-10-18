@@ -203,6 +203,15 @@ iNiR 专属的 shell 变量，不改变公共默认配置或系统驱动。渲�
 个人规则额外按精确 app-id `folia-major` 关闭 Folia 的 background-effect blur，
 不修改透明度或全局 blur；该动态属性可随配置热加载生效。
 
+Zotero 的“进度”／“Progress”提示由上游以 `dialog=no` 创建，不能依赖 Niri 的
+自动对话框浮动。个人规则按 Zotero app-id 与完整提示标题共同匹配，显式浮动，
+空的默认宽高交由应用决定；主库、独立阅读器与笔记不受该规则影响。
+依据：[Niri 浮动窗口](https://github.com/niri-wm/niri/blob/main/docs/wiki/Floating-Windows.md)、
+[Zotero 进度窗口实现](https://github.com/zotero/zotero/blob/main/chrome/content/zotero/xpcom/progressWindow.js)。
+验证：`python3 -m unittest tests/test_personal_window_rules.py`；实机重新触发进度提示，
+核对 `niri msg --json windows` 的 `is_floating` 与渲染尺寸。热加载只影响新窗口，
+已打开的提示需按窗口 ID 执行 `move-window-to-floating`。
+
 应用规则保留通讯软件、1Password、WPS、scrcpy、音量与代理工具等浮动偏好，
 Portal 初始尺寸 960×700、Waydroid 540×960、代理工具 40%×60%，
 Firefox Nightly／Brave 与 JetBrains 按原有标题限定；Hermes pet 只匹配独有标题，

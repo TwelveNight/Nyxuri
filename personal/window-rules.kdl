@@ -11,6 +11,15 @@ window-rule {
     default-window-height { fixed 700; }
 }
 
+// Zotero creates progress alerts with dialog=no, so automatic floating misses
+// them. Match the localized alert title, not the library, readers, or notes.
+window-rule {
+    match app-id=r#"(?i)^(zotero|org\.zotero\.Zotero)$"# title=r#"^(进度|Progress)$"#
+    open-floating true
+    default-column-width {}
+    default-window-height {}
+}
+
 // Multiple match directives are alternatives; keep app IDs anchored and exact.
 window-rule {
     match app-id=r#"^com\.onepassword\.OnePassword$"#

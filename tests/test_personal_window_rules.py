@@ -1,4 +1,5 @@
 """Application rules remain private, ordered, and overridable after deployment."""
+import re
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,29 @@ from tests.utils import TempEnv
 
 
 class PersonalWindowRuleTests(unittest.TestCase):
+    def test_zotero_progress_alerts_float_without_matching_work_windows(self):
+        with TempEnv() as ctx:
+            install.prepare_sources(ctx.home / "configs")
+            rules = (ctx.home / "configs/niri/personal-window-rules.kdl").read_text()
+            alert_rule = re.search(
+                r'match app-id=r#"([^"\n]+)"# title=r#"([^"\n]+)"#\s+'
+                r'open-floating true\s+default-column-width \{\}\s+'
+                r'default-window-height \{\}', rules,
+            )
+            self.assertIsNotNone(alert_rule, "Missing deployed Zotero progress rule")
+            app_pattern, title_pattern = alert_rule.groups()
+            for app_id, title, expected in (
+                ("Zotero", "进度", True), ("zotero", "Progress", True),
+                ("org.zotero.Zotero", "Progress", True),
+                ("Zotero", "Zotero", False), ("Zotero", "3d point - Zotero", False),
+                ("Zotero", "Paper title", False), ("Zotero", "Note title", False),
+                ("Zotero", "", False), ("Zotero", "Progress report - Zotero", False),
+                ("firefox", "Progress", False), ("not-zotero", "进度", False),
+            ):
+                with self.subTest(app_id=app_id, title=title):
+                    self.assertEqual(bool(re.search(app_pattern, app_id)
+                                          and re.search(title_pattern, title)), expected)
+
     def test_redeployment_loads_rules_after_defaults_and_preserves_custom_override(self):
         with TempEnv() as ctx:
             shared = ctx.home / ".config/niri/config.kdl"
