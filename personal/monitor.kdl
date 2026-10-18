@@ -6,6 +6,6 @@ output "HDMI-A-1" {
     position x=-2560 y=80
 }
 
+// Keep the built-in panel available when no external monitor is connected.
 output "eDP-2" {
-    off
 }
