@@ -112,6 +112,11 @@ def prepare_sources(destination: Path) -> None:
     content = content.replace("exec noctalia msg panel-toggle clipboard",
                               'exec python3 "$(dirname "$0")/clipboard.py" pick')
     action.write_text(content)
+    translate_config = destination / "noctalia/tools/orbit_translate/config.py"
+    translate_config.write_text(translate_config.read_text().replace(
+        'return Path(config_home) / "noctalia" / "tools"',
+        'return Path(config_home) / "nyxuri-desktop" / "noctalia" / "tools"',
+    ))
     orbit = scripts / "niri-scratch-menu.py"
     orbit.write_text(orbit.read_text().replace('os.path.join(CONFIG_HOME, "noctalia",',
                                              'os.path.join(CONFIG_HOME, "nyxuri-desktop", "noctalia",'))

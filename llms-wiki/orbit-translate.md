@@ -58,6 +58,8 @@ TUI 使用同一加载器，终端保留默认（透明）背景，`NO_COLOR=1` 
 ## 配置
 
 - 路径：`${XDG_CONFIG_HOME:-~/.config}/noctalia/tools/orbit-translate__custom__.toml`。
+- 个人隔离桌面由 `personal/install.py` 在副本中将配置路径改到同一配置根下的
+  `nyxuri-desktop/noctalia/tools/`；Alt+E 与设置 TUI 共用该路径，不读取公共桌面的渠道配置。
 - 仓库附带同名模板（免费预设：仅启用 MyMemory，`en → zh-CN`）。Dunder 规则：首次部署后冻结，
   后续 update / preset 切换保留用户版本（见 [file-preservation](file-preservation.md)）。
 - 根级键：`source` / `target` / `capture_timeout_ms` / `request_timeout_ms` / `max_chars` /

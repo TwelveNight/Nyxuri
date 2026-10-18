@@ -21,6 +21,31 @@ def handoff_helper():
 
 
 class PersonalIsolationTests(unittest.TestCase):
+    def test_translate_reads_private_config_for_popup_and_settings(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            upstream = install.ROOT / "configs/noctalia/tools/orbit_translate/config.py"
+            original = upstream.read_bytes()
+            install.prepare_sources(source)
+            path = source / "noctalia/tools/orbit_translate/config.py"
+            spec = importlib.util.spec_from_file_location("private_translate_config_test", path)
+            module = importlib.util.module_from_spec(spec)
+            with patch.dict(sys.modules, {spec.name: module}):
+                spec.loader.exec_module(module)
+            for config_root in (ctx.home / ".config", ctx.home / "alternate-config"):
+                with self.subTest(config_root=config_root), patch.dict(os.environ, XDG_CONFIG_HOME=str(config_root)):
+                    private = config_root / "nyxuri-desktop/noctalia/tools/orbit-translate__custom__.toml"
+                    private.parent.mkdir(parents=True, exist_ok=True)
+                    private.write_text('source = "auto"\ntarget = "zh-CN"\n')
+                    public = config_root / "noctalia/tools/orbit-translate__custom__.toml"
+                    public.parent.mkdir(parents=True, exist_ok=True)
+                    public.write_text('source = "en"\ntarget = "fr"\n')
+                    self.assertEqual(module.config_path(), private)
+                    self.assertEqual(module.load_config().source, "auto")
+                    self.assertEqual(module.load_config().target, "zh-CN")
+            self.assertEqual(upstream.read_bytes(), original)
+
     def test_overview_uses_skwd_renderers_without_moving_picker_or_shell(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"
