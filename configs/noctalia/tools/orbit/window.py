@@ -437,7 +437,10 @@ class OrbitLauncher(Gtk.Window):
             self.core_spring_x.target = 0.0
             self.core_spring_y.target = 0.0
 
-        if self.core_spring_x.update(dt) or self.core_spring_y.update(dt):
+        # Advance both axes every frame; boolean short-circuiting stalls Y.
+        core_x_animating = self.core_spring_x.update(dt)
+        core_y_animating = self.core_spring_y.update(dt)
+        if core_x_animating or core_y_animating:
             still_animating = True
 
         self.queue_draw()
