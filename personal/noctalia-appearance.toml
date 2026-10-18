@@ -1,0 +1,7 @@
+# Do not enable the builtin niri template: its hooks modify the legacy Niri tree.
+# This user template has no apply/undo hooks and only writes the private session.
+[theme.templates.user.nyxuri_niri_colors]
+enabled = true
+index = 31
+input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/niri-personal.kdl"
+output_path = "/home/user/.config/nyxuri-desktop/niri/appearance-colors.kdl"

@@ -37,6 +37,8 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")
     shutil.copy2(ROOT / "personal/keybind-cheatsheet.toml", destination / "noctalia/zz-personal-cheatsheet.toml")
     shutil.copy2(ROOT / "personal/noctalia-bongocat.toml", destination / "noctalia/zz-personal-bongocat.toml")
+    shutil.copy2(ROOT / "personal/noctalia-appearance.toml", destination / "noctalia/zz-personal-appearance.toml")
+    shutil.copy2(ROOT / "personal/niri-colors.kdl", destination / "noctalia/templates/niri-personal.kdl")
     # Rewrite the copied templates, never the upstream sources or live iNiR tree.
     for path in destination.rglob("*"):
         if path.is_symlink() or not path.is_file():
@@ -74,6 +76,7 @@ def prepare_sources(destination: Path) -> None:
     if custom_include not in content:
         raise ValueError("Upstream Niri custom include contract changed; review before deployment")
     content = content.replace(custom_include, 'include "personal-binds.kdl"\ninclude "75-personal-binds.kdl"\ninclude "personal-startup.kdl"\ninclude "personal-overview.kdl"\ninclude "personal-cursor.kdl"\ninclude "personal-gpu.kdl"\ninclude "personal-window-rules.kdl"\ninclude "personal-games.kdl"\n' + custom_include)
+    content = content.replace(custom_include, 'include optional=true "appearance-colors.kdl"\n' + custom_include)
     niri.write_text(content)
     shutil.copy2(ROOT / "personal/binds.kdl", destination / "niri/personal-binds.kdl")
     shutil.copy2(ROOT / "personal/75-personal-binds.kdl", destination / "niri/75-personal-binds.kdl")
@@ -212,6 +215,8 @@ def main(argv=None, preflight=None) -> int:
             kitty.write_text(kitty.read_text().replace("/home/user", str(env.home)))
             policy = private / "noctalia/zz-personal.toml"
             policy.write_text(policy.read_text().replace("/home/user", str(env.home)))
+            appearance = private / "noctalia/zz-personal-appearance.toml"
+            appearance.write_text(appearance.read_text().replace("/home/user", str(env.home)))
             bongocat = private / "noctalia/zz-personal-bongocat.toml"
             bongocat.write_text(bongocat.read_text().replace("/home/user", str(env.home)))
         # Wallpaper assets keep the upstream no-clobber contract.
