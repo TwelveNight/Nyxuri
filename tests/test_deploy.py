@@ -238,8 +238,16 @@ class TestNiriRequiredIncludes(unittest.TestCase):
     def test_required_includes_survive_fresh_deploy(self):
         from nyxuri.deploy.deploy import deploy_selected_configs
 
-        with patch("builtins.print"):
+        # A temporary HOME does not isolate the login session's D-Bus settings.
+        # Keep a command guard so this filesystem test cannot change its theme.
+        with patch("builtins.print"), \
+             patch("nyxuri.deploy.deploy._phase_post_install_services") as services, \
+             patch("nyxuri.theme.timed_run", return_value=None) as theme_command, \
+             patch("nyxuri.modules.gtktheme.gtktheme_trigger_render"), \
+             patch("nyxuri.modules.fisher.fisher_install"):
             deploy_selected_configs(do_backup=False, items_to_deploy=["niri"])
+        services.assert_called_once_with()
+        theme_command.assert_not_called()
 
         dest = self.env.config_dir / "niri"
         for name in self._required_includes():
