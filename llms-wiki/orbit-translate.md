@@ -69,6 +69,8 @@ TUI 使用同一加载器，终端保留默认（透明）背景，`NO_COLOR=1` 
   `yandex` `ecdict` `transmart` `tatoeba`；自建 `libretranslate`；AI `openai_compatible`
   `openai_responses` `anthropic` `gemini` `ollama`；本地 `command`（参数数组，不经 shell）。
   公共接口的请求参数与解析对齐 Pot，默认关闭，可能限流或下线。
+- Google 使用 `dict-chrome-ex` 客户端参数；Yandex 自动识别时省略 `source_lang`，
+  不发送接口不接受的字面值 `auto`。启用多个渠道时可提高 `max_parallel`，让结果独立到达。
 - 词典 / 例句类渠道（`bing_dict` `ecdict` `tatoeba`）只接受短词组（≤4 词、≤48 字符、无句内断句），
   长句直接跳过，不浪费请求。
 - Lingva 把 `zh-TW/HK/MO/Hant` 映射为 `zh_HANT`；回显原文且 `detectedSource` 不等于目标语言时判为空结果

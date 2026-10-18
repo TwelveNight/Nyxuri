@@ -132,7 +132,7 @@ def build_google_url(text: str, source: str, target: str, base_url: str = GOOGLE
         ("dt", "rm"),
         ("dt", "ss"),
         ("dt", "t"),
-        ("client", "gtx"),
+        ("client", "dict-chrome-ex"),
         ("sl", source),
         ("tl", target),
         ("hl", target),
@@ -731,9 +731,12 @@ def _lingva_echoed(result: str, text: str, payload: dict, target: str) -> bool:
 
 
 def _translate_yandex(provider: ProviderConfig, text: str, source: str, target: str, timeout_ms: int) -> str:
-    body = urllib.parse.urlencode(
-        {"source_lang": yandex_language_code(source), "target_lang": yandex_language_code(target), "text": text}
-    ).encode("utf-8")
+    params = {"target_lang": yandex_language_code(target), "text": text}
+    # The Android endpoint detects the source when omitted; literal "auto"
+    # is rejected as an unsupported language.
+    if source.strip().lower() != "auto":
+        params["source_lang"] = yandex_language_code(source)
+    body = urllib.parse.urlencode(params).encode("utf-8")
     request = urllib.request.Request(
         build_yandex_url(provider.base_url or YANDEX_DEFAULT_URL),
         data=body,

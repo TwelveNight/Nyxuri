@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 import unittest
 import urllib.error
+import urllib.parse
 from unittest.mock import patch
 
 from orbit_translate.capture import CaptureError, capture_primary, normalize_text
@@ -165,6 +166,7 @@ class ProviderTests(unittest.TestCase):
         url = build_google_url("hello world", "auto", "zh-CN")
         self.assertIn("q=hello+world", url)
         self.assertIn("tl=zh-CN", url)
+        self.assertEqual(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["client"], ["dict-chrome-ex"])
         self.assertTrue(build_google_url("hello", "en", "zh", "https://mirror.test").startswith("https://mirror.test?"))
 
     def test_mymemory_url_contains_language_pair(self) -> None:
@@ -349,6 +351,25 @@ class ProviderTests(unittest.TestCase):
         url = build_yandex_url("https://example.test/translate", request_id="abc")
         self.assertIn("id=abc-0-0", url)
         self.assertIn("srv=android", url)
+
+    def test_yandex_auto_source_is_omitted_from_request(self) -> None:
+        provider = ProviderConfig(id="yandex", name="Yandex", type="yandex", enabled=True)
+        for source, expected in (("auto", None), ("en-US", "en")):
+            with self.subTest(source=source), patch(
+                "orbit_translate.providers._read_json", return_value={"text": ["你好"]}
+            ) as read_json:
+                outcome = translate_provider(provider, "hello world", source, "zh-CN", 6000)
+                self.assertTrue(outcome.ok)
+                request, timeout = read_json.call_args.args
+                self.assertEqual(timeout, 6000)
+                self.assertEqual(request.get_method(), "POST")
+                params = urllib.parse.parse_qs(request.data.decode())
+                self.assertEqual(params["text"], ["hello world"])
+                self.assertEqual(params["target_lang"], ["zh"])
+                if expected is None:
+                    self.assertNotIn("source_lang", params)
+                else:
+                    self.assertEqual(params["source_lang"], [expected])
 
 
 class ResultRelayTests(unittest.TestCase):
