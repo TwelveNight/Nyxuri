@@ -124,6 +124,7 @@ journalctl --user -b -u skwd-walld.service
 空工作区与 tmux 使用携带的 Niri helper，不调用 iNiR 或 ii。
 
 - Super+C / Alt+C：居中当前列；Alt+Space：Noctalia 搜索；Super+Space：Niri overview。
+- Super+Esc：Windows 快捷键归属切换；需另行部署个人 win 辅助层，契约见 [个人键位](../llms-wiki/dual-session.md#个人键位与自启动)。
 - 搜索列表中 Ctrl+J 选择下一项，Ctrl+K 选择上一项，方向键仍可用；同样适用于 Noctalia 的其他内置列表。
 - Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。
 - Super+方向键：移动窗口；平铺时左右移动整列、上下调整列内顺序，浮动时向对应方向移动。

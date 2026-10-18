@@ -157,6 +157,14 @@ Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署
 Super+Q 与 Alt+Q 通过个人 niri-actions 的 close 动作捕获窗口 ID；Folia 主窗口调用同进程
 托盘的隐藏菜单，托盘缺失、菜单不可用或进程不匹配时保留播放器，不退回关闭。
 已隐藏时不重复切回显示；其他应用按捕获 ID 原生关闭。两键行为一致，均只对 Folia 主窗口作特殊处理。
+两条关闭绑定允许应用抑制，避免在远程接管时误关客户端；Super+Esc 则不可抑制、
+不连发，调用外部 `~/.local/libexec/win-shortcuts/control.py toggle`。
+此控制层与 `win` 启动器由个人 chezmoi 源独立部署，不属于 Nyxuri 安装清单；
+安装前须备好该入口。FreeRDP 的 SDL3 请求会随鼠标／焦点变化重建，原生 Niri
+inhibitor toggle 不记忆归属，所以辅助层在客户端进程内保持默认本机、按键切换的模式。
+它不替换系统包或启动守护服务；非 FreeRDP 窗口仍调用 Niri 原生动作。
+验收除配置校验外，还须在独立 SDL 窗口验证真实内核输入路径的快捷键转发、
+反复切换与回焦；旧 FreeRDP 进程必须重新启动才能加载辅助层。
 Super+S／A／B／D 分别打开 control-center 的 home／audio／bluetooth／network 页面。
 Super+Tab 保留 Star-Ring 入口；在星环中直接输入或按 Tab 进入内置多引擎／AI 搜索，
 不添加独立搜索程序或改动上游工具。OCR 菜单键映射截图编辑，OSK 暂为空操作。

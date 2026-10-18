@@ -141,7 +141,7 @@ binds {
     // ═══════════════════════════════════════════════════════════════════════
 
     // Match Super+Q: only the Folia player hides to its own tray.
-    Alt+Q repeat=false allow-inhibiting=false hotkey-overlay-title="Close window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "close"; }
+    Alt+Q repeat=false hotkey-overlay-title="Close window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "close"; }
 
     // Maximize column.
     Mod+O repeat=false hotkey-overlay-title="Maximize column" { maximize-column; }

@@ -11,6 +11,16 @@ from personal import install, niri_actions, autostart, runtime
 
 
 class PersonalPreferencesTests(unittest.TestCase):
+    def test_shortcut_toggle_is_nonrepeating_and_always_reachable(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            binds = (source / "niri/75-personal-binds.kdl").read_text()
+            line = next(line for line in binds.splitlines() if "Mod+Escape " in line)
+            self.assertIn("repeat=false allow-inhibiting=false", line)
+            self.assertIn('spawn "~/.local/libexec/win-shortcuts/control.py" "toggle"', line)
+
     def test_personal_keys_load_between_upstream_and_user_customs(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"

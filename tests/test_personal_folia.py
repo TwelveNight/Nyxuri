@@ -113,7 +113,8 @@ class CloseWindowTests(unittest.TestCase):
             commands = []
             for filename, chord in [("75-personal-binds.kdl", "Mod+Q"), ("personal-binds.kdl", "Alt+Q")]:
                 line = next(line for line in (sources / "niri" / filename).read_text().splitlines() if re.match(r"\s*" + re.escape(chord) + r"\s", line))
-                self.assertIn("repeat=false allow-inhibiting=false", line)
+                self.assertIn("repeat=false", line)
+                self.assertNotIn("allow-inhibiting=false", line)
                 commands.append(re.findall(r'spawn "([^"\n]+)" "([^"\n]+)"', line)[0])
             self.assertEqual(commands[0], commands[1])
             tools = ctx.home / "bin"
