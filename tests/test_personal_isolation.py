@@ -98,13 +98,50 @@ class PersonalIsolationTests(unittest.TestCase):
             source.mkdir()
             install.prepare_sources(source)
             brightness = (source / "niri/scripts/niri-brightness.sh").read_text()
-            self.assertIn('${XDG_CONFIG_HOME:-$HOME/.config}/nyxuri-desktop/noctalia/noctalia-config.toml', brightness)
+            self.assertIn('$HOME/.config/nyxuri-desktop/noctalia/noctalia-config.toml', brightness)
             for name in ("noctalia/noctalia-config.toml", "noctalia/tools/orbit/palette.py", "noctalia/tools/wallpaper_picker/theme.py", "noctalia/tools/wallpaper_picker/config.py"):
                 text = (source / name).read_text()
                 self.assertIn(".cache/nyxuri-desktop/", text)
                 self.assertNotIn(".cache/nyxuri/", text)
                 self.assertNotIn(".cache/nyxniri/", text)
             self.assertNotIn('[theme.templates.user.palette]\nenabled = false', (source / "noctalia/zz-personal.toml").read_text())
+
+    def test_brightness_reads_private_ddc_policy_instead_of_public_config(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            binaries = ctx.home / "bin"
+            binaries.mkdir()
+            commands = {
+                "noctalia": 'exit 0\n',
+                "niri": 'printf "Output (HDMI-A-1)\\n"\n',
+                "ddcutil": 'printf "%s\\n" "$*" >> "$HOME/ddc-calls"\n',
+            }
+            for name, body in commands.items():
+                tool = binaries / name
+                tool.write_text("#!/bin/sh\n" + body)
+                tool.chmod(0o755)
+            backlight = ctx.home / "backlight"
+            backlight.mkdir()
+            environment = dict(os.environ, PATH=str(binaries) + os.pathsep + os.defpath,
+                               NYXURI_BACKLIGHT_DIR=str(backlight))
+            private = ctx.home / ".config/nyxuri-desktop/noctalia/noctalia-config.toml"
+            public = ctx.home / ".config/noctalia/noctalia-config.toml"
+            for path in (private, public):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            for private_enabled in (True, False):
+                private.write_text(f"[brightness]\nenable_ddcutil = {str(private_enabled).lower()}\n")
+                public.write_text(f"[brightness]\nenable_ddcutil = {str(not private_enabled).lower()}\n")
+                result = subprocess.run(["/bin/bash", str(source / "niri/scripts/niri-brightness.sh"), "up"],
+                                        env=environment, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                calls = ctx.home / "ddc-calls"
+                if private_enabled:
+                    # Noctalia already adjusts DDC; never apply a second step.
+                    self.assertFalse(calls.exists())
+                else:
+                    self.assertEqual(calls.read_text(), "setvcp 10 + 10\n")
 
     def test_noctalia_children_inherit_private_kitty_and_wayland_input_policy(self):
         shell = Mock(poll=Mock(return_value=0), wait=Mock(return_value=0))

@@ -113,9 +113,14 @@ def prepare_sources(destination: Path) -> None:
                               'exec python3 "$(dirname "$0")/clipboard.py" pick')
     action.write_text(content)
     translate_config = destination / "noctalia/tools/orbit_translate/config.py"
-    translate_config.write_text(translate_config.read_text().replace(
-        'return Path(config_home) / "noctalia" / "tools"',
-        'return Path(config_home) / "nyxuri-desktop" / "noctalia" / "tools"',
+    content = translate_config.read_text()
+    upstream_path = 'return Path.home() / ".config" / "noctalia" / "tools"'
+    if upstream_path not in content:
+        raise ValueError("Upstream translation config path changed; review before deployment")
+    translate_config.write_text(content.replace(
+        upstream_path,
+        'import os\n    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")\n'
+        '    return Path(config_home) / "nyxuri-desktop" / "noctalia" / "tools"',
     ))
     orbit = scripts / "niri-scratch-menu.py"
     orbit.write_text(orbit.read_text().replace('os.path.join(CONFIG_HOME, "noctalia",',
