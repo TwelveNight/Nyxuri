@@ -63,7 +63,7 @@ class TestMigrationsResilience(unittest.TestCase):
 class TestGitTimeoutDegrades(unittest.TestCase):
 
     def _repo(self, ctx):
-        repo = ctx.env.repo_dir
+        repo = ctx.home / "repo"
         repo.mkdir(parents=True, exist_ok=True)
         (repo / ".git").mkdir(exist_ok=True)
         return repo
