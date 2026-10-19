@@ -7,6 +7,8 @@
 
 ## 个人适配
 
+[上游兼容修复回移](llms-wiki/archive/personal-upstream-20261019.md) — 已完成（保留个人部署与旧配置结构；隔离回归通过，未部署或做真实登录验收；KM 架构迁移暂缓）。
+
 [个人光标](llms-wiki/personal-cursor.md) — 已完成（Nyxuri 焦点切换启用原生光标跟随，保留个人覆盖与其他桌面设置）。
 
 [NVIDIA 插电时钟策略](llms-wiki/personal-nvidia-clock-policy.md) — 已完成（三套桌面共用服务；Nyxuri 手感已验收，iNiR／Hyprland 切换与物理拔插电／熄屏未实机操作）。

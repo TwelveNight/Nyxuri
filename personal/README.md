@@ -26,7 +26,7 @@ cd ~/Template/github/niri-dots/Nyxuri
 不会启动当前桌面之外的会话。登录项已匹配时不需要 sudo；需要新增或更新时，
 在确认清单后、写入任何配置前验证 sudo 权限，非交互运行使用 `sudo -n`。
 成功后沿用官方规则让 `~/.local/bin/nyxuri` 指向本仓库入口。
-运行 `nyxuri` 打开快捷管理菜单；部署请用 `nyxuri install`，同步更新用 `nyxuri update`。
+运行 `nyxuri` 打开快捷管理菜单；部署请用 `nyxuri install`。上游同步范围见下节。
 
 注销后选择 Nyxuri。不要在当前图形会话中手动启动它的 Niri 服务。
 此前的 `personal/install.py` 曾部署到公共 Niri 目录；新版不会搬迁或删除
@@ -34,13 +34,21 @@ cd ~/Template/github/niri-dots/Nyxuri
 
 ## 更新
 
+当前个人分支保留 `configs/` 和个人部署入口，未迁移上游 KM 单元架构。
+已人工筛选合入的修复见 [上游选择性合入记录](../llms-wiki/archive/personal-upstream-20261019.md)。
+部署这次已审阅的源码使用：
+
 ```bash
-./install.sh update
+./install.sh install --plan
+./install.sh install
 ```
 
-更新要求干净的个人分支和官方 `origin`。它 fetch 官方 `main`，merge 到
+`./install.sh update`／`nyxuri update` **仍是全量合并**，不会遵循上述筛选清单；
+暂不要用它部署本次更新，以免把尚未适配的架构迁移一并带入。
+该入口要求干净的个人分支和官方 `origin`。它 fetch 官方 `main`，merge 到
 `night/personal-overlay`，然后用新进程运行 `./install.sh install`，再列清单确认。
-不 push，不丢弃本地提交。当前已合并官方 main 的 `ebafe03`。遇到冲突立即停止，解决冲突并完成 Git 合并后，
+不 push，不丢弃本地提交。完整上游基线仍为 `ebafe03`，其后为选择性回移，并非全量追平。
+遇到冲突立即停止，解决冲突并完成 Git 合并后，
 重新运行 `./install.sh install`。只更新源码可用 `--no-deploy`，已审阅的自动化可用 `--yes`。
 本仓库的 `nyxuri install/update` 也会进入个人部署；其他仓库、官方远程安装和系统包
 仍使用各自入口，不会因为本机的安装标记切换到个人适配。

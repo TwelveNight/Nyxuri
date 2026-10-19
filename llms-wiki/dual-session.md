@@ -33,6 +33,8 @@ Nyxuri + Noctalia 使用同一用户，按顺序登录。三套桌面共用 skwd
 fetch `origin main` 后 merge `FETCH_HEAD`，失败不部署，不自动 stash/reset/push。
 成功后新进程调用 `./install.sh install`，`--yes` 传给该进程；`--no-deploy` 只合并源码。
 不会自动同步本次开发修改或绕过未提交改动检查。
+此入口不支持选择性回移；上游 KM 架构尚未适配时不用于当前更新。
+已审阅源码的部署仍使用 `./install.sh install`，不重新 fetch 或 merge。
 
 ## 会话
 
@@ -118,6 +120,8 @@ Kitty 基础设置仍来自原有 Kitty，颜色、Niri glow 和 Noctalia 模板
 复制模板时同时处理绝对路径、`${XDG_CONFIG_HOME:-$HOME/.config}` 拼接路径和 Orbit
 兼容 Python wrapper 的路径。私有 shell-action 直接控制 Noctalia，不读取公共
 nyxuri/NyxNiri 的 active_shell 账本。Orbit、壁纸选择器与模板色板缓存使用同一私有缓存目录。
+翻译配置路径在私有副本中保留 `XDG_CONFIG_HOME` 与 `nyxuri-desktop` 层；
+上游路径表达式变化时部署须明确失败，不能静默回读公共翻译配置。
 
 ## 验证边界
 
@@ -132,8 +136,10 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 切换指注销后在 GDM 选择另一登录项，不意味着保留原桌面窗口或同时运行三套 compositor。
 本次审计的证据与待验项见 [personal/ISOLATION.md](../personal/ISOLATION.md)。
 
-个人分支已合并官方 `origin/main` `ebafe03`（v4.0.0-alpha.1 后）。
+个人分支的完整上游基线为 `origin/main` `ebafe03`（v4.0.0-alpha.1 后）。
 历史改写的冲突采用新版上游实现，保留个人入口、公共部署保护与私有配置层。
+其后的兼容修复按提交回移；选入与暂缓范围见
+[选择性合入记录](archive/personal-upstream-20261019.md)，不表示全量追平上游。
 
 ## 个人键位与自启动
 

@@ -56,6 +56,14 @@ effects.kdl 是脚本动态管理的软链接，同样需要固定文件名。�
 两套服务不同场景：一个是"用户随意改、按名通用保留"，一个是"固定文件按名保留"。合并会
 逼用户把 monitor.kdl 改名才能保留，破坏 config.kdl 的 include——得不偿失。
 
+## 按键保留配置值
+
+manifest 的 `preserve_values` 可在保留新模板其他内容的同时，携带旧文件中的指定标量键。
+例如 Noctalia 的 `enable_ddcutil` 在更新时保留用户选择。匹配同时限定原段名与键名，
+旧文件缺少的键沿用新默认值，新模板删除的键不会重新追加。
+注入仍在目录 rename 前完成，路径须留在各自树内；声明形状见
+[manifest-schema](manifest-schema.md)。它不替代 Dunder 或整文件 `preserve`。
+
 ## 模板冻结（安全代价）
 
 仓库 ship 的 `__custom__` 模板（`__custom__.kdl`、`__custom__.conf` 等）纯注释，第一次部署
