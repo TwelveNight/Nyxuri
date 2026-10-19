@@ -1,0 +1,5 @@
+# Keep generated databases and visualizations local.
+*
+!.gitignore
+!languages.toml
+!README.md
