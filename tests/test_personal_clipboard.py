@@ -69,7 +69,7 @@ class PersonalClipboardTests(unittest.TestCase):
             self.assertEqual([call.args[0] for call in run.call_args_list], [
                 ["noctalia", "msg", "panel-toggle", "night/shared-clipboard:history"],
                 ["noctalia", "msg", "plugins", "source", "add", "nyxuri-personal", "path",
-                 str(ctx.home / ".config/nyxuri-desktop/noctalia/personal-plugins")],
+                 str(ctx.home / ".config/noctalia/personal-plugins")],
                 ["noctalia", "msg", "plugins", "enable", "night/shared-clipboard"],
                 ["noctalia", "msg", "plugins", "list"],
                 ["noctalia", "msg", "panel-toggle", "night/shared-clipboard:history"]])
@@ -171,7 +171,7 @@ class PersonalClipboardTests(unittest.TestCase):
                  patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 for _ in range(2):
                     self.assertEqual(install.main(["--yes"]), 0)
-            private = ctx.home / ".config/nyxuri-desktop"
+            private = ctx.home / ".config/desktop-profiles/nyxuri"
             action = (private / "niri/scripts/shell-action.sh").read_text()
             self.assertIn('exec python3 "$(dirname "$0")/clipboard.py" pick', action)
             self.assertNotIn("panel-toggle clipboard", action)

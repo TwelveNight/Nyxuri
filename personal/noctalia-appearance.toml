@@ -3,5 +3,5 @@
 [theme.templates.user.nyxuri_niri_colors]
 enabled = true
 index = 31
-input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/niri-personal.kdl"
-output_path = "/home/user/.config/nyxuri-desktop/niri/appearance-colors.kdl"
+input_path = "/home/user/.config/noctalia/templates/niri-personal.kdl"
+output_path = "/home/user/.config/niri/appearance-colors.kdl"

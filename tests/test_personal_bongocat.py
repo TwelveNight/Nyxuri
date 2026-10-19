@@ -45,7 +45,7 @@ class PersonalBongocatTests(unittest.TestCase):
             self.assertEqual(set(config["widget"]), {"cat", "atelier-cat", "atelier-split-cat"})
             for widget in config["widget"].values():
                 self.assertEqual(widget["input_devices"], ["/dev/input/by-path/platform-i8042-serio-0-event-kbd"])
-                self.assertEqual(widget["executable_path"], "/home/user/.config/nyxuri-desktop/niri/scripts/bongocat_input.py")
+                self.assertEqual(widget["executable_path"], "/home/user/.config/niri/scripts/bongocat_input.py")
 
     def test_sandbox_deployment_renders_target_home(self):
         with TempEnv() as ctx:
@@ -54,11 +54,11 @@ class PersonalBongocatTests(unittest.TestCase):
             (kitty / "kitty.conf").write_text("shell zsh\n")
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
-            private = ctx.home / ".config/nyxuri-desktop"
+            private = ctx.home / ".config/desktop-profiles/nyxuri"
             helper = private / "niri/scripts/bongocat_input.py"
             config = tomllib.loads((private / "noctalia/zz-personal-bongocat.toml").read_text())
             for widget in config["widget"].values():
-                self.assertEqual(widget["executable_path"], str(helper))
+                self.assertEqual(widget["executable_path"], str(ctx.home / ".config/niri/scripts/bongocat_input.py"))
             self.assertTrue(helper.stat().st_mode & 0o111)
             self.assertFalse((ctx.home / ".config/niri").exists())
 

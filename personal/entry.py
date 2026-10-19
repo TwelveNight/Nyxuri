@@ -1,5 +1,6 @@
 """Personal install/update policy behind the ordinary install.sh bootstrap."""
 import argparse
+import copy
 import os
 from pathlib import Path
 import subprocess
@@ -27,7 +28,7 @@ def prepare_session(env):
 def register_session(env):
     subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
     if needs_session_entry(env):
-        source = env.config_dir / "nyxuri-desktop/nyxuri.desktop"
+        source = env.config_dir / "desktop-profiles/nyxuri/nyxuri.desktop"
         subprocess.run(["sudo", "install", "-Dm644", str(source), str(GDM_ENTRY)], check=True)
     core.ensure_nyxuri_symlink()
     print("Nyxuri installed. Log out and choose Nyxuri (niri + Noctalia).")
@@ -81,6 +82,7 @@ def dispatch(arguments):
     if arguments[0] in ("--plan", "--yes"):
         return install_desktop(arguments)
     command, *rest = arguments
+    command = command.lower()
     if command.lower() in ("install", "deploy"):
         return install_desktop(rest)
     if command.lower() == "update":
@@ -91,14 +93,28 @@ def dispatch(arguments):
         print("Nyxuri personal overlay (nyxuri)\n"
               "  nyxuri                         Open the management menu\n"
               "  nyxuri [install|deploy] [full|config] [--plan] [--yes]\n"
-              "  ./install.sh update [--no-deploy] [--yes]\n"
+              "  ./install.sh update [--local | --no-deploy] [--yes]\n"
               "  ./install.sh doctor | test | pkg ...\n\n"
               "Install and deploy use the same private desktop scope.\n"
               "Other explicit commands use the upstream CLI.")
         return 0
+    managed = (core.get_env().config_dir / "desktop-profiles/profiles.json").is_file()
+    if managed and command not in ("doctor", "test", "pkg", "help", "--help", "-h"):
+        subprocess.run([str(core.get_env().home / ".local/bin/desktop-profile"), "guard", "nyxuri"], check=True)
     from nyxuri.cli import main as upstream_main
     sys.argv = [sys.argv[0], *arguments]
-    upstream_main()
+    previous = core._ENV
+    if managed and command in ("snapshot", "backup", "list", "preset", "rollback", "restore", "uninstall", "remove", "purge"):
+        scoped = copy.copy(core.get_env())
+        scoped.config_dir = scoped.config_dir / "desktop-profiles/nyxuri"
+        scoped.nyx_dir = scoped.config_dir / "manager"
+        scoped.presets_dir = scoped.nyx_dir / "presets"
+        scoped.state_dir = scoped.home / ".local/state/nyxuri-desktop/manager"
+        core._ENV = scoped
+    try:
+        upstream_main()
+    finally:
+        core._ENV = previous
     return 0
 
 

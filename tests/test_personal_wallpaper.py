@@ -63,7 +63,7 @@ class TestPersonalWallpaper(unittest.TestCase):
             self.assertEqual(policy["widget"]["wallpaper"]["actions"]["left"], "exec skwd-wall-v2")
             self.assertIn("wallpaper", config["bar"]["bar"]["start"])
             self.assertFalse(config["wallpaper"]["enabled"])
-            self.assertEqual(config["hooks"]["wallpaper_changed"], ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"])
+            self.assertEqual(config["hooks"]["wallpaper_changed"], ["python3 ~/.config/niri/scripts/wallpaper.py hook"])
 
     def test_hook_routes_user_choice_but_ignores_preview_echo(self):
         with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home), NOCTALIA_WALLPAPER_PATH="/new.png", NOCTALIA_WALLPAPER_CONNECTOR="DP-1"), patch.object(wallpaper, "current", return_value=[]), patch.object(wallpaper, "apply") as apply:

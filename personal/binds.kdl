@@ -19,7 +19,7 @@ binds {
     Mod+Space repeat=false hotkey-overlay-title="Niri Overview" { toggle-overview; }
 
     // Toggle focus between the existing Hermes HUD and the previous window.
-    Mod+Z repeat=false hotkey-overlay-title="Toggle Hermes HUD focus" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "hud-focus"; }
+    Mod+Z repeat=false hotkey-overlay-title="Toggle Hermes HUD focus" { spawn "~/.config/niri/scripts/niri-actions.py" "hud-focus"; }
 
     // Switch column width preset (same action as Mod+R).
     Alt+R hotkey-overlay-title="Switch preset column width" { switch-preset-column-width; }
@@ -41,7 +41,7 @@ binds {
     // ═══════════════════════════════════════════════════════════════════════
 
     // Toggle Orbit; replace the upstream Mod+Tab Niri overview action.
-    Mod+Tab repeat=false hotkey-overlay-title="Orbit" { spawn "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh" "radial-launcher"; }
+    Mod+Tab repeat=false hotkey-overlay-title="Orbit" { spawn "~/.config/niri/scripts/shell-action.sh" "radial-launcher"; }
 
     // Toggle the Noctalia Control Center.
     Mod+S repeat=false hotkey-overlay-title="Control Center" { spawn "noctalia" "msg" "panel-toggle" "control-center" "home"; }
@@ -73,10 +73,10 @@ binds {
     Mod+Ctrl+W repeat=false hotkey-overlay-title="Open wallpaper picker" { spawn "skwd-wall-v2"; }
 
     // Edit shell configuration in Neovim.
-    Ctrl+Mod+Slash repeat=false hotkey-overlay-title="Edit shell configuration" { spawn "bash" "-c" "exec kitty nvim \"$HOME/.config/nyxuri-desktop/noctalia/noctalia-config.toml\""; }
+    Ctrl+Mod+Slash repeat=false hotkey-overlay-title="Edit shell configuration" { spawn "bash" "-c" "exec kitty nvim \"$HOME/.config/noctalia/noctalia-config.toml\""; }
 
     // Edit personal key bindings.
-    Ctrl+Mod+Alt+Slash repeat=false hotkey-overlay-title="Edit custom key bindings" { spawn "bash" "-c" "exec xdg-open \"$HOME/.config/nyxuri-desktop/niri/__custom__.kdl\""; }
+    Ctrl+Mod+Alt+Slash repeat=false hotkey-overlay-title="Edit custom key bindings" { spawn "bash" "-c" "exec xdg-open \"$HOME/.config/niri/__custom__.kdl\""; }
 
     // Screen magnifier (niri-zoom). Leave Ctrl+wheel to application zoom,
     // Mod+Ctrl+wheel to workspace movement, and Ctrl+Alt+wheel to volume.
@@ -113,10 +113,10 @@ binds {
     Ctrl+Shift+Escape repeat=false hotkey-overlay-title="System monitor (btop)" { spawn "/usr/bin/kitty" "--title" "btop" "/usr/bin/btop"; }
 
     // Open or attach tmux session.
-    Ctrl+Shift+A repeat=false hotkey-overlay-title="Open or attach tmux session" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "tmux"; }
+    Ctrl+Shift+A repeat=false hotkey-overlay-title="Open or attach tmux session" { spawn "~/.config/niri/scripts/niri-actions.py" "tmux"; }
 
     // File manager.
-    Mod+E repeat=false hotkey-overlay-title="File manager" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "files"; }
+    Mod+E repeat=false hotkey-overlay-title="File manager" { spawn "~/.config/niri/scripts/niri-actions.py" "files"; }
 
     // Browser.
     Mod+F repeat=false hotkey-overlay-title="Browser" { spawn "firefox"; }
@@ -141,7 +141,7 @@ binds {
     // ═══════════════════════════════════════════════════════════════════════
 
     // Match Super+Q: only the Folia player hides to its own tray.
-    Alt+Q repeat=false hotkey-overlay-title="Close window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "close"; }
+    Alt+Q repeat=false hotkey-overlay-title="Close window" { spawn "~/.config/niri/scripts/niri-actions.py" "close"; }
 
     // Maximize column.
     Mod+O repeat=false hotkey-overlay-title="Maximize column" { maximize-column; }
@@ -170,7 +170,7 @@ binds {
     Ctrl+Mod+MouseRight repeat=false hotkey-overlay-title="Toggle floating" { toggle-window-floating; }
 
     // Toggle centered floating window.
-    Mod+W repeat=false hotkey-overlay-title="Toggle centered floating window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "float"; }
+    Mod+W repeat=false hotkey-overlay-title="Toggle centered floating window" { spawn "~/.config/niri/scripts/niri-actions.py" "float"; }
 
     // Toggle floating/tiling without resizing or centering.
     Alt+W repeat=false hotkey-overlay-title="Toggle floating" { toggle-window-floating; }
@@ -303,16 +303,16 @@ binds {
     Ctrl+Shift+MouseRight hotkey-overlay-title="Move window to next workspace without following" { move-window-to-workspace-down focus=false; }
 
     // Move window to empty workspace.
-    Mod+Ctrl+Shift+N repeat=false hotkey-overlay-title="Move window to empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-move"; }
+    Mod+Ctrl+Shift+N repeat=false hotkey-overlay-title="Move window to empty workspace" { spawn "~/.config/niri/scripts/niri-actions.py" "empty-move"; }
 
     // Focus empty workspace.
-    Mod+Ctrl+Shift+O repeat=false hotkey-overlay-title="Focus empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-focus"; }
+    Mod+Ctrl+Shift+O repeat=false hotkey-overlay-title="Focus empty workspace" { spawn "~/.config/niri/scripts/niri-actions.py" "empty-focus"; }
 
     // Move window to empty workspace.
-    Alt+Shift+MouseLeft repeat=false hotkey-overlay-title="Move window to empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-move"; }
+    Alt+Shift+MouseLeft repeat=false hotkey-overlay-title="Move window to empty workspace" { spawn "~/.config/niri/scripts/niri-actions.py" "empty-move"; }
 
     // Focus empty workspace.
-    Alt+Shift+MouseRight repeat=false hotkey-overlay-title="Focus empty workspace" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "empty-focus"; }
+    Alt+Shift+MouseRight repeat=false hotkey-overlay-title="Focus empty workspace" { spawn "~/.config/niri/scripts/niri-actions.py" "empty-focus"; }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Media

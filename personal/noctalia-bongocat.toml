@@ -2,12 +2,12 @@
 # The official plugin and evtest remain user-installed optional requirements.
 [widget.cat]
 input_devices = ["/dev/input/by-path/platform-i8042-serio-0-event-kbd"]
-executable_path = "/home/user/.config/nyxuri-desktop/niri/scripts/bongocat_input.py"
+executable_path = "/home/user/.config/niri/scripts/bongocat_input.py"
 
 [widget.atelier-cat]
 input_devices = ["/dev/input/by-path/platform-i8042-serio-0-event-kbd"]
-executable_path = "/home/user/.config/nyxuri-desktop/niri/scripts/bongocat_input.py"
+executable_path = "/home/user/.config/niri/scripts/bongocat_input.py"
 
 [widget.atelier-split-cat]
 input_devices = ["/dev/input/by-path/platform-i8042-serio-0-event-kbd"]
-executable_path = "/home/user/.config/nyxuri-desktop/niri/scripts/bongocat_input.py"
+executable_path = "/home/user/.config/niri/scripts/bongocat_input.py"

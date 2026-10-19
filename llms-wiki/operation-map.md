@@ -44,3 +44,11 @@
 ## 兼容别名
 
 在全局更名迁移期内，系统软链接与用户端别名 `nyxniri` 完全保留，执行任何命令均等价于 `nyxuri`，且自动兼容 `NYXNIRI_*` 环境变量。
+
+## 本机个人 profile 入口
+
+`personal/entry.py` 的安装入口部署到 `desktop-profiles/nyxuri`；
+`update --local [--yes]` 通过新进程重新部署当前工作树，不拉取或合并上游。
+默认 update 对 configs/ 到 units/ 的不兼容架构迁移仍在 merge 前停止。
+状态操作及 backup/restore/remove 别名使用同一个 profile 和独立 manager，
+活动配置链接由登录管理器选择，维护操作不原子替换该链接。

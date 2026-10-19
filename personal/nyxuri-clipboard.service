@@ -7,7 +7,7 @@ After=nyxuri-niri.service nyxuri-shell.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 %h/.config/nyxuri-desktop/niri/scripts/clipboard.py watch
+ExecStart=/usr/bin/python3 %h/.config/niri/scripts/clipboard.py watch
 KillMode=control-group
 Restart=on-failure
 RestartSec=2

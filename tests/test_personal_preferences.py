@@ -29,7 +29,7 @@ class PersonalPreferencesTests(unittest.TestCase):
             config = (source / "niri/config.kdl").read_text()
             self.assertLess(config.index('include "binds.kdl"'), config.index('include "personal-binds.kdl"'))
             self.assertLess(config.index('include "personal-binds.kdl"'), config.index('include "__custom__.kdl"'))
-            self.assertNotIn('spawn-at-startup "~/.config/nyxuri-desktop/niri/scripts/session-shell.sh"', config)
+            self.assertNotIn('spawn-at-startup "~/.config/niri/scripts/session-shell.sh"', config)
             self.assertNotIn('exec fcitx5 -d', config)
             binds = (source / "niri/personal-binds.kdl").read_text()
             self.assertNotIn('INIR_', binds)
@@ -82,7 +82,7 @@ class PersonalPreferencesTests(unittest.TestCase):
                 self.assertIn('Alt+Tab { next-window; }', binds)
                 self.assertIn('Mod+Ctrl+9 { move-column-to-workspace 9; }', binds)
                 self.assertIn('Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session";', binds)
-                self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/nyxuri-desktop/niri/scripts/launcher.py";', binds)
+                self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/niri/scripts/launcher.py";', binds)
             self.assertEqual((install.ROOT / "configs/niri/binds.kdl").read_bytes(), upstream)
 
     def test_xdg_entries_keep_user_changes_and_disable_todesk(self):

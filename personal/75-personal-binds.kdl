@@ -1,7 +1,7 @@
 // Complete the iNiR default layer without changing upstream Nyxuri bindings.
 // Loaded after personal-binds.kdl; __custom__.kdl remains the final override.
 binds {
-    Mod+Q repeat=false hotkey-overlay-title="Close window" { spawn "~/.config/nyxuri-desktop/niri/scripts/niri-actions.py" "close"; }
+    Mod+Q repeat=false hotkey-overlay-title="Close window" { spawn "~/.config/niri/scripts/niri-actions.py" "close"; }
     Mod+Escape repeat=false allow-inhibiting=false hotkey-overlay-title="Toggle Windows shortcut control" { spawn "~/.local/libexec/win-shortcuts/control.py" "toggle"; }
     Mod+Shift+V { switch-focus-between-floating-and-tiling; }
     Mod+R { switch-preset-column-width; }
@@ -44,10 +44,10 @@ binds {
     Mod+Print { screenshot-screen; }
 
     Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session"; }
-    Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/nyxuri-desktop/niri/scripts/launcher.py"; }
+    Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/niri/scripts/launcher.py"; }
     Mod+T { spawn "kitty"; }
     Mod+Comma { spawn "noctalia" "msg" "settings-toggle"; }
-    Ctrl+Alt+T { spawn "sh" "-c" "~/.config/nyxuri-desktop/niri/scripts/shell-action.sh wallpaper-picker"; }
+    Ctrl+Alt+T { spawn "sh" "-c" "~/.config/niri/scripts/shell-action.sh wallpaper-picker"; }
     XF86AudioPlay { spawn "noctalia" "msg" "media" "toggle"; }
     XF86AudioPause { spawn "noctalia" "msg" "media" "toggle"; }
     XF86AudioNext { spawn "noctalia" "msg" "media" "next"; }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy a private Nyxuri desktop using the upstream atomic engine."""
+"""Deploy Nyxuri into its installed profile, keeping runtime paths canonical."""
 import argparse
 import copy
 import os
@@ -47,28 +47,31 @@ def prepare_sources(destination: Path) -> None:
             content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        for app in ("niri", "noctalia", "kitty-nyxuri"):
-            content = content.replace(f".config/{app}", f".config/nyxuri-desktop/{app}")
-            content = content.replace('${XDG_CONFIG_HOME:-$HOME/.config}/' + app,
-                                      '${XDG_CONFIG_HOME:-$HOME/.config}/nyxuri-desktop/' + app)
         for name in ("nyxuri", "nyxniri"):
             content = content.replace(f".cache/{name}/", ".cache/nyxuri-desktop/")
         content = content.replace(".local/state/noctalia/mpvpaper", ".local/state/nyxuri-desktop/noctalia/mpvpaper")
         content = content.replace(".cache/noctalia/mpvpaper", ".cache/nyxuri-desktop/mpvpaper")
         content = content.replace('cache_base .. "/noctalia/mpvpaper"', 'cache_base .. "/nyxuri-desktop/mpvpaper"')
         path.write_text(content, encoding="utf-8")
+    # Internal effect links must stay inside this installed profile even while
+    # the canonical niri entry temporarily selects another desktop.
+    eyecare = destination / "niri/scripts/toggle-eyecare.sh"
+    content = eyecare.read_text()
+    for name in ("effects_normal.kdl", "effects_eyecare.kdl"):
+        content = content.replace(f'"$NIRI_DIR/{name}"', f'"{name}"')
+    eyecare.write_text(content)
     effects = destination / "niri/effects.kdl"
     if not effects.exists() and not effects.is_symlink():
         effects.symlink_to("effects_normal.kdl")
     niri = destination / "niri/config.kdl"
-    niri.write_text(niri.read_text().replace('environment {', 'environment {\n    NOCTALIA_CONFIG_HOME "/home/user/.config/nyxuri-desktop"\n    NOCTALIA_STATE_HOME "/home/user/.local/state/nyxuri-desktop/noctalia"'))
+    niri.write_text(niri.read_text().replace('environment {', 'environment {\n    NOCTALIA_CONFIG_HOME "/home/user/.config"\n    NOCTALIA_STATE_HOME "/home/user/.local/state/nyxuri-desktop/noctalia"'))
     content = niri.read_text()
     content = content.replace('environment {', 'environment {\n    XMODIFIERS "@im=fcitx"')
     content = re.sub(r'GTK_IM_MODULE "[^"]*"', 'GTK_IM_MODULE null', content)
     content = content.replace('environment {', 'environment {\n    QT_IM_MODULE null\n    SDL_IM_MODULE null')
     content = re.sub(r'QT_QPA_PLATFORMTHEME "[^"]*"', 'QT_QPA_PLATFORMTHEME "kde"', content)
     if "KITTY_CONFIG_DIRECTORY" not in content:
-        content = content.replace('environment {', 'environment {\n    KITTY_CONFIG_DIRECTORY "/home/user/.config/nyxuri-desktop/kitty-nyxuri"')
+        content = content.replace('environment {', 'environment {\n    KITTY_CONFIG_DIRECTORY "/home/user/.config/kitty-nyxuri"')
     # The ordered shell unit owns startup; don't spawn a second shell or IME.
     content = re.sub(r'^spawn-at-startup .*session-shell\.sh".*\n', '', content, flags=re.MULTILINE)
     content = re.sub(r'^spawn-at-startup .*fcitx5.*\n', '', content, flags=re.MULTILINE)
@@ -102,7 +105,7 @@ def prepare_sources(destination: Path) -> None:
         '#!/bin/sh\nexec python3 "$(dirname "$0")/runtime.py"\n', encoding="utf-8")
     action = scripts / "shell-action.sh"
     content = action.read_text()
-    content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config/nyxuri-desktop"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
+    content = content.replace('action="${1:-}"', 'action="${1:-}"\nexport NOCTALIA_CONFIG_HOME="$HOME/.config"\nexport NOCTALIA_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/nyxuri-desktop/noctalia"')
     # This session always runs Noctalia. A legacy public shell selection must
     # never send its keyboard actions to a different desktop's executable.
     start = content.index('state_root=')
@@ -120,17 +123,14 @@ def prepare_sources(destination: Path) -> None:
     translate_config.write_text(content.replace(
         upstream_path,
         'import os\n    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")\n'
-        '    return Path(config_home) / "nyxuri-desktop" / "noctalia" / "tools"',
+        '    return Path(config_home) / "noctalia" / "tools"',
     ))
-    orbit = scripts / "niri-scratch-menu.py"
-    orbit.write_text(orbit.read_text().replace('os.path.join(CONFIG_HOME, "noctalia",',
-                                             'os.path.join(CONFIG_HOME, "nyxuri-desktop", "noctalia",'))
     # Request the renderer directly; preview synchronization never calls it back.
     shutil.copy2(ROOT / "personal/wallpaper-backend.py", destination / "noctalia/tools/wallpaper_picker/backend.py")
     conf = destination / "noctalia/noctalia-config.toml"
     text = conf.read_text().replace('[wallpaper]\n', '[wallpaper]\nenabled = false\ntransition = []\ntransition_duration = 0\n')
     text = text.replace('[shell.greeter_sync]\nauto_sync = true', '[shell.greeter_sync]\nauto_sync = false')
-    text = text.replace('wallpaper_changed = ["~/.config/nyxuri-desktop/noctalia/wallpaper-hook.sh"]', 'wallpaper_changed = ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"]')
+    text = text.replace('wallpaper_changed = ["~/.config/noctalia/wallpaper-hook.sh"]', 'wallpaper_changed = ["python3 ~/.config/niri/scripts/wallpaper.py hook"]')
     text = text.replace('enabled = ["noctalia/mpvpaper"]', 'enabled = []')
     text = re.sub(r'\n\[widget\.mpvpaper\][\s\S]*?(?=\n\[|\Z)', '', text)
     text = re.sub(r'\n\[plugin_settings\."noctalia/mpvpaper"\][\s\S]*?(?=\n\[|\Z)', '', text)
@@ -143,26 +143,26 @@ def prepare_sources(destination: Path) -> None:
     shared_templates = fcitx_names | {"nyxuri_gtk3", "nyxuri_gtk4"}
     policy = ['[shell]', 'clipboard_enabled = false', '[theme.templates]', 'builtin_ids = []', 'community_ids = []',
               '[theme.templates.user.nyxuri_kitty]', 'index = 7',
-              'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/kitty-nyxuri.conf"',
-              'output_path = "/home/user/.config/nyxuri-desktop/kitty-nyxuri/colors__custom__.conf"',
+              'input_path = "/home/user/.config/noctalia/templates/kitty-nyxuri.conf"',
+              'output_path = "/home/user/.config/kitty-nyxuri/colors__custom__.conf"',
               "post_hook = 'pkill -SIGUSR1 -x kitty >/dev/null 2>&1 || true'"]
     for name, template in data.get("theme", {}).get("templates", {}).get("user", {}).items():
         output = template.get("output_path", "")
-        if name not in shared_templates and "/.config/nyxuri-desktop/" not in output and "/.cache/nyxuri-desktop/" not in output:
+        if name not in shared_templates and "/.config/niri/" not in output and "/.config/kitty-nyxuri/" not in output and "/.cache/nyxuri-desktop/" not in output:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
     # Fcitx is an explicitly shared application theme, owned by the current desktop.
     fcitx_templates = destination / "noctalia/templates/fcitx5"
     shutil.copytree(ROOT / "assets/fcitx5/nyxmellow/templates", fcitx_templates, dirs_exist_ok=True)
     for index, (suffix, filename) in enumerate((("theme", "theme.conf"), ("panel", "panel.svg"), ("highlight", "highlight.svg")), 8):
         policy += [f"[theme.templates.user.nyxmellow_{suffix}]", "enabled = true", f"index = {index}",
-                   f'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/fcitx5/{filename}"',
+                   f'input_path = "/home/user/.config/noctalia/templates/fcitx5/{filename}"',
                    f'output_path = "/home/user/.local/share/fcitx5/themes/nyxmellow/{filename}"']
         if suffix == "highlight":
             policy += [f"post_hook = '{FCITX_CLASSICUI_RELOAD_HOOK}'"]
     # Shared GTK apps follow the current wallpaper, alongside the shared input method.
     for index, version in enumerate((3, 4), 11):
         policy += [f"[theme.templates.user.nyxuri_gtk{version}]", "enabled = true", f"index = {index}",
-                   f'input_path = "/home/user/.config/nyxuri-desktop/noctalia/templates/gtk-{version}.0.css"',
+                   f'input_path = "/home/user/.config/noctalia/templates/gtk-{version}.0.css"',
                    f'output_path = "/home/user/.config/gtk-{version}.0/gtk.css"']
     policy += ['[widget.wallpaper.actions]', 'left = "exec skwd-wall-v2"']
     (destination / "noctalia/zz-personal.toml").write_text("\n".join(policy) + "\n")
@@ -184,8 +184,9 @@ def main(argv=None, preflight=None) -> int:
         print("Run this installer as your desktop user.", file=sys.stderr)
         return 1
     env = core.get_env()
-    private = env.config_dir / "nyxuri-desktop"
+    private = env.config_dir / "desktop-profiles/nyxuri"
     print(f"Deploy: {private}/{{niri,noctalia,kitty-nyxuri}}")
+    print("Login selects ~/.config/niri; Noctalia uses ~/.config/noctalia.")
     print(f"User services: {env.config_dir}/systemd/user/nyxuri-{{niri,shell,clipboard}}.service")
     print("Personal shortcuts and startup; create absent XDG entries: 1Password, Clash Verge; disable ToDesk in all desktops")
     print("Startup ordering: 1Password, Clash Verge, Fcitx5, KDE Connect wait for the private shell")

@@ -44,7 +44,7 @@ class PersonalWindowRuleTests(unittest.TestCase):
                  patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
                  patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
-                private = ctx.home / ".config/nyxuri-desktop/niri"
+                private = ctx.home / ".config/desktop-profiles/nyxuri/niri"
                 custom = private / "__custom__.kdl"
                 override = 'window-rule { match app-id="QQ"; open-floating false; }\n'
                 custom.write_text(override)

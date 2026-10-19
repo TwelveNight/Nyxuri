@@ -115,7 +115,7 @@ def clear_previews(session="default"):
 def setup_panel():
     # Adding our own named path source preserves all other enabled plugins and
     # sources in Noctalia's private GUI settings; it does not touch shared data.
-    root = Path.home() / ".config/nyxuri-desktop/noctalia/personal-plugins"
+    root = Path.home() / ".config/noctalia/personal-plugins"
     subprocess.run(["noctalia", "msg", "plugins", "source", "add", "nyxuri-personal", "path", str(root)],
                    capture_output=True, check=True)
     subprocess.run(["noctalia", "msg", "plugins", "enable", PLUGIN_ID], capture_output=True, check=True)

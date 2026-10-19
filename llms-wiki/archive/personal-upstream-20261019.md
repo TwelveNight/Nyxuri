@@ -75,3 +75,12 @@
 
 先 `./install.sh install --plan`，审阅后 `./install.sh install`。
 不要用 `./install.sh update` 部署本次结果：它仍会尝试全量合并最新上游，不会自动延续这份筛选范围。
+
+
+## 登录配置归属适配
+
+个人源码现在位于单独的 Nyxuri-personal 工作树，main 工作树不切分支。
+配置实体为 `.config/desktop-profiles/nyxuri`，安装器仍原子复制，源码不软链接部署。
+GDM 会话通过 desktop-profile 在启动前选择标准 niri 链接；Noctalia 5 的配置根
+为 `.config`，状态根保留。详见 `personal/README.md` 的 2026-10-19 补充。
+上游 configs/ → units/ 的迁移尚未适配；update 在缺失所需源文件时禁止 merge/deploy。

@@ -24,11 +24,11 @@ class PersonalAppearanceTests(unittest.TestCase):
                  patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"), \
                  contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(install.main(["--yes"]), 0)
-            private = config / "nyxuri-desktop"
+            private = config / "desktop-profiles/nyxuri"
             data = tomllib.loads((private / "noctalia/zz-personal-appearance.toml").read_text())
             entry = data["theme"]["templates"]["user"]["nyxuri_niri_colors"]
-            self.assertEqual(entry["input_path"], str(private / "noctalia/templates/niri-personal.kdl"))
-            self.assertEqual(entry["output_path"], str(private / "niri/appearance-colors.kdl"))
+            self.assertEqual(entry["input_path"], str(config / "noctalia/templates/niri-personal.kdl"))
+            self.assertEqual(entry["output_path"], str(config / "niri/appearance-colors.kdl"))
             self.assertEqual(legacy.read_text(), 'include "noctalia.kdl"\n')
 
     def test_niri_colors_are_private_and_keep_user_overrides_last(self):
@@ -52,8 +52,8 @@ class PersonalAppearanceTests(unittest.TestCase):
             policy = tomllib.loads((source / "noctalia/zz-personal-appearance.toml").read_text())
             entry = policy["theme"]["templates"]["user"]["nyxuri_niri_colors"]
             self.assertTrue(entry["enabled"])
-            self.assertEqual(entry["input_path"], "/home/user/.config/nyxuri-desktop/noctalia/templates/niri-personal.kdl")
-            self.assertEqual(entry["output_path"], "/home/user/.config/nyxuri-desktop/niri/appearance-colors.kdl")
+            self.assertEqual(entry["input_path"], "/home/user/.config/noctalia/templates/niri-personal.kdl")
+            self.assertEqual(entry["output_path"], "/home/user/.config/niri/appearance-colors.kdl")
             self.assertNotIn("post_hook", entry)
             template = (source / "noctalia/templates/niri-personal.kdl").read_text()
             self.assertIn('active-color "{{colors.primary.default.hex}}"', template)

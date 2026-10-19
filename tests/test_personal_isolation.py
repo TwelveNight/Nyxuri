@@ -21,6 +21,45 @@ def handoff_helper():
 
 
 class PersonalIsolationTests(unittest.TestCase):
+    def test_eyecare_preserves_internal_links_across_profile_selection(self):
+        with TempEnv() as ctx:
+            profile = ctx.home / ".config/desktop-profiles/nyxuri"
+            profile.mkdir(parents=True)
+            install.prepare_sources(profile)
+            canonical = ctx.home / ".config/niri"
+            canonical.symlink_to(profile / "niri")
+            binaries = ctx.home / "bin"
+            binaries.mkdir()
+            for name in ("niri", "noctalia", "pkill", "wlsunset", "notify-send", "sleep"):
+                stub = binaries / name
+                stub.write_text('#!/bin/sh\nprintf "%s %s\\n" ' + name + ' "$*" >> "$HOME/commands"\n')
+                stub.chmod(0o755)
+            run = ctx.home / "run"
+            run.mkdir()
+            environment = dict(os.environ, PATH=str(binaries) + os.pathsep + os.defpath,
+                               XDG_RUNTIME_DIR=str(run))
+            link = profile / "niri/effects.kdl"
+            for action, expected in (("on", "effects_eyecare.kdl"), ("--sync", "effects_eyecare.kdl"),
+                                     ("off", "effects_normal.kdl"), ("--sync", "effects_normal.kdl")):
+                result = subprocess.run(["bash", str(profile / "niri/scripts/toggle-eyecare.sh"), action],
+                                        env=environment, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(link.readlink(), Path(expected))
+                self.assertTrue(link.is_file())
+            calls = (ctx.home / "commands").read_text().splitlines()
+            self.assertEqual([line for line in calls if line.startswith("niri ")],
+                             ["niri msg action load-config-file"] * 2)
+            self.assertEqual([line for line in calls if line.startswith("noctalia ")],
+                             ["noctalia msg nightlight-disable"] * 4)
+            self.assertEqual([line for line in calls if line.startswith("pkill ")],
+                             ["pkill -x wlsunset"] * 4)
+            canonical.unlink()
+            other = ctx.home / ".config/desktop-profiles/inir/niri"
+            other.mkdir(parents=True)
+            canonical.symlink_to(other)
+            self.assertTrue(link.is_file())
+            self.assertEqual(link.resolve(), profile / "niri/effects_normal.kdl")
+
     def test_translate_reads_private_config_for_popup_and_settings(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"
@@ -35,10 +74,10 @@ class PersonalIsolationTests(unittest.TestCase):
                 spec.loader.exec_module(module)
             for config_root in (ctx.home / ".config", ctx.home / "alternate-config"):
                 with self.subTest(config_root=config_root), patch.dict(os.environ, XDG_CONFIG_HOME=str(config_root)):
-                    private = config_root / "nyxuri-desktop/noctalia/tools/orbit-translate__custom__.toml"
+                    private = config_root / "noctalia/tools/orbit-translate__custom__.toml"
                     private.parent.mkdir(parents=True, exist_ok=True)
                     private.write_text('source = "auto"\ntarget = "zh-CN"\n')
-                    public = config_root / "noctalia/tools/orbit-translate__custom__.toml"
+                    public = config_root / "nyxuri-desktop/noctalia/tools/orbit-translate__custom__.toml"
                     public.parent.mkdir(parents=True, exist_ok=True)
                     public.write_text('source = "en"\ntarget = "fr"\n')
                     self.assertEqual(module.config_path(), private)
@@ -70,10 +109,9 @@ class PersonalIsolationTests(unittest.TestCase):
 
     def test_deployed_launchers_ignore_public_tools_and_legacy_shell_selection(self):
         with TempEnv() as ctx:
-            private = ctx.home / ".config/nyxuri-desktop"
-            private.mkdir()
+            private = ctx.home / ".config"
             install.prepare_sources(private)
-            public = ctx.home / ".config/noctalia/tools"
+            public = ctx.home / ".config/nyxuri-desktop/noctalia/tools"
             public.mkdir(parents=True)
             for name in ("orbit-launcher.py", "wallpaper-picker.py"):
                 for directory, label in ((public, "public"), (private / "noctalia/tools", "private")):
@@ -98,7 +136,7 @@ class PersonalIsolationTests(unittest.TestCase):
             source.mkdir()
             install.prepare_sources(source)
             brightness = (source / "niri/scripts/niri-brightness.sh").read_text()
-            self.assertIn('$HOME/.config/nyxuri-desktop/noctalia/noctalia-config.toml', brightness)
+            self.assertIn('$HOME/.config/noctalia/noctalia-config.toml', brightness)
             for name in ("noctalia/noctalia-config.toml", "noctalia/tools/orbit/palette.py", "noctalia/tools/wallpaper_picker/theme.py", "noctalia/tools/wallpaper_picker/config.py"):
                 text = (source / name).read_text()
                 self.assertIn(".cache/nyxuri-desktop/", text)
@@ -126,8 +164,8 @@ class PersonalIsolationTests(unittest.TestCase):
             backlight.mkdir()
             environment = dict(os.environ, PATH=str(binaries) + os.pathsep + os.defpath,
                                NYXURI_BACKLIGHT_DIR=str(backlight))
-            private = ctx.home / ".config/nyxuri-desktop/noctalia/noctalia-config.toml"
-            public = ctx.home / ".config/noctalia/noctalia-config.toml"
+            private = ctx.home / ".config/noctalia/noctalia-config.toml"
+            public = ctx.home / ".config/nyxuri-desktop/noctalia/noctalia-config.toml"
             for path in (private, public):
                 path.parent.mkdir(parents=True, exist_ok=True)
             for private_enabled in (True, False):
@@ -152,8 +190,8 @@ class PersonalIsolationTests(unittest.TestCase):
             return shell if command == ["noctalia"] else bridge
         with TempEnv() as ctx, patch.dict(os.environ, KITTY_CONFIG_DIRECTORY="/old/kitty", XMODIFIERS="@im=ibus", GTK_IM_MODULE="ibus", QT_IM_MODULE="ibus", SDL_IM_MODULE="ibus"), patch.object(runtime.subprocess, "run") as run, patch.object(runtime.subprocess, "Popen", side_effect=spawn), patch.object(runtime, "wait_for_tray"):
             self.assertEqual(runtime.main(), 0)
-            self.assertEqual(inherited[0]["KITTY_CONFIG_DIRECTORY"], str(ctx.home / ".config/nyxuri-desktop/kitty-nyxuri"))
-            self.assertEqual(inherited[0]["NOCTALIA_CONFIG_HOME"], str(ctx.home / ".config/nyxuri-desktop"))
+            self.assertEqual(inherited[0]["KITTY_CONFIG_DIRECTORY"], str(ctx.home / ".config/kitty-nyxuri"))
+            self.assertEqual(inherited[0]["NOCTALIA_CONFIG_HOME"], str(ctx.home / ".config"))
             self.assertEqual(inherited[0]["NOCTALIA_STATE_HOME"], str(ctx.home / ".local/state/nyxuri-desktop/noctalia"))
             self.assertEqual(len(inherited), 2)
             for environment in inherited:

@@ -29,7 +29,7 @@ class Conditions:
     def __init__(self, uid, config, sys_root=Path("/sys"), proc_root=Path("/proc")):
         self.uid = uid
         self.config = str(config)
-        config_root = Path(config).parents[2]
+        config_root = next((parent for parent in Path(config).parents if parent.name == ".config"), Path(config).parent.parent)
         self.configs = {
             "niri": {self.config, str(config_root / "niri/config.kdl")},
             "Hyprland": {str(config_root / "hypr/hyprland.lua"),
@@ -176,7 +176,7 @@ def main(argv=None):
     account = pwd.getpwnam(args.user)
     if account.pw_uid == 0:
         parser.error("--user must be a desktop user")
-    conditions = Conditions(account.pw_uid, Path(account.pw_dir) / ".config/nyxuri-desktop/niri/config.kdl")
+    conditions = Conditions(account.pw_uid, Path(account.pw_dir) / ".config/niri/config.kdl")
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())

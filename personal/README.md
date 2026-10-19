@@ -1,5 +1,49 @@
 # 本地桌面适配
 
+## 2026-10-19：会话入口选择配置
+
+配置实体统一位于 `~/.config/desktop-profiles/nyxuri/{niri,noctalia,kitty-nyxuri}`。
+GDM 的 Nyxuri 登录项执行 `desktop-profile run nyxuri`，在 compositor 启动前
+选择 `~/.config/niri`，再调用原有 session.py 和独立用户服务。
+Noctalia 5 使用标准 `~/.config/noctalia`，个人适配不再批量改写上游配置路径。
+GUI 状态仍为 `~/.local/state/nyxuri-desktop/noctalia`，保留现有设置；
+其中本地插件来源同步改为标准配置路径。`effects.kdl` 及护眼脚本使用配置内部
+相对链接，切换桌面后仍指向 Nyxuri 自身的效果文件。
+
+管理器由 chezmoi 的 `dot_local/lib/desktop-profiles` 管理，使用方法见
+`~/.local/lib/desktop-profiles/README.md`。活动软链接只连接已安装的配置实体，
+不连接仓库源码。chezmoi 管理 iNiR/Hyprland 的实体目录，不管理活动链接。
+本次不迁移 shell 类型，不改 compositor/GPU/输入法/剪贴板/壁纸的行为。
+
+个人源码固定在 `~/Template/github/niri-dots/Nyxuri-personal` 的个人分支工作树；
+原 `Nyxuri` 工作树继续用于 main。`~/.local/bin/nyxuri` 指向个人工作树，
+不会随 main 工作树切换分支而改变。
+
+```sh
+nyxuri install --plan
+desktop-profile path nyxuri niri
+desktop-profile maintain nyxuri -- nyxuri install --plan
+```
+
+实际部署始终写入 Nyxuri 的配置实体。预设、快照、回滚等上游配置操作同样
+使用该实体及其 manager 目录，避免原子替换活动链接。主题同步仍更新当前会话
+的标准配置和共享 GTK/Qt 应用设置。安装器不选择或重启另一个桌面。
+新机器须先安装 desktop-profile 管理器和登录入口。
+
+个人分支使用 configs/ 布局；上游 main 已改为 units/。更新器 fetch 后先检查
+所需源文件，布局不兼容时在 merge 和部署之前停止。架构迁移需单独审阅；
+不会把当前 Noctalia 5 桌面自动换成其他 shell。
+
+当前 profile 的本地更新使用 `nyxuri update --local`，或自动化使用
+`nyxuri update --local --yes`。它用新进程运行个人安装器，允许部署本地已审阅但
+尚未提交的修改，不 fetch、不 merge、不选择其他桌面的活动链接。
+远程策略 `remote-panel__custom__.kdl` 及加载它的 `__custom__.kdl` 随原子部署保留。
+`backup`、`restore`、`list` 等状态命令与完整名称一样使用 Nyxuri profile，
+不读取或替换当前 iNiR 的配置实体。上游 `units/` 架构迁移仍需单独适配，
+普通 `nyxuri update` 保持在 merge 前停止；`--local` 不声称同步到最新上游。
+
+以下为此前的适配记录；其中独立配置目录和入口路径已由本节取代。
+
 `night/personal-overlay` 保留 Hyprland + ii 和现有 iNiR，另加一个
 **Nyxuri (niri + Noctalia)** 登录项。Nyxuri、iNiR／Hyprland 共用 skwd-wall，Noctalia 保留私有取色与预览。
 

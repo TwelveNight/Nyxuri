@@ -38,10 +38,10 @@ class TestPersonalSession(unittest.TestCase):
                 originals[target] = target.read_bytes()
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
-                private = config / "nyxuri-desktop"
+                private = config / "desktop-profiles/nyxuri"
                 niri = (private / "niri/config.kdl").read_text()
-                self.assertIn(str(private / "kitty-nyxuri"), niri)
-                self.assertNotIn('"~/.config/niri/', niri)
+                self.assertIn(str(config / "kitty-nyxuri"), niri)
+                self.assertNotIn(".config/nyxuri-desktop", niri)
                 self.assertIn('XMODIFIERS "@im=fcitx"', niri)
                 for name in ("GTK_IM_MODULE", "QT_IM_MODULE", "SDL_IM_MODULE"):
                     self.assertIn(f'{name} null', niri)
@@ -69,7 +69,7 @@ class TestPersonalSession(unittest.TestCase):
             conf = tomllib.loads((private / "noctalia/noctalia-config.toml").read_text())
             self.assertFalse(conf["wallpaper"]["enabled"])
             self.assertEqual(conf["plugins"]["enabled"], [])
-            self.assertEqual(conf["theme"]["templates"]["user"]["nyxuri_niri_glow_material_you"]["output_path"], str(private / "niri/colors.kdl"))
+            self.assertEqual(conf["theme"]["templates"]["user"]["nyxuri_niri_glow_material_you"]["output_path"], str(config / "niri/colors.kdl"))
             self.assertIn(str(config / "kitty/kitty.conf"), (private / "kitty-nyxuri/kitty.conf").read_text())
             self.assertFalse((config / "fish").exists())
             self.assertTrue((private / "installed").is_file())
@@ -84,7 +84,9 @@ class TestPersonalSession(unittest.TestCase):
             (kitty / "kitty.conf").write_text("shell zsh\n")
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
-            private = ctx.home / ".config/nyxuri-desktop"
+            private = ctx.home / ".config/desktop-profiles/nyxuri"
+            for app in ("niri", "noctalia", "kitty-nyxuri"):
+                (ctx.home / ".config" / app).symlink_to(private / app)
             for command in (["niri", "validate", "--config", str(private / "niri/config.kdl")], ["noctalia", "config", "validate", str(private / "noctalia")], ["desktop-file-validate", str(private / "nyxuri.desktop")]):
                 result = subprocess.run(command, text=True, capture_output=True, timeout=15)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -100,7 +102,9 @@ class TestPersonalSession(unittest.TestCase):
             (kitty / "kitty.conf").write_text("shell zsh\n")
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
-            private = ctx.home / ".config/nyxuri-desktop"
+            private = ctx.home / ".config/desktop-profiles/nyxuri"
+            for app in ("niri", "noctalia", "kitty-nyxuri"):
+                (ctx.home / ".config" / app).symlink_to(private / app)
             niri = (private / "niri/config.kdl").read_text()
             environment = dict(os.environ)
             environment.update(re.findall(r'(NOCTALIA_(?:CONFIG|STATE)_HOME) "([^"]+)"', niri))
@@ -114,7 +118,7 @@ class TestPersonalSession(unittest.TestCase):
             self.assertFalse(config["shell"]["clipboard_enabled"])
             self.assertEqual(config["hooks"]["theme_mode_changed"], "nyxuri theme sync")
             self.assertEqual(config["hooks"]["wallpaper_changed"],
-                             ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"])
+                             ["python3 ~/.config/niri/scripts/wallpaper.py hook"])
             self.assertIn("bar", config["bar"])
             self.assertEqual(config["theme"]["templates"]["builtin_ids"], [])
             self.assertEqual(config["plugins"]["enabled"], [])
@@ -122,7 +126,7 @@ class TestPersonalSession(unittest.TestCase):
             for suffix, filename in (("theme", "theme.conf"), ("panel", "panel.svg"), ("highlight", "highlight.svg")):
                 entry = templates[f"nyxmellow_{suffix}"]
                 self.assertTrue(entry["enabled"])
-                self.assertEqual(entry["input_path"], str(private / "noctalia/templates/fcitx5" / filename))
+                self.assertEqual(entry["input_path"], str(ctx.home / ".config/noctalia/templates/fcitx5" / filename))
                 self.assertEqual(entry["output_path"], str(ctx.home / ".local/share/fcitx5/themes/nyxmellow" / filename))
                 self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "assets/fcitx5/nyxmellow/templates" / filename).read_bytes())
             self.assertIn("ReloadAddonConfig s classicui", templates["nyxmellow_highlight"]["post_hook"])
@@ -130,7 +134,7 @@ class TestPersonalSession(unittest.TestCase):
             for version in (3, 4):
                 entry = templates[f"nyxuri_gtk{version}"]
                 self.assertTrue(entry["enabled"])
-                self.assertEqual(entry["input_path"], str(private / f"noctalia/templates/gtk-{version}.0.css"))
+                self.assertEqual(entry["input_path"], str(ctx.home / f".config/noctalia/templates/gtk-{version}.0.css"))
                 self.assertEqual(entry["output_path"], str(ctx.home / f".config/gtk-{version}.0/gtk.css"))
 
 
@@ -138,7 +142,7 @@ class TestPersonalSession(unittest.TestCase):
     def test_plan_does_not_write(self):
         with TempEnv() as ctx:
             self.assertEqual(install.main(["--plan"]), 0)
-            self.assertFalse((ctx.home / ".config/nyxuri-desktop").exists())
+            self.assertFalse((ctx.home / ".config/desktop-profiles/nyxuri").exists())
 
     def test_handoff_failure_never_starts_shell_on_old_display(self):
         with TempEnv(), patch.dict(os.environ), patch("personal.runtime.subprocess.run", side_effect=subprocess.CalledProcessError(1, ["helper"])), patch("personal.runtime.subprocess.Popen") as spawn:
@@ -176,7 +180,7 @@ class TestDirectWallpaperBackend(unittest.TestCase):
                 self.assertFalse(backend.apply_static_wallpaper("/a.png"))
             values = tomllib.loads((sources / "noctalia/noctalia-config.toml").read_text())
             self.assertFalse(values["wallpaper"]["enabled"])
-            self.assertEqual(values["hooks"]["wallpaper_changed"], ["python3 ~/.config/nyxuri-desktop/niri/scripts/wallpaper.py hook"])
+            self.assertEqual(values["hooks"]["wallpaper_changed"], ["python3 ~/.config/niri/scripts/wallpaper.py hook"])
             self.assertEqual(values["plugins"]["enabled"], [])
             self.assertTrue((sources / "niri/scripts/wallpaper.py").exists())
 
@@ -235,9 +239,17 @@ class TestPersonalUpdate(unittest.TestCase):
         with TempEnv(), patch("personal.update.subprocess.run", return_value=Mock(stdout=" M local.py")) as run:
             self.assertEqual(update.main([]), 1)
             self.assertEqual(run.call_count, 1)
-        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", subprocess.CalledProcessError(1, ["merge"])]), patch("personal.update.subprocess.run") as deploy:
+        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", subprocess.CalledProcessError(1, ["merge"])]), patch("personal.update.subprocess.run") as deploy:
             with self.assertRaises(subprocess.CalledProcessError):
                 update.main([])
+            deploy.assert_not_called()
+
+
+    def test_incompatible_upstream_layout_stops_before_merge_or_deploy(self):
+        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", subprocess.CalledProcessError(1, ["git", "cat-file", "-e", "FETCH_HEAD:configs/niri/config.kdl"])]) as git, patch("personal.update.subprocess.run") as deploy:
+            self.assertEqual(update.main([]), 1)
+            self.assertEqual(git.call_args.args, ("cat-file", "-e", "FETCH_HEAD:configs/niri/config.kdl"))
+            self.assertFalse(any(call.args[:1] == ("merge",) for call in git.call_args_list))
             deploy.assert_not_called()
 
 

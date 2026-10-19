@@ -37,7 +37,7 @@ def wait_for_tray(shell, timeout=30):
 
 def main():
     scripts = Path(__file__).resolve().parent
-    config = Path.home() / ".config/nyxuri-desktop"
+    config = Path.home() / ".config"
     # Noctalia appends /noctalia to these base directories itself.
     os.environ["NOCTALIA_CONFIG_HOME"] = str(config)
     # Keep the already-used private state root so GUI preferences survive.

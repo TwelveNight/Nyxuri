@@ -1,5 +1,5 @@
 [Desktop Entry]
 Name=Nyxuri (niri + Noctalia)
 Comment=Personal niri desktop session
-Exec=/usr/bin/python3 "/home/user/.config/nyxuri-desktop/niri/scripts/session.py"
+Exec=/home/user/.local/bin/desktop-profile run nyxuri
 Type=Application

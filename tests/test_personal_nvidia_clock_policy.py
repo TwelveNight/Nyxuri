@@ -22,7 +22,7 @@ class TestPersonalNvidiaClockPolicy(unittest.TestCase):
     def conditions(self):
         sys = self.ctx.home / "sys"
         proc = self.ctx.home / "proc"
-        config = self.ctx.home / ".config/nyxuri-desktop/niri/config.kdl"
+        config = self.ctx.home / ".config/niri/config.kdl"
         ac = sys / "class/power_supply/ADP0"
         output = sys / "class/drm/card7-HDMI-A-1"
         session = proc / "1234"
