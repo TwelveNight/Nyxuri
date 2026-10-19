@@ -34,6 +34,10 @@ SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inot
 def prepare_sources(destination: Path) -> None:
     for item in CONFIGS:
         shutil.copytree(ROOT / "units" / item, destination / item, symlinks=True)
+    # This palette is rendered at runtime by the personal Noctalia template.
+    # Carry it across updates before the next login regenerates it.
+    manifest = destination / "niri/manifest.toml"
+    manifest.write_text(manifest.read_text().replace('preserve = [', 'preserve = ["appearance-colors.kdl", ', 1))
     shutil.copytree(ROOT / "units/theme", destination / "noctalia/templates", ignore=shutil.ignore_patterns("manifest.toml", "hooks"))
     shutil.copy2(ROOT / "personal/templates/kitty-nyxuri.conf", destination / "noctalia/templates/kitty-nyxuri.conf")
     shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")

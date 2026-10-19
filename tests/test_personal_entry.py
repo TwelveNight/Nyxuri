@@ -107,9 +107,11 @@ class PersonalEntryTests(unittest.TestCase):
                 custom.write_text('include "remote-panel__custom__.kdl"\n')
                 monitor = profile / "monitor.kdl"
                 monitor.write_text('output "eDP-2" { position x=0 y=0; }\n')
-                before = {p.name: p.read_bytes() for p in (remote, custom, monitor)}
+                palette = profile / "appearance-colors.kdl"
+                palette.write_text('// existing personal colors\n')
+                before = {p.name: p.read_bytes() for p in (remote, custom, monitor, palette)}
                 self.assertEqual(install.main(["--yes"]), 0)
-                self.assertEqual({p.name: p.read_bytes() for p in (remote, custom, monitor)}, before)
+                self.assertEqual({p.name: p.read_bytes() for p in (remote, custom, monitor, palette)}, before)
             self.assertTrue(canonical.is_symlink())
             self.assertEqual(canonical.resolve(), inir)
             self.assertEqual((canonical / "config.kdl").read_text(), '// active iNiR sentinel\n')
