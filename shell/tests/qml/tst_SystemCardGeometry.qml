@@ -1,11 +1,11 @@
 import QtQuick 2.15
 import QtTest 1.3
-import "../../modules/systemcards/SystemCardCatalog.js" as Catalog
-import "../../modules/systemcards/SystemCardGeometry.js" as Geometry
+import "../../shared/cards/SystemCardCatalog.js" as Catalog
+import "../../shared/cards/SystemCardGeometry.js" as Geometry
 
 TestCase {
     function test_sidebarAndDesktopUseTheSameCanonicalSize() {
-        Catalog.ids().forEach(function(id) {
+        Catalog.ids().forEach(function (id) {
             const definition = Catalog.definitionFor(id);
             const size = Geometry.sizeFor(id);
             compare(size.width, Geometry.widthForSpan(definition.columnSpan));
@@ -31,10 +31,14 @@ TestCase {
     }
 
     function test_originalSurfaceCardCatalog() {
-        ["time", "battery", "cpu", "gpu", "memoryUsed", "wifi", "storageCapacity", "weather"].forEach(function(id) {
-            compare(Catalog.definitionFor(id).preserveDefaultSurface, true);
-        });
-        ["network", "storage", "calendar"].forEach(function(id) {
+        ["time", "battery", "cpu", "gpu", "memoryUsed", "wifi", "storageCapacity", "weather"].forEach(
+                                                                                                  function (
+                                                                                                      id) {
+                                                                                                      compare(Catalog.definitionFor(
+                                                                                                                  id).preserveDefaultSurface,
+                                                                                                              true);
+                                                                                                  });
+        ["network", "storage", "calendar"].forEach(function (id) {
             compare(Catalog.definitionFor(id).preserveDefaultSurface, undefined);
         });
     }

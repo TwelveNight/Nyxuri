@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 from nyxuri import core
 from personal import install, update
@@ -54,7 +55,7 @@ def install_desktop(arguments):
 
 
 def management_menu():
-    from nyxuri.i18n import text
+    from nyxuri.core import text
     from nyxuri.tui import Menu, MenuItem, press_any_key
 
     actions = (
@@ -99,6 +100,12 @@ def dispatch(arguments):
               "Other explicit commands use the upstream CLI.")
         return 0
     managed = (core.get_env().config_dir / "desktop-profiles/profiles.json").is_file()
+    if managed and command in ("on", "off", "enable", "disable"):
+        print("Personal profile units are deployed together; use nyxuri install/update.", file=sys.stderr)
+        return 2
+    if managed and command == "preset" and (not rest or rest[0] not in install.CONFIGS):
+        print("Personal presets support niri, noctalia and kitty-nyxuri.", file=sys.stderr)
+        return 2
     if managed and command not in ("doctor", "test", "pkg", "help", "--help", "-h"):
         subprocess.run([str(core.get_env().home / ".local/bin/desktop-profile"), "guard", "nyxuri"], check=True)
     from nyxuri.cli import main as upstream_main
@@ -112,7 +119,14 @@ def dispatch(arguments):
         scoped.state_dir = scoped.home / ".local/state/nyxuri-desktop/manager"
         core._ENV = scoped
     try:
-        upstream_main()
+        if core._ENV is not previous:
+            with tempfile.TemporaryDirectory(prefix="nyxuri-personal-state-") as temporary:
+                scoped.units_src = Path(temporary)
+                scoped.shell_units_src = Path(temporary) / "unused-shell-units"
+                install.prepare_sources(scoped.units_src)
+                upstream_main()
+        else:
+            upstream_main()
     finally:
         core._ENV = previous
     return 0

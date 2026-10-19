@@ -9,6 +9,13 @@ Singleton {
     property var sessionLocker: null
     property var settingsHost: null
     property var sidebarHost: null
+    property var keystoneHost: null
+
+    // Safety fact owned by the lock unit: true while a session lock is
+    // held. The slot host refuses to tear shell.lock down mid-lock, and
+    // the host freezes file watching for the same duration.
+    readonly property bool lockEngaged: root.sessionLocker ? root.sessionLocker.active : false
+
     property string pendingSecurePowerAction: ""
 
     Connections {
@@ -95,6 +102,35 @@ Singleton {
         return root.sidebarHost.toggleSidebar(target || "dashboard") !== "INVALID_SIDE";
     }
 
+    function requestSidebarOpenOnScreen(target, view, screenName) {
+        if (!root.sidebarHost)
+            return false;
+        return root.sidebarHost.openOnScreen(target, view, screenName) !== "INVALID_SIDE";
+    }
+
+    // Cross-domain desktop intents route here (unit-model.md §6). Covers
+    // the gateway-owned intents; module-level capabilities (wallpaper
+    // catalog actions, shortcut map) are bridged by the host's search
+    // executor, which delegates everything else to this function.
+    // Result semantics: "dispatch accepted", not "command completed".
+    function executeIntent(action) {
+        if (!action || !action.target)
+            return false;
+        switch (action.target) {
+        case "lock":
+            return root.powerAction("lock", "launcher:search");
+        case "keystone":
+            return root.keystoneHost ? (root.keystoneHost.invoke(action.method) !== "KEYSTONE_UNAVAILABLE") :
+                                       false;
+        case "sidebar":
+            return root.requestSidebarToggle(action.argument || "dashboard");
+        case "power-menu":
+            return root.requestSessionOpen();
+        default:
+            return false;
+        }
+    }
+
     // Result semantics: the boolean return value means "dispatch accepted",
     // not "command completed". execDetached is fire-and-forget; callers that
     // need user-visible outcome report it themselves (notify-send etc.).
@@ -138,12 +174,19 @@ Singleton {
 
         root.requestSessionClose();
 
-        if (root.sessionLocker) {
-            const result = root.sessionLocker.open();
-            if (result !== "LOCKED" && result !== "ALREADY_LOCKED") {
-                console.warn("[ActionGateway] Locker refused lock before", action, "Result:", result);
-                return;
-            }
+        // shell.lock off: the secure handshake has no owner. Degrade
+        // honestly — run the power action directly instead of parking it
+        // behind a `secured()` that can never fire.
+        if (!root.sessionLocker) {
+            root.pendingSecurePowerAction = action;
+            root.runSecurePowerAction(true);
+            return;
+        }
+
+        const result = root.sessionLocker.open();
+        if (result !== "LOCKED" && result !== "ALREADY_LOCKED") {
+            console.warn("[ActionGateway] Locker refused lock before", action, "Result:", result);
+            return;
         }
 
         root.pendingSecurePowerAction = action;

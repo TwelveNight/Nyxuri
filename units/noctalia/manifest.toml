@@ -1,0 +1,6 @@
+# noctalia theme engine manifest
+packages = ["noctalia", "python-gobject", "gtk-layer-shell", "wl-clipboard", "python-cairo"]
+preserve_values = { "noctalia-config.toml" = ["enable_ddcutil"] }
+chmod = ["wallpaper-hook.sh", "mpvpaper-sync.sh", "tools/*.sh", "tools/*.py"]
+post_install = "render-gtk"
+post_remove = "remove-gtk-css"

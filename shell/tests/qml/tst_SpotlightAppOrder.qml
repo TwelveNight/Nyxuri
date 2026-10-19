@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../modules/launcher/SpotlightAppOrder.js" as AppOrder
+import "../../units/launcher/SpotlightAppOrder.js" as AppOrder
 
 TestCase {
     name: "SpotlightAppOrder"

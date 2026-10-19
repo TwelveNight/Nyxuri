@@ -8,7 +8,7 @@ on already-deployed config files.
 import re
 from typing import Optional
 
-from nyxuri.constants import MAIN_WM, THEME_ENGINE
+from nyxuri.core import MAIN_WM, THEME_ENGINE
 from nyxuri.core import get_env, get_pics_dir
 
 
@@ -45,6 +45,13 @@ def _phase_render_templates(only_app: Optional[str] = None) -> None:
             screenshot_target = f'screenshot-path "{rel_pics}/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"'
             content = re.sub(r'^\s*(//)?\s*screenshot-path\s+.*', lambda _m: screenshot_target, content, flags=re.MULTILINE)
             niri_conf.write_text(content, encoding="utf-8")
+
+    if only_app in (None, "mango"):
+        mango_conf = config_dir / "mango" / "config.conf"
+        if mango_conf.is_file():
+            content = mango_conf.read_text(encoding="utf-8", errors="replace")
+            content = content.replace("/home/user", str(home))
+            mango_conf.write_text(content, encoding="utf-8")
 
     if only_app in (None, "fish"):
         fish_vars = config_dir / "fish" / "fish_variables"

@@ -7,39 +7,29 @@ Nyxuri + Noctalia 使用同一用户，按顺序登录。三套桌面共用 skwd
 
 ## 部署与更新
 
-本分支的 `./install.sh` 保留官方引导校验，在 `exec_python_engine` 中检测目标源码的
-`personal/entry.py`，从隔离 Python 进程进入个人命令分发。没有该文件的源码仍走
-官方 CLI，不以用户安装标记或 cwd 判断。无参数打开个人快捷管理菜单，install、deploy 调用个人部署，
-兼容 full/config 参数但范围相同；--plan 只读，--yes 用于已审阅自动化。
-菜单沿用官方 Menu 界面；安装／更新通过独立进程调用个人入口，诊断、软件列表和
-缓存清理预览使用显式命令。菜单本身不部署，非交互调用直接退出。
+本分支的永久 CLI 为 `nyxuri/launcher.sh`，使用 `python3 -I -S` 进入
+`personal/entry.py`。本地 `install.sh` 保留兼容，转交永久 CLI；独立管道
+引导沿用上游 bootstrap 校验。无参数打开个人管理菜单，install/deploy 部署个人配置，
+--plan 只读，--yes 用于已审阅自动化。
 
-`personal/install.py` 列清单并确认后部署到
-`~/.config/nyxuri-desktop/{niri,noctalia,kitty-nyxuri}`。
-它也可供测试独立调用，不注册 GDM 或 CLI 链接。
-它把 `configs/` 的相关目录复制到临时目录，替换私有路径、shell 入口和壁纸
-请求后，在局部 Environment 下调用 `_phase_atomic_deployment` 和
-`_phase_render_templates`。官方 Dunder／manifest 保留语义继续适用。
-首次部署副本含内部 `effects.kdl → effects_normal.kdl` 链接；更新保留现有链接。
-公共 `~/.config/niri`、ii/iNiR、用户 Portal 路由及 Kitty 基础配置均不部署。
+`personal/install.py` 将 units 的 niri、noctalia、kitty-nyxuri 复制到临时蓝图，
+再经 `_phase_atomic_deployment` 和 `_phase_render_templates` 部署到
+`~/.config/desktop-profiles/nyxuri/{niri,noctalia,kitty-nyxuri}`。
+主题池 units/theme 复制到 Noctalia 的 templates，输入法模板来自
+units/fcitx5-rime/hooks/skin/templates，保留个人配色输出边界。
+Dunder、monitor.kdl、效果状态与 manifest preserve 沿用引擎保留机制。
+配置实体与仓库物理分离；标准链接由 desktop-profile 在登录前选择。
 
-私有管理状态在 `nyxuri-desktop/manager`，运行账本在
-`~/.local/state/nyxuri-desktop/manager`。标记为 `nyxuri-desktop/installed`。
-旧 `nyxuri/personal-mode` 标记仍让公共 CLI 拒绝完整 install/deploy/update，
-新部署不创建它。本分支的标准 bootstrap 先走个人入口，避免触发旧标记的拒绝。
-直接 `python3 -m nyxuri` 仍是公共引擎入口，不用于个人安装更新。
-
-`personal/update.py` 要求干净的 `night/personal-overlay` 和官方 HTTPS origin。
-fetch `origin main` 后 merge `FETCH_HEAD`，失败不部署，不自动 stash/reset/push。
-成功后新进程调用 `./install.sh install`，`--yes` 传给该进程；`--no-deploy` 只合并源码。
-不会自动同步本次开发修改或绕过未提交改动检查。
-此入口不支持选择性回移；上游 KM 架构尚未适配时不用于当前更新。
-已审阅源码的部署仍使用 `./install.sh install`，不重新 fetch 或 merge。
+update 要求干净的个人分支与官方 origin，合并 origin/main，冲突停止。
+--no-deploy 只合并源码，--local 只部署当前源码。更新后通过新进程加载引擎。
+不自动 stash/reset/push。标准流程见 desktop-update 和 iNiR 的
+scripts/personal/DESKTOP-UPDATES.md。个人管理状态在 profile 的 manager，
+运行状态仍在 ~/.local/state/nyxuri-desktop，Noctalia 版本与原运行目录不变。
 
 ## 会话
 
 部署 `nyxuri-niri.service`、`nyxuri-shell.service`、`nyxuri-clipboard.service` 和带目标 HOME 的
-`nyxuri-desktop/nyxuri.desktop`。
+`desktop-profiles/nyxuri/nyxuri.desktop`。
 标准入口在清单确认后，若 GDM 条目缺失或不同，先执行 sudo -v（非交互为 sudo -n -v）。
 认证失败不部署配置。文件部署成功后执行 systemctl --user daemon-reload，再用 sudo install
 注册生成的 desktop 文件到 GDM 系统目录；条目已匹配时跳过 sudo。最后沿用官方
@@ -68,7 +58,7 @@ noctalia/templates/fcitx5，输出限定为共享主题目录内的 theme.conf�
 清除旧 GPU 变量，个人 NVIDIA 三项选择由单元显式设置（见下节）。helper 的锁、pidfd watcher 和会话记录与现有
 Hyprland helper 共用 `$XDG_RUNTIME_DIR/inir`，防止旧会话清理伤及新会话。
 Noctalia 会在 `NOCTALIA_CONFIG_HOME`／`NOCTALIA_STATE_HOME` 后自行追加 `noctalia`。
-配置根变量设为 `~/.config/nyxuri-desktop`，实际读取其 `noctalia/*.toml`。
+配置根变量设为 `~/.config/desktop-profiles/nyxuri`，实际读取其 `noctalia/*.toml`。
 状态根变量继续设为 `~/.local/state/nyxuri-desktop/noctalia`，实际 GUI 状态在
 其 `noctalia/settings.toml`，沿用已生成的私有状态以保留用户偏好。
 runtime 同时确认本次 Shell 拥有托盘总线且 IPC status 返回成功后才报告就绪，
@@ -196,7 +186,7 @@ iNiR 专属的 shell 变量，不改变公共默认配置或系统驱动。渲�
 `personal/monitor.kdl` 是首次部署的个人屏幕默认值：HDMI-A-1 为
 2560×1440 @ 143.995 Hz、缩放 1、位置 (-2560, 80)，eDP-2 关闭。
 已有私有 `niri/monitor.kdl` 继续由 manifest 保留，后续安装不强制恢复这套默认值。
-持久修改使用 `~/.config/nyxuri-desktop/niri/monitor.kdl`；Niri Displays 插件
+持久修改使用 `~/.config/desktop-profiles/nyxuri/niri/monitor.kdl`；Niri Displays 插件
 只通过 IPC 临时调整。`nwg-displays` 默认重载公共配置，不能直接用于本隔离会话。
 
 ## 个人窗口规则
@@ -234,7 +224,7 @@ Firefox Nightly／Brave 与 JetBrains 按原有标题限定；Hermes pet 只匹�
 Super+/ 在个人 binds 中覆盖上游 show-hotkey-overlay，打开社区插件
 `kenn/keybind-cheatsheet:cheatsheet`。`personal/keybind-cheatsheet.toml` 复制为
 私有 Noctalia 的 `zz-personal-cheatsheet.toml`，指定 compositor=niri 及私有
-`~/.config/nyxuri-desktop/niri/config.kdl`，由插件展开 `~` 为当前用户主目录，
+`~/.config/desktop-profiles/nyxuri/niri/config.kdl`，由插件展开 `~` 为当前用户主目录，
 避免遗留 `/home/user` 占位符或读取公共 iNiR 快捷键。插件跟随递归 include
 解析分拆配置；缓存刷新命令为 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh`。
 

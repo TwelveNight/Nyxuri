@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../modules/dock/DockModel.js" as DockModel
+import "../../units/dock/DockModel.js" as DockModel
 
 TestCase {
     name: "DockModel"
@@ -214,6 +214,28 @@ TestCase {
                                                              id: "duplicate"
                                                          }
                                                      ])), null);
+    }
+
+    // KM4: retired option keys (e.g. "enabled", whose existence moved to
+    // the unit ledger) are dropped on decode instead of rejecting the whole
+    // file — existing dock.json files keep loading, and the next save
+    // writes a clean schema.
+    function test_retiredOptionKeysAreDroppedNotRejected() {
+        const decoded = DockModel.decodeConfig(encodedConfig([
+                                                                 {
+                                                                     kind: "app",
+                                                                     desktopId: "org.example.App"
+                                                                 }
+                                                             ], {
+                                                                 enabled: false,
+                                                                 position: "left",
+                                                                 futureUnknownKey: 42
+                                                             }));
+        verify(decoded !== null, "retired/unknown keys must not reject the file");
+        compare(decoded.options.position, "left");
+        compare(decoded.options.enabled, undefined);
+        compare(decoded.options.futureUnknownKey, undefined);
+        compare(DockModel.decodeConfig(JSON.stringify(decoded)), decoded);
     }
 
     function test_invalidConfigMustNotReplaceSavedData() {

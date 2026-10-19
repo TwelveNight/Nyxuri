@@ -219,6 +219,8 @@ Singleton {
         }
         root.activeMode = PersonalizationConfig.themeMode === "light" ? "light" : "dark";
         root.renderQueue = root.enabledTemplateIds();
+        LogService.info("template", "renderAll: " + root.renderQueue.length + " templates (mode="
+                        + root.activeMode + ")");
         root.renderNext();
     }
 
@@ -286,8 +288,11 @@ Singleton {
             root.outputReady = false;
             templateOutput.path = template.outputPath;
         }
-        templateInput.path = template.inputPath;
-        Qt.callLater(templateInput.reload);
+        if (templateInput.path === template.inputPath) {
+            templateInput.reload();
+        } else {
+            templateInput.path = template.inputPath;
+        }
     }
 
     FileView {
@@ -369,6 +374,7 @@ Singleton {
             root.renderSaved();
             return;
         }
+        root.watchStep("Output write");
         templateOutput.setText(root.pendingRendered);
     }
 
@@ -378,6 +384,7 @@ Singleton {
         delete nextErrors[id];
         root.renderErrors = nextErrors;
         root.outputContent = root.pendingRendered;
+        LogService.info("template", "rendered " + id + " → " + root.renderingOutput);
         const hook = root.renderingHook;
         if (hook === "") {
             root.renderDone();
@@ -399,9 +406,10 @@ Singleton {
             "TEMPLATE_DIR": inputDir,
             "HOME": Paths.homeDir,
             "XDG_CONFIG_HOME": Paths.xdgConfigHome,
-            "XDG_CACHE_HOME": Quickshell.env("XDG_CACHE_HOME") || Paths.homeDir + "/.cache"
+            "XDG_CACHE_HOME": Paths.xdgCacheHome
         };
         root.watchStep("Hook");
+        LogService.info("template", "hook: " + hook.substring(0, 80));
         process.running = true;
     }
 
@@ -414,10 +422,13 @@ Singleton {
             process.destroy();
             root.hookProcess = null;
         }
-        if (failed)
+        if (failed) {
+            LogService.error("template", message + " (while running: " + root.renderingHook.substring(0, 80)
+                             + ")");
             root.renderFailed(message);
-        else
+        } else {
             root.renderDone();
+        }
     }
 
     Component {
@@ -425,11 +436,17 @@ Singleton {
 
         Process {
             property bool finished: false
+            stderr: StdioCollector {
+                id: hookStderr
+            }
 
             onExited: exitCode => {
                 if (this.finished)
                     return;
-                root.finishHook(exitCode !== 0, "Hook failed with exit code " + exitCode);
+                const errText = hookStderr.text.trim();
+                const msg = errText !== "" ? ("Hook failed (exit " + exitCode + "): " + errText)
+                                           : ("Hook failed with exit code " + exitCode);
+                root.finishHook(exitCode !== 0, msg);
             }
         }
     }
@@ -456,7 +473,7 @@ Singleton {
         const nextErrors = JSON.parse(JSON.stringify(root.renderErrors));
         nextErrors[id] = message;
         root.renderErrors = nextErrors;
-        console.warn("Template render failed:", id, message);
+        LogService.error("template", "render failed: " + id + " — " + message);
         root.renderDone();
     }
 
@@ -465,7 +482,7 @@ Singleton {
         root.renderingId = "";
         root.renderingOutput = "";
         root.renderingHook = "";
-        root.renderNext();
+        Qt.callLater(root.renderNext);
     }
 
     Connections {
@@ -476,6 +493,7 @@ Singleton {
         }
         function onThemeModeChanged() {
             root.activeMode = PersonalizationConfig.themeMode === "light" ? "light" : "dark";
+            root.renderAll();
         }
     }
 
@@ -574,6 +592,6 @@ Singleton {
             root.hookProcess.destroy();
             root.hookProcess = null;
         }
-        hookWatchdog.stop();
+        stepWatchdog.stop();
     }
 }

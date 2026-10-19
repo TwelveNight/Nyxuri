@@ -34,35 +34,34 @@ class ResourceIntegrityTests(unittest.TestCase):
 
     def test_all_shader_binaries_exist(self):
         """Assert all required GLSL fragment shaders have precompiled .qsb assets."""
-        shaders_dir = SHELL_DIR / "assets" / "shaders"
+
         required_qsbs = [
-            shaders_dir / "keystone" / "qsb" / "long_split.frag.qsb",
-            shaders_dir / "keystone" / "qsb" / "pill_morph.frag.qsb",
-            shaders_dir / "launcher" / "qsb" / "spotlight_mode_field.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_disc.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_fade.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_iris_bloom.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_pixelate.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_portal.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_stripes.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "wp_wipe.frag.qsb",
-            shaders_dir / "wallpaper" / "qsb" / "zen-palette.frag.qsb",
+            SHELL_DIR / "units" / "keystone" / "shaders" / "qsb" / "long_split.frag.qsb",
+            SHELL_DIR / "units" / "keystone" / "shaders" / "qsb" / "pill_morph.frag.qsb",
+            SHELL_DIR / "units" / "launcher" / "shaders" / "qsb" / "spotlight_mode_field.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_disc.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_fade.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_iris_bloom.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_pixelate.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_portal.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_stripes.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "wp_wipe.frag.qsb",
+            SHELL_DIR / "units" / "wallpaper" / "shaders" / "qsb" / "zen-palette.frag.qsb",
         ]
         for qsb in required_qsbs:
             self.assertTrue(qsb.is_file(), f"Missing required precompiled shader: {qsb}")
             self.assertGreater(qsb.stat().st_size, 0, f"Shader file is empty: {qsb}")
 
     def test_zen_palette_renderer_has_no_dangling_qrc(self):
-        """Assert ZenPaletteRenderer.qml uses Paths.fileUrl instead of old qrc:/clavis."""
-        renderer = SHELL_DIR / "modules" / "wallpaper" / "ZenPaletteRenderer.qml"
+        """Assert ZenPaletteRenderer.qml loads the unit-owned precompiled qsb as a real file URL."""
+        renderer = SHELL_DIR / "units" / "wallpaper" / "ZenPaletteRenderer.qml"
         content = renderer.read_text(encoding="utf-8")
         self.assertNotIn("qrc:/", content)
-        self.assertIn("zen-palette.frag.qsb", content)
-        self.assertIn("Paths.fileUrl", content)
+        self.assertIn('Qt.resolvedUrl("shaders/qsb/zen-palette.frag.qsb")', content)
 
     def test_dead_icons_and_svg_icon_eliminated(self):
         """Assert dead unconsumed Font Awesome icons and SvgIcon.qml are removed."""
-        icons_dir = SHELL_DIR / "assets" / "icons"
+        icons_dir = SHELL_DIR / "app" / "icons"
         for dead_icon in ["play.svg", "pause.svg", "previous.svg", "next.svg"]:
             self.assertFalse((icons_dir / dead_icon).exists(), f"Dead icon must be removed: {dead_icon}")
         svg_icon = SHELL_DIR / "shared" / "controls" / "SvgIcon.qml"
@@ -70,7 +69,7 @@ class ResourceIntegrityTests(unittest.TestCase):
 
     def test_active_icons_complete(self):
         """Assert humidity and keyboard icons are intact."""
-        icons_dir = SHELL_DIR / "assets" / "icons"
+        icons_dir = SHELL_DIR / "app" / "icons"
         for pct in [7, 30, 50, 75, 90]:
             self.assertTrue((icons_dir / f"humidity_percent_{pct}.svg").is_file())
 
@@ -84,8 +83,8 @@ class ResourceIntegrityTests(unittest.TestCase):
     def test_toml_i18n_syntax_and_dead_section_purged(self):
         """Assert zh_CN.toml and en_US.toml parse cleanly with tomllib and have no dead sections."""
         import tomllib
-        zh_cn_path = SHELL_DIR / "assets" / "i18n" / "zh_CN.toml"
-        en_us_path = SHELL_DIR / "assets" / "i18n" / "en_US.toml"
+        zh_cn_path = SHELL_DIR / "app" / "i18n" / "zh_CN.toml"
+        en_us_path = SHELL_DIR / "app" / "i18n" / "en_US.toml"
 
         with open(zh_cn_path, "rb") as f:
             zh_data = tomllib.load(f)
@@ -98,7 +97,7 @@ class ResourceIntegrityTests(unittest.TestCase):
 
     def test_builtin_templates_exist(self):
         """Assert the Noctalia-syntax builtin template pool is complete."""
-        t_dir = SHELL_DIR / "assets" / "templates"
+        t_dir = SHELL_DIR / "app" / "templates"
         for t_file in ["config.toml", "kitty/kitty.conf", "kitty/kitty-apply.sh",
                        "btop/btop.theme", "btop/btop-apply.sh",
                        "starship/starship.toml", "starship/starship-apply.sh"]:
@@ -114,7 +113,12 @@ def build_category_suite(category: str) -> unittest.TestSuite:
         # Lifecycle and boundary tests
         from shell.tests.test_lifecycle_audit import TestLifecycleAudit
         suite.addTests(loader.loadTestsFromTestCase(TestLifecycleAudit))
-        from tests.test_shell import TestShellManagement
+        from shell.tests.test_unit_catalog import (TestUnitCatalogSync, TestHostClosure,
+                                                   TestEventLoop)
+        suite.addTests(loader.loadTestsFromTestCase(TestUnitCatalogSync))
+        suite.addTests(loader.loadTestsFromTestCase(TestHostClosure))
+        suite.addTests(loader.loadTestsFromTestCase(TestEventLoop))
+        from tests.shell.test_shell import TestShellManagement
         static_test_names = [
             "test_p2_layer_structure_and_session_decoupling",
             "test_p3_settings_decoupling_and_module_structure",
@@ -139,7 +143,7 @@ def build_category_suite(category: str) -> unittest.TestSuite:
         suite.addTests(loader.loadTestsFromTestCase(OutputContracts))
         from shell.tests.test_search_catalog import CatalogTests
         suite.addTests(loader.loadTestsFromTestCase(CatalogTests))
-        from tests.test_shell import TestShellManagement
+        from tests.shell.test_shell import TestShellManagement
         logic_test_names = [
             "test_p3_r10_20x_lifecycle_simulation",
             "test_r2_startup_closure_and_lazy_hosts",
@@ -151,7 +155,7 @@ def build_category_suite(category: str) -> unittest.TestSuite:
     elif category == "RESOURCE":
         # Resource integrity, shaders, icons, i18n
         suite.addTests(loader.loadTestsFromTestCase(ResourceIntegrityTests))
-        from tests.test_shell import TestShellManagement
+        from tests.shell.test_shell import TestShellManagement
         resource_test_names = [
             "test_r3_brand_paths_and_toml_i18n_contracts",
             "test_r4c_i18n_service_and_catalog_contracts",
@@ -165,9 +169,9 @@ def build_category_suite(category: str) -> unittest.TestSuite:
         # Native IPC, command line arguments, process lifecycle
         from shell.tests.test_display_preview import PreviewContracts
         suite.addTests(loader.loadTestsFromTestCase(PreviewContracts))
-        from tests.test_shell_runtime import ShellLauncherTests
+        from tests.shell.test_shell_runtime import ShellLauncherTests
         suite.addTests(loader.loadTestsFromTestCase(ShellLauncherTests))
-        from tests.test_shell import TestShellManagement
+        from tests.shell.test_shell import TestShellManagement
         native_test_names = [
             "test_default_shell_is_noctalia",
             "test_set_shell_valid",
@@ -189,7 +193,7 @@ def build_category_suite(category: str) -> unittest.TestSuite:
 
     elif category == "GRAPHICS":
         # Presentation under Weston Wayland
-        from tests.test_shell_runtime import ShellPresentationTests
+        from tests.shell.test_shell_runtime import ShellPresentationTests
         suite.addTests(loader.loadTestsFromTestCase(ShellPresentationTests))
 
     return suite

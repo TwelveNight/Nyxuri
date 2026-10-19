@@ -4,8 +4,8 @@
  * (github.com/material-foundation/material-color-utilities), npm package
  * @material/material-color-utilities 0.3.0, files math_utils.js,
  * color_utils.js, viewing_conditions.js, cam16.js, hct_solver.js and hct.js.
- * See assets/licenses/README.md (Material Color Utilities) and
- * assets/licenses/M3Shapes-Apache-2.0.txt for the verbatim license.
+ * See the LICENSE third-party appendix (Material Color Utilities) and
+ * the LICENSE third-party appendix for the verbatim license.
  *
  * Consolidated into one .pragma library for QML: ESM imports were flattened,
  * dead exports trimmed; the math is byte-identical to upstream.

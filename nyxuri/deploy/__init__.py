@@ -1,5 +1,5 @@
-"""Deploy subpackage — atomic swap, manifest, templates, assets,
-preset, and the deploy orchestrator.
+"""Deploy subpackage — atomic swap, manifest, templates, preset, and the
+deploy orchestrator.
 
 Re-exports keep external imports shallow (§13). For test patching, address the
 defining submodule directly (e.g. nyxuri.deploy.atomic.atomic_replace_item).
@@ -15,26 +15,15 @@ from nyxuri.deploy.manifest import (
     discover_optional_apps,
 )
 from nyxuri.deploy.templates import _phase_render_templates
-from nyxuri.deploy.assets import (
-    WallpaperDeployResult,
-    deploy_wallpapers,
-    wallpapers_pack_present,
-)
 from nyxuri.deploy.preset import (
     InvalidActivePresetError,
-    PresetInfo,
     read_active_preset,
     write_active_preset,
     resolve_preset_src,
-    apply_preset,
-    collect_presets,
-    get_preset_info,
-    list_presets,
-    save_preset,
-    delete_preset,
-    edit_preset,
 )
 from nyxuri.deploy.deploy import (
+    config_item_dest,
+    config_item_src,
     discover_config_items,
     _phase_atomic_deployment,
     _phase_post_install_services,
@@ -46,11 +35,9 @@ from nyxuri.deploy.deploy import (
 
 __all__ = [
     "atomic_replace_item", "discover_config_items", "deploy_selected_configs",
-    "deploy_wallpapers", "wallpapers_pack_present", "render_completion_screen",
+    "render_completion_screen",
     "run_user_hooks", "test_deploy",
     "read_active_preset", "write_active_preset", "InvalidActivePresetError", "resolve_preset_src",
-    "apply_preset", "collect_presets", "list_presets", "save_preset",
-    "delete_preset", "edit_preset", "get_preset_info", "PresetInfo",
     "load_manifest", "load_manifest_for", "discover_manifest_apps",
     "discover_deployable_apps", "discover_optional_apps", "ModuleManifest",
 ]

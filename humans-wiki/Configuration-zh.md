@@ -1,18 +1,22 @@
 ```text
 Nyxuri
 ├── install.sh                  # 极简引导入口
+├── catalog.toml                # 软件目录清单（17 款日常软件同源依赖）
 ├── nyxuri/                     # Python 核心引擎（零 pip 依赖）
-├── assets/                     # 静态资产（壁纸、fcitx5 皮肤模板）
-└── configs/
-    ├── niri/                   # 窗口管理器（.kdl、.toml）
-    │   └── scripts/            # Orbit 启动器、壁纸选择器、Scratchpad 脚本
-    ├── noctalia/               # 桌面 Shell 与主题同步
+├── shell/                      # Nyxuri Shell（自研 QML/Qt6 桌面外壳，实验性）
+└── units/                      # 12 个独立原子桌面能力单元
+    ├── fastfetch/              # 系统信息展示
+    ├── fcitx5-rime/            # 动态 Material You 输入法皮肤与配置
+    ├── fish/                   # Shell 别名与实用函数
+    ├── greeter/                # Noctalia Greeter 登录界面集成
+    ├── kitty/                  # 终端模拟器与透明度预设
+    ├── mango/                  # MangoWM 窗口管理器与动作调度脚本
+    ├── niri/                   # 窗口管理器与动作调度脚本
+    ├── noctalia/               # 桌面外壳、主题同步、Orbit 星环与壁纸选择器
+    ├── starship/               # 终端提示符
+    ├── wallpapers/             # 配套壁纸与动态视频包下载钩子
     ├── xdg-desktop-portal/     # Portal 路由（主题与录屏分流）
-    ├── kitty/                  # 终端
-    ├── fish/                   # 别名与函数
-    ├── fastfetch/              # 系统信息
-    ├── zed/                    # 编辑器
-    └── starship.toml           # 提示符
+    └── zed/                    # 代码编辑器配置
 ```
 
 配置采用原子部署。个人改动通过 Dunder 协议保留：
@@ -31,6 +35,12 @@ Nyxuri
 
 ---
 
-## 部署后钩子
+## 钩子机制与分层
 
-把自己的收尾脚本放进 `~/.config/nyxuri/hooks/`，每次正常部署完成后会按文件名字典序执行其中的 `.sh`。单个脚本最多运行 30 秒；失败或超时会提示，但不会阻塞后续脚本。`nyxuri test` 不会执行这些钩子，普通卸载也会保留它们。
+Nyxuri 将自动化收尾严格区分为两个物理层级：
+
+### 1. 用户部署后钩子 (`~/.config/nyxuri/hooks/`)
+把个人的收尾脚本放进 `~/.config/nyxuri/hooks/`。每次正常部署（`nyxuri install` 或更新）完成后，会按文件名字典序执行其中的 `.sh` 脚本。单个脚本执行限时 30 秒；失败或超时仅记录警告，不阻塞后续流程。`nyxuri test` 会跳过用户钩子，常规卸载也会保留它们。
+
+### 2. 单元生命周期钩子 (`units/<unit>/hooks/`)
+单元通过自身的 `units/<unit>/manifest.toml` 声明受控副作用（如 `post_install = "setup-rime"` 或壁纸大包下载 `install-pack`）。这些钩子由单元自身持有，仅由内核事务引擎在单元启用（`nyxuri on`）、停用（`nyxuri off`）或更新重放（`replay_enabled_hooks()`）时调度执行。用户无需向此处放置文件。

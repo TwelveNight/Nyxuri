@@ -9,7 +9,7 @@ from tests.utils import TempEnv
 
 class TestSelectiveUpstreamSafety(unittest.TestCase):
     def test_long_preset_name_can_be_saved_twice(self):
-        from nyxuri.deploy.preset import save_preset
+        from nyxuri.desktop.presets import save_preset
 
         with TempEnv() as ctx:
             live = ctx.env.config_dir / "kitty"
@@ -26,12 +26,12 @@ class TestSelectiveUpstreamSafety(unittest.TestCase):
 
     def test_manifest_chmod_stays_inside_the_deployed_tree(self):
         from nyxuri.deploy.deploy import _phase_atomic_deployment
-        from nyxuri.deploy.preset import apply_preset
+        from nyxuri.desktop.presets import apply_preset
 
         for route in ("deploy", "preset"):
             with self.subTest(route=route), TempEnv() as ctx:
-                ctx.env.configs_src = ctx.home / "source"
-                app = ctx.env.configs_src / "demo"
+                ctx.env.units_src = ctx.home / "source"
+                app = ctx.env.units_src / "demo"
                 scripts = app / "scripts"
                 scripts.mkdir(parents=True)
                 (app / "config.conf").write_text("base\n")
@@ -43,7 +43,7 @@ class TestSelectiveUpstreamSafety(unittest.TestCase):
                 victim.chmod(0o600)
                 (scripts / "escape.sh").symlink_to(victim)
                 patterns = ["", str(victim), "../victim", "scripts/*.sh"]
-                (app / ".module.toml").write_text("[packages]\nchmod = " + json.dumps(patterns) + "\n")
+                (app / "manifest.toml").write_text("chmod = " + json.dumps(patterns) + "\n")
                 with patch("builtins.print"):
                     if route == "deploy":
                         self.assertEqual(_phase_atomic_deployment(["demo"]), [])
@@ -55,7 +55,7 @@ class TestSelectiveUpstreamSafety(unittest.TestCase):
                 self.assertEqual(deployed.stat().st_mode & 0o777, 0o755)
 
     def test_save_promotion_failure_keeps_the_existing_preset(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
 
         with TempEnv() as ctx:
             live = ctx.env.config_dir / "kitty"
@@ -77,7 +77,7 @@ class TestSelectiveUpstreamSafety(unittest.TestCase):
             self.assertEqual([path.name for path in saved.parent.iterdir()], ["mine"])
 
     def test_failed_promotion_and_restore_retain_the_old_backup(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
 
         with TempEnv() as ctx:
             live = ctx.env.config_dir / "kitty"
@@ -104,7 +104,7 @@ class TestSelectiveUpstreamSafety(unittest.TestCase):
             self.assertTrue(any(str(backup) in call.args[1] for call in log.call_args_list))
 
     def test_save_rejects_a_symlinked_preset_without_touching_its_target(self):
-        from nyxuri.deploy.preset import save_preset
+        from nyxuri.desktop.presets import save_preset
 
         with TempEnv() as ctx:
             live = ctx.env.config_dir / "kitty"
@@ -122,21 +122,15 @@ class TestSelectiveUpstreamSafety(unittest.TestCase):
             self.assertEqual((target / "kitty.conf").read_text(), "keep\n")
 
     def test_fcitx_write_does_not_modify_a_symlink_target(self):
-        from nyxuri.modules.fcitx import _write_config
-
+        import runpy
+        root = Path(__file__).resolve().parent.parent
+        hook = runpy.run_path(str(root / "units/fcitx5-rime/hooks/activate"))
         with TempEnv() as ctx:
             original = ctx.home / "user-owned.conf"
             original.write_text("keep\n")
             config = ctx.env.config_dir / "classicui.conf"
             config.symlink_to(original)
-            _write_config(config, "replacement\n")
+            hook["_atomic_write"](config, "replacement\n")
             self.assertEqual(original.read_text(), "keep\n")
             self.assertFalse(config.is_symlink())
             self.assertEqual(config.read_text(), "replacement\n")
-
-    def test_rime_setup_returns_false_on_filesystem_failure(self):
-        from nyxuri.modules.fcitx import setup_rime_ice
-
-        with TempEnv(), patch.object(Path, "mkdir", side_effect=PermissionError("denied")), \
-             patch("builtins.print"):
-            self.assertFalse(setup_rime_ice())

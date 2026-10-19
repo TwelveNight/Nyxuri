@@ -77,11 +77,11 @@ UI_IO_ALLOWED_SUFFIXES = (
 )
 UI_IO_ALLOWLIST = {
     # lock domain root: owns its own session marker file (single FileView)
-    "modules/lock/Lock.qml",
+    "units/lock/Lock.qml",
     # pre-lock screen capture session inside the lock domain
-    "modules/lock/PreLockCapture.qml",
+    "units/lock/PreLockCapture.qml",
     # keystone cover-art palette extraction (domain singleton)
-    "modules/keystone/media/MediaPalette.qml",
+    "units/keystone/media/MediaPalette.qml",
 }
 
 
@@ -267,9 +267,9 @@ def check_file_violations(
                 violations.append(
                     AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing app/ is prohibited in shared/")
                 )
-            if re.search(r"\bimport\s+qs\.modules\b", line):
+            if re.search(r"\bimport\s+qs.units\b", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing modules/ is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing units/ is prohibited in shared/")
                 )
             if re.search(r"\bimport\s+Quickshell\.Io\b", line):
                 violations.append(
@@ -310,10 +310,10 @@ def check_file_violations(
                     )
                 )
 
-    # 2b. LIFE008: UI-layer direct I/O (modules/ views and app/ top level).
+    # 2b. LIFE008: UI-layer direct I/O (units/ views and app/ top level).
     # Domain services under app/services/ are exempt by layer definition.
     is_ui_layer = ui_layer_override if ui_layer_override is not None else (
-        rel_path.startswith("modules/") or (rel_path.startswith("app/") and "app/services/" not in rel_path)
+        rel_path.startswith("units/") or (rel_path.startswith("app/") and "app/services/" not in rel_path)
     )
     if is_ui_layer and not is_gateway:
         declares_io = re.search(r"\b(FileView|Process)\s*\{|property\s+(Process|FileView)\b", content) is not None
@@ -372,12 +372,12 @@ def check_file_violations(
                 )
 
     is_allowed_fallback = any(rel_path.endswith(allowed) for allowed in ALLOWED_OPTIONAL_IMPORTERS)
-    is_settings = "modules/settings" in rel_path and not rel_path.endswith("WeatherMapBackend.qml")
+    is_settings = "units/settings" in rel_path and not rel_path.endswith("WeatherMapBackend.qml")
     for idx, line in enumerate(lines, 1):
         stripped = line.strip()
         if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
             continue
-        # In modules/settings, static import of WeatherMap is prohibited
+        # In units/settings, static import of WeatherMap is prohibited
         if is_settings and re.search(r"\bimport\s+Clavis\.WeatherMap\b", line):
             violations.append(
                 AuditViolation(
@@ -522,9 +522,9 @@ def check_file_violations(
                 )
             )
 
-    # 9. ARCH001: Forbidden cross-domain import in modules/
+    # 9. ARCH001: Forbidden cross-domain import in units/
     parts = rel_path.split("/")
-    if rel_path.startswith("modules/") or module_domain_override is not None:
+    if rel_path.startswith("units/") or module_domain_override is not None:
         curr_domain = module_domain_override if module_domain_override is not None else (parts[1].lower() if len(parts) >= 3 else "")
         if curr_domain:
             allowed_targets = ALLOWED_MODULE_CROSS_IMPORTS.get(curr_domain, set())
@@ -532,7 +532,7 @@ def check_file_violations(
                 stripped = line.strip()
                 if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
                     continue
-                match_mod = re.search(r"\bimport\s+qs\.modules\.([A-Za-z0-9_]+)\b", line)
+                match_mod = re.search(r"\bimport\s+qs.units\.([A-Za-z0-9_]+)\b", line)
                 if match_mod:
                     target_domain = match_mod.group(1).lower()
                     if target_domain != curr_domain and target_domain not in allowed_targets:
@@ -572,8 +572,8 @@ def build_inventory_entry(
     parts = rel_path.split("/")
     if len(parts) >= 2 and parts[0] == "app":
         module = "app/" + parts[1].replace(".qml", "")
-    elif len(parts) >= 3 and parts[0] == "modules":
-        module = "modules/" + parts[1]
+    elif len(parts) >= 3 and parts[0] == "units":
+        module = "units/" + parts[1]
     elif len(parts) >= 2 and parts[0] == "shared":
         module = "shared/" + parts[1]
     else:
@@ -802,7 +802,7 @@ def get_git_changed_files(repo_root: Path) -> List[Path]:
 
 
 def get_all_target_files(repo_root: Path) -> List[Path]:
-    target_dirs = ["app", "modules", "shared"]
+    target_dirs = ["app", "units", "shared"]
     result: List[Path] = []
     for d in target_dirs:
         dir_path = repo_root / d
@@ -838,7 +838,7 @@ def main() -> int:
     else:
         # Check if current directory or script parent is shell root
         cwd = Path.cwd()
-        if (cwd / "app").is_dir() and (cwd / "modules").is_dir():
+        if (cwd / "app").is_dir() and (cwd / "units").is_dir():
             root_path = cwd
         elif (cwd / "shell" / "app").is_dir():
             root_path = cwd / "shell"

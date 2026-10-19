@@ -3,10 +3,10 @@ import QtQuick
 import Quickshell
 import qs.app
 import qs.app.services
-import qs.modules.wallpaper
+import qs.units.wallpaper
 import qs.shared.theme
-import "../../modules/settings/generated/SearchCatalog.js" as Catalog
-import "../../modules/launcher/SpotlightCommands.js" as Commands
+import "../../units/settings/generated/SearchCatalog.js" as Catalog
+import "../../units/launcher/SpotlightCommands.js" as Commands
 import qs.shared.i18n
 
 Singleton {
@@ -42,7 +42,8 @@ Singleton {
         return routes.find(entry => entry.id === id || (entry.aliases && entry.aliases.includes(id))) || null;
     }
     function setting(id) {
-        return settings.find(entry => entry.id === id || (entry.aliases && entry.aliases.includes(id))) || null;
+        return settings.find(entry => entry.id === id || (entry.aliases && entry.aliases.includes(id)))
+                || null;
     }
     function action(id) {
         return actions.find(entry => entry.id === id) || null;

@@ -16,10 +16,10 @@ from nyxuri import core
 from personal.autostart import disable_todesk
 from personal.cheatsheet_categories import annotate
 from nyxuri.deploy.atomic import atomic_replace_item
-from nyxuri.deploy.assets import deploy_wallpapers
+from personal.assets import deploy_wallpapers
 from nyxuri.deploy.deploy import _phase_atomic_deployment
 from nyxuri.deploy.templates import _phase_render_templates
-from nyxuri.modules.fcitx import FCITX_CLASSICUI_RELOAD_HOOK
+FCITX_CLASSICUI_RELOAD_HOOK = "busctl --user --auto-start=no call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 ReloadAddonConfig s classicui >/dev/null 2>&1 || true"
 
 CONFIGS = ("niri", "noctalia", "kitty-nyxuri")
 AUTOSTART_UNITS = (
@@ -33,7 +33,9 @@ SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inot
 
 def prepare_sources(destination: Path) -> None:
     for item in CONFIGS:
-        shutil.copytree(ROOT / "configs" / item, destination / item, symlinks=True)
+        shutil.copytree(ROOT / "units" / item, destination / item, symlinks=True)
+    shutil.copytree(ROOT / "units/theme", destination / "noctalia/templates", ignore=shutil.ignore_patterns("manifest.toml", "hooks"))
+    shutil.copy2(ROOT / "personal/templates/kitty-nyxuri.conf", destination / "noctalia/templates/kitty-nyxuri.conf")
     shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")
     shutil.copy2(ROOT / "personal/keybind-cheatsheet.toml", destination / "noctalia/zz-personal-cheatsheet.toml")
     shutil.copy2(ROOT / "personal/noctalia-bongocat.toml", destination / "noctalia/zz-personal-bongocat.toml")
@@ -49,6 +51,7 @@ def prepare_sources(destination: Path) -> None:
             continue
         for name in ("nyxuri", "nyxniri"):
             content = content.replace(f".cache/{name}/", ".cache/nyxuri-desktop/")
+        content = content.replace(".config/nyxuri/templates/", ".config/noctalia/templates/")
         content = content.replace(".local/state/noctalia/mpvpaper", ".local/state/nyxuri-desktop/noctalia/mpvpaper")
         content = content.replace(".cache/noctalia/mpvpaper", ".cache/nyxuri-desktop/mpvpaper")
         content = content.replace('cache_base .. "/noctalia/mpvpaper"', 'cache_base .. "/nyxuri-desktop/mpvpaper"')
@@ -152,7 +155,7 @@ def prepare_sources(destination: Path) -> None:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
     # Fcitx is an explicitly shared application theme, owned by the current desktop.
     fcitx_templates = destination / "noctalia/templates/fcitx5"
-    shutil.copytree(ROOT / "assets/fcitx5/nyxmellow/templates", fcitx_templates, dirs_exist_ok=True)
+    shutil.copytree(ROOT / "units/fcitx5-rime/hooks/skin/templates", fcitx_templates, dirs_exist_ok=True)
     for index, (suffix, filename) in enumerate((("theme", "theme.conf"), ("panel", "panel.svg"), ("highlight", "highlight.svg")), 8):
         policy += [f"[theme.templates.user.nyxmellow_{suffix}]", "enabled = true", f"index = {index}",
                    f'input_path = "/home/user/.config/noctalia/templates/fcitx5/{filename}"',
@@ -219,8 +222,8 @@ def main(argv=None, preflight=None) -> int:
     previous = core._ENV
     try:
         with tempfile.TemporaryDirectory(prefix="nyxuri-personal-") as temporary:
-            scoped.configs_src = Path(temporary)
-            prepare_sources(scoped.configs_src)
+            scoped.units_src = Path(temporary)
+            prepare_sources(scoped.units_src)
             core._ENV = scoped
             if _phase_atomic_deployment(list(CONFIGS)):
                 return 1

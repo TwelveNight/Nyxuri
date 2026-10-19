@@ -1,5 +1,5 @@
 ### English
-- [Configuration](Configuration)
+- [Units & Configuration](Configuration)
 - [Presets & Parts](Presets)
 - [Keybindings](Keybindings)
 - [CLI Reference](CLI-Reference)
@@ -8,7 +8,7 @@
 ---
 
 ### 简体中文
-- [包含配置与自定义](Configuration-zh)
+- [单元架构与自定义](Configuration-zh)
 - [预设与零件体系](Presets-zh)
 - [快捷键全景图](Keybindings-zh)
 - [CLI 命令参考手册](CLI-Reference-zh)

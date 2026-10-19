@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
-import "../../modules/sidebars/dashboard/drawer/DrawerGridLayout.js" as GridLayout
-import "../../modules/systemcards/SystemCardCatalog.js" as Catalog
+import "../../units/sidebars/dashboard/drawer/DrawerGridLayout.js" as GridLayout
+import "../../shared/cards/SystemCardCatalog.js" as Catalog
 
 TestCase {
     name: "DrawerGridLayout"

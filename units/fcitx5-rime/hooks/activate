@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""fcitx5-rime on-hook: deploy the NyxMellow skin and mount rime_ice.
+
+Unit-owned behavior (KM3): executed by the transaction from
+`nyxuri on fcitx5-rime`. The living-area files (classicui.conf, profile)
+are blueprint+preserve owned — this hook only touches the side domains
+(~/.local/share skin assets, rime schema patch) and triggers renders.
+May use the nyxuri kernel only — never nyxuri.modules (retired at KM3).
+"""
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # standalone runs
+
+from nyxuri.deploy.atomic import atomic_replace_item  # noqa: E402
+
+THEME = "nyxmellow"
+SCHEMA = "rime_ice"
+OWNED_MARKER = f"fcitx-{THEME}-rime.owned"
+
+RELOAD_CLASSICUI = [
+    "busctl", "--user", "--auto-start=no", "call", "org.fcitx.Fcitx5", "/controller",
+    "org.fcitx.Fcitx.Controller1", "ReloadAddonConfig", "s", "classicui",
+]
+RELOAD_CONFIG = [
+    "busctl", "--user", "--auto-start=no", "call", "org.fcitx.Fcitx5", "/controller",
+    "org.fcitx.Fcitx.Controller1", "ReloadConfig",
+]
+
+
+def _timed(argv, timeout, **kwargs):
+    """Best-effort run: missing binary / timeout / nonzero are all non-fatal."""
+    try:
+        return subprocess.run(argv, timeout=timeout, check=False, **kwargs)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp-")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    os.replace(tmp, path)
+
+
+def _read_owned(marker: Path) -> set:
+    try:
+        return {n for n in marker.read_text(encoding="utf-8").split() if n}
+    except OSError:
+        return set()
+
+
+def deploy_skin(unit_src: Path) -> bool:
+    """Copy the pinned skin templates into the fcitx5 data domain."""
+    source = unit_src / "hooks" / "skin" / "templates"
+    if not source.is_dir():
+        print(f"[!] skin payload missing in unit blueprint: {source}")
+        return False
+    theme_dir = Path.home() / ".local/share/fcitx5/themes" / THEME
+    if not atomic_replace_item(source, theme_dir / "templates"):
+        print("[!] skin template deploy failed")
+        return False
+    return True
+
+
+def mount_rime(rime_dir: Path, marker: Path) -> None:
+    """Idempotently patch default.custom.yaml toward rime_ice, then precompile."""
+    rime_dir.mkdir(parents=True, exist_ok=True)
+    custom_yaml = rime_dir / "default.custom.yaml"
+    owned = set()
+
+    if not (custom_yaml.is_file() and SCHEMA in custom_yaml.read_text(encoding="utf-8")):
+        patched = False
+        if shutil.which("rime_deployer"):
+            res = _timed(["rime_deployer", "--add-schema", SCHEMA], 15, cwd=str(rime_dir))
+            patched = bool(res and res.returncode == 0)
+            if patched:
+                owned.add(custom_yaml.name)
+        if not patched:
+            if custom_yaml.is_file() and custom_yaml.read_text(encoding="utf-8").strip():
+                content = custom_yaml.read_text(encoding="utf-8")
+                if "patch:" in content and "schema_list:" in content:
+                    content = content.replace("schema_list:\n", "schema_list:\n    - schema: rime_ice\n", 1)
+                elif "patch:" in content:
+                    content = content.rstrip() + "\n  schema_list:\n    - schema: rime_ice\n"
+                else:
+                    content = content.rstrip() + "\n\npatch:\n  schema_list:\n    - schema: rime_ice\n"
+            else:
+                content = "patch:\n  schema_list:\n    - schema: rime_ice\n"
+            _atomic_write(custom_yaml, content)
+            owned.add(custom_yaml.name)
+
+    shared = Path("/usr/share/rime-data")
+    if shutil.which("rime_deployer") and shared.is_dir():
+        _timed(["rime_deployer", "--build", str(rime_dir), str(shared), str(rime_dir / "build")], 45)
+        _timed(["rime_deployer", "--set-active-schema", SCHEMA], 15, cwd=str(rime_dir))
+    else:
+        user_yaml = rime_dir / "user.yaml"
+        if not user_yaml.is_file():
+            _atomic_write(user_yaml, "var:\n  previously_selected_schema: rime_ice\n")
+            owned.add(user_yaml.name)
+
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        previous = _read_owned(marker)
+        marker.write_text(
+            "\n".join(sorted(previous | owned)) + ("\n" if previous or owned else ""),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+def main() -> int:
+    home = Path.home()
+    unit_src = Path(os.environ.get("NYXURI_UNIT_SRC", Path(__file__).resolve().parents[2]))
+
+    if not deploy_skin(unit_src):
+        return 1
+    mount_rime(home / ".local/share/fcitx5/rime", home / ".local/state/nyxuri" / OWNED_MARKER)
+
+    # Best-effort activations: noctalia renders the skin with the current
+    # palette; fcitx5 picks the theme up live via its D-Bus controller.
+    if shutil.which("noctalia"):
+        for verb, timeout in (("config-reload", 15), ("templates-apply", 30)):
+            _timed(["noctalia", "msg", verb], timeout,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        print("[!] noctalia CLI not in PATH; skin render pending until next deploy")
+    if shutil.which("busctl"):
+        _timed(RELOAD_CLASSICUI, 5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _timed(RELOAD_CONFIG, 5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    print("[✓] NyxMellow skin deployed, rime_ice mounted")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

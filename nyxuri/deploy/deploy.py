@@ -1,3 +1,4 @@
+from nyxuri.deploy.atomic import apply_executable_permissions
 """Deploy orchestrator — config discovery, atomic-deploy phase, post-install
 services, completion screen, fisher uninstall, and the deploy/test entry points.
 
@@ -6,25 +7,30 @@ assets (wallpapers), manifest (app discovery), preset
 (active variant). Modules/state/deps are lazy-imported to avoid cycles.
 """
 
+import os
 import shutil
 import sys
 import time
 from contextlib import ExitStack
 from typing import List, Optional
 
-from nyxuri.constants import Colors, REPO_URL, THEME_ENGINE
+from nyxuri.core import Colors, REPO_URL, THEME_ENGINE
 from nyxuri.core import get_env, log_msg, timed_run
-from nyxuri.i18n import msg
+from nyxuri.core import msg
 from nyxuri.tui import read_key, responsive_hint, show_logo, raw_input_mode, _drain_pending
 
 from nyxuri.deploy.atomic import (
-    apply_executable_permissions,
     atomic_replace_item,
 )
-from nyxuri.deploy.assets import WallpaperDeployResult, deploy_wallpapers, wallpapers_pack_present
-from nyxuri.deploy.manifest import ModuleManifest, discover_deployable_apps, load_manifest
+from nyxuri.deploy.manifest import (
+    ModuleManifest,
+    discover_deployable_apps,
+    load_manifest,
+    living_path,
+)
 from nyxuri.deploy.preset import (
     InvalidActivePresetError,
+    PresetSrcResult,
     read_active_preset,
     resolve_preset_src,
     write_active_preset,
@@ -45,6 +51,23 @@ def discover_config_items() -> List[str]:
     _CONFIG_ITEMS_CACHE = discover_deployable_apps()
     return _CONFIG_ITEMS_CACHE
 
+
+def config_item_dest(item: str) -> Path:
+    """Living-space path for a unit: ``~/.config/<target>`` for single-file
+    units, else ``~/.config/<item>`` (unit-model.md §4 target exception)."""
+    from nyxuri.core import get_env
+    m = load_manifest(get_env().units_src / item)
+    return living_path(m, get_env().config_dir)
+
+
+def config_item_src(item: str) -> Path:
+    """Blueprint payload path for a unit: the target file itself for
+    single-file units, else the unit directory."""
+    from nyxuri.core import get_env
+    m = load_manifest(get_env().units_src / item)
+    src = get_env().units_src / item
+    return src / m.target if m.target else src
+
 def _phase_atomic_deployment(
     items_to_deploy: List[str],
     keep_preserved: bool = True,
@@ -63,42 +86,58 @@ def _phase_atomic_deployment(
 
     failed_items: List[str] = []
     for item in items_to_deploy:
-        dest = config_dir / item
-
-        # Resolve which source tree to deploy: default config, an official
-        # preset, or a user preset — based on the app's active state file.
-        try:
-            active = read_active_preset(item)
-        except InvalidActivePresetError:
-            print(msg("preset_warn_invalid_active", item))
-            log_msg("WARN", f"Invalid active preset state for {item}; dest frozen, skipped")
-            continue
-        result = resolve_preset_src(item, active, dest)
-        for w in result.warnings:
-            print(w)
-        if result.src is None:
-            # Preset not found anywhere — freeze dest, do not fall back to
-            # default (would silently wipe the user's config). §3.2
-            log_msg("WARN", f"Preset '{active}' for {item} not found; dest frozen, skipped")
-            continue
-        src = result.src
-        # dest-missing reset: sanctioned write-before-deploy (dest is empty,
-        # so a half-written state self-heals next run). §3.2
-        if result.reset_active is not None:
-            try:
-                write_active_preset(item, result.reset_active)
-            except Exception as e:
-                log_msg("ERROR", f"Failed to write active preset for {item}: {e}")
-
-        if not src.exists():
-            failed_items.append(item)
-            print(msg("log_deploy_config_failed", item), file=sys.stderr)
-            log_msg("ERROR", f"Missing config source: {src}")
-            continue
-
         # Manifest always loaded from the app root (not the preset dir):
         # preserve/chmod describe the app, independent of which variant ships.
-        manifest = load_manifest(env.configs_src / item)
+        manifest = load_manifest(env.units_src / item)
+
+        if manifest.target:
+            # Single-file unit (§4 target exception): one file inside the
+            # unit dir lands at ~/.config/<target>. Presets and parts are
+            # directory affordances and do not apply.
+            src = env.units_src / item / manifest.target
+            dest = config_dir / manifest.target
+            if not src.is_file():
+                failed_items.append(item)
+                print(msg("log_deploy_config_failed", item), file=sys.stderr)
+                log_msg("ERROR", f"Missing target file for unit '{item}': {src}")
+                continue
+            # No preset/base resolution applies; a concrete result keeps the
+            # atomic call below bound (a stale loop iteration must never leak).
+            result = PresetSrcResult(src=src, reset_active=None)
+        else:
+            dest = config_dir / item
+
+            # Resolve which source tree to deploy: default config, an official
+            # preset, or a user preset — based on the app's active state file.
+            try:
+                active = read_active_preset(item)
+            except InvalidActivePresetError:
+                print(msg("preset_warn_invalid_active", item))
+                log_msg("WARN", f"Invalid active preset state for {item}; dest frozen, skipped")
+                continue
+            result = resolve_preset_src(item, active, dest)
+            for w in result.warnings:
+                print(w)
+            if result.src is None:
+                # Preset not found anywhere — freeze dest, do not fall back to
+                # default (would silently wipe the user's config). §3.2
+                log_msg("WARN", f"Preset '{active}' for {item} not found; dest frozen, skipped")
+                continue
+            src = result.src
+            # dest-missing reset: sanctioned write-before-deploy (dest is empty,
+            # so a half-written state self-heals next run). §3.2
+            if result.reset_active is not None:
+                try:
+                    write_active_preset(item, result.reset_active)
+                except Exception as e:
+                    log_msg("ERROR", f"Failed to write active preset for {item}: {e}")
+
+            if not src.exists():
+                failed_items.append(item)
+                print(msg("log_deploy_config_failed", item), file=sys.stderr)
+                log_msg("ERROR", f"Missing config source: {src}")
+                continue
+
         preserve = manifest.preserve if keep_preserved else None
         preserve_values = manifest.preserve_values if keep_preserved else None
 
@@ -119,23 +158,77 @@ def _phase_atomic_deployment(
 
         # Executable permissions — manifest chmod globs, relative to app dir
         apply_executable_permissions(dest, manifest.chmod)
-
         reconcile_failures = _reconcile_active_parts(item, manifest)
         if reconcile_failures:
             failed_items.append(item)
             print(msg("log_part_reconcile_failed", item, ", ".join(reconcile_failures)), file=sys.stderr)
 
         print(msg("log_deploy_config_item", item))
-        log_msg("INFO", f"Deployed config ~/.config/{item}")
+        log_msg("INFO", f"Deployed config {dest.relative_to(config_dir).as_posix()} (unit {item})")
 
     return failed_items
+
+
+def merge_deploy_unit(item: str, manifest: ModuleManifest) -> Optional[List[str]]:
+    """No-clobber merge for shared living areas (manifest ``merge = true``).
+
+    Blueprint files land in the living area only when missing — existing
+    files (the user's own content, an external pack) are never touched and
+    nothing is ever deleted. Returns the laid relative paths, or None on
+    failure. Presets, parts and Vault semantics do not apply to merge
+    units; the transaction snapshots exactly these laid files.
+    """
+    import shutil
+
+    env = get_env()
+    src_root = env.units_src / item
+    dest = living_path(manifest, env.config_dir)
+    laid: List[str] = []
+    try:
+        for path in sorted(src_root.rglob("*")):
+            rel = path.relative_to(src_root)
+            if path.is_dir() or path.name == "manifest.toml" or "hooks" in rel.parts:
+                continue
+            target = dest / rel
+            if target.exists() or target.is_symlink():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target, follow_symlinks=False)
+            laid.append(rel.as_posix())
+        apply_executable_permissions(dest, manifest.chmod)
+    except OSError as exc:
+        log_msg("ERROR", f"Merge deploy failed for '{item}': {exc}")
+        return None
+    return laid
+
+
+WALLPAPER_VIDEO_SUFFIXES = frozenset({".mp4", ".webm"})
+
+
+def wallpapers_pack_present() -> bool:
+    """Whether the external wallpaper pack lives in the shared living area.
+
+    Validated by requiring at least one deployed video file. The pack is
+    user-domain content (installed via the unit's ``install-pack`` script),
+    never ledger-tracked.
+    """
+    from nyxuri.core import get_pics_dir
+
+    video_dir = get_pics_dir() / "Wallpapers" / "video"
+    try:
+        return video_dir.is_dir() and any(
+            path.is_file() and path.suffix.lower() in WALLPAPER_VIDEO_SUFFIXES
+            for path in video_dir.rglob("*")
+        )
+    except OSError:
+        return False
 
 
 def _reconcile_active_parts(app: str, manifest: ModuleManifest) -> List[str]:
     """Ensure ledger-recorded active parts are realized in dest."""
     if not manifest.parts:
         return []
-    from nyxuri.state.ledger import read_ledger
+    from nyxuri.kernel.ledger import read_ledger
     from nyxuri.deploy.preset import apply_part
     parts_state = read_ledger().get("parts", {})
     if not isinstance(parts_state, dict):
@@ -175,31 +268,24 @@ def run_user_hooks() -> List[str]:
 
 
 def _phase_post_install_services() -> None:
-    """Run built-in post-deployment work (mpvpaper, Fisher)."""
+    """Run built-in post-deployment work (theme sync).
+
+    Unit activation is user policy, not a deploy side effect: enabled units
+    replay their declared hooks via ``transaction.replay_enabled_hooks()``
+    in the workflow; the retired module direct-calls are gone (KM3).
+    """
     try:
-        from nyxuri.theme import sync
+        from nyxuri.desktop.theme import sync
         sync()
         print(msg("log_gtk_theme_init"))
     except Exception as e:
         log_msg("WARN", f"Theme sync failed during deploy: {e}")
 
-    if shutil.which(THEME_ENGINE):
-        from nyxuri.modules.gtktheme import gtktheme_trigger_render
-        gtktheme_trigger_render()
-        # Plugin activation is user policy, not a deploy side effect.  The
-        # module remains available for an explicit Noctalia configuration.
-
-    if shutil.which("fish"):
-        from nyxuri.modules.fisher import fisher_install
-        fisher_install()
-
 def render_completion_screen(
     mode: str = "install",
     chosen_items: Optional[List[str]] = None,
     preserved_lines: Optional[List[str]] = None,
-    wallpaper_result: Optional[WallpaperDeployResult] = None,
-    do_fcitx: bool = False,
-    do_greeter: bool = False,
+    wallpaper_ok: Optional[bool] = None,
     failed_items: Optional[List[str]] = None,
     hook_diagnostics: Optional[List[str]] = None,
 ) -> None:
@@ -213,8 +299,7 @@ def render_completion_screen(
     if hook_diagnostics is None:
         hook_diagnostics = []
 
-    from nyxuri.modules.fcitx import fcitx5_installed, fcitx_enabled
-    from nyxuri.deps import get_missing_deps
+    from nyxuri.pkg.deps import get_missing_deps
 
     title_key = "summary_title_failed" if failed_items else ("summary_title_update" if mode == "update" else ("summary_title_test" if mode == "test" else "summary_title_install"))
     missing_deps = get_missing_deps() if mode == "full" else []
@@ -232,28 +317,21 @@ def render_completion_screen(
             sys.stdout.write(f"    {Colors.BOLD_YELLOW}[!]{Colors.RESET} {msg('summary_item_configs_skip')}\n")
 
         if mode in ("full", "update", "test"):
-            if wallpaper_result is not None:
-                wallpaper_key, wallpaper_color, wallpaper_icon = wallpaper_result.status_line(wallpapers_pack_present())
+            if wallpaper_ok:
+                wallpaper_key, wallpaper_color, wallpaper_icon = "summary_item_wallpapers_existing", Colors.BOLD_GREEN, "[✓]"
+            elif wallpaper_ok is False:
+                wallpaper_key, wallpaper_color, wallpaper_icon = "summary_item_wallpapers_failed", Colors.BOLD_RED, "[✗]"
             elif wallpapers_pack_present():
                 wallpaper_key, wallpaper_color, wallpaper_icon = "summary_item_wallpapers_existing", Colors.BOLD_GREEN, "[✓]"
             else:
                 wallpaper_key, wallpaper_color, wallpaper_icon = "summary_item_wallpapers_skip", Colors.BOLD_YELLOW, "[!]"
             sys.stdout.write(f"    {wallpaper_color}{wallpaper_icon}{Colors.RESET} {msg(wallpaper_key)}\n")
 
-        if mode in ("full", "update", "test") and fcitx5_installed():
-            if do_fcitx or fcitx_enabled():
-                sys.stdout.write(f"    {Colors.BOLD_GREEN}[✓]{Colors.RESET} {msg('summary_item_fcitx_ok')}\n")
-            else:
-                sys.stdout.write(f"    {Colors.BOLD_YELLOW}[!]{Colors.RESET} {msg('summary_item_fcitx_skip')}\n")
-
         if mode == "full":
             if not missing_deps:
                 sys.stdout.write(f"    {Colors.BOLD_GREEN}[✓]{Colors.RESET} {msg('summary_item_deps_ok')}\n")
             else:
                 sys.stdout.write(f"    {Colors.BOLD_YELLOW}[!]{Colors.RESET} {msg('summary_item_deps_skip')}\n")
-
-        if do_greeter:
-            sys.stdout.write(f"    {Colors.BOLD_GREEN}[✓]{Colors.RESET} {msg('summary_item_greeter_ok')}\n")
 
         if hook_diagnostics:
             sys.stdout.write(f"\n  {Colors.BOLD_WHITE}{msg('summary_section_hooks')}{Colors.RESET}\n")
@@ -276,7 +354,7 @@ def render_completion_screen(
         return
 
     # Interactive Next Steps Menu
-    from nyxuri.deps import run_optional_apps_menu_loop
+    from nyxuri.pkg.deps import run_optional_apps_menu_loop
     focus = 0
     sys.stdout.write(Colors.CURSOR_HIDE)
     fd = sys.stdin.fileno()
@@ -350,6 +428,32 @@ def deploy_selected_configs(
     print(msg("copy_done"))
     return []
 
+def enable_wallpapers_unit() -> Optional[bool]:
+    """Best-effort ``on wallpapers`` for deploy flows: True / False / None
+    (skipped). The pack itself is user-domain (install-pack script); only
+    the blueprint fallback goes through the transaction."""
+    try:
+        from nyxuri.kernel import transaction
+        steps = transaction.unit_on("wallpapers")
+        return bool(steps) and all(s.ok for s in steps)
+    except Exception as exc:
+        log_msg("WARN", f"wallpapers unit enable failed: {exc}")
+        return False
+
+
+def enable_theme_unit() -> Optional[bool]:
+    """Best-effort ``on theme`` for deploy flows: the shared template pool is
+    load-bearing for both shells' gtk/niri/palette renders (KM4/P5 neutral
+    pool). No-clobber merge — user-edited templates survive redeploys."""
+    try:
+        from nyxuri.kernel import transaction
+        steps = transaction.unit_on("theme")
+        return bool(steps) and all(s.ok for s in steps)
+    except Exception as exc:
+        log_msg("WARN", f"theme unit enable failed: {exc}")
+        return False
+
+
 def test_deploy() -> bool:
     """Developer test command: fast idempotent re-deploy in current environment."""
     print(msg("test_start"))
@@ -362,11 +466,12 @@ def test_deploy() -> bool:
         render_completion_screen(mode="test", chosen_items=items, preserved_lines=preserved_log, failed_items=failed_items)
         return False
     _phase_render_templates()
-    wallpaper_result = deploy_wallpapers(do_download=False)
+    wallpaper_ok = enable_wallpapers_unit()
+    enable_theme_unit()
     render_completion_screen(
         mode="test",
         chosen_items=items,
         preserved_lines=preserved_log,
-        wallpaper_result=wallpaper_result,
+        wallpaper_ok=wallpaper_ok,
     )
     return True

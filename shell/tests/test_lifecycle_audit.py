@@ -114,7 +114,7 @@ class TestLifecycleAudit(unittest.TestCase):
         self.assertTrue(audit.is_path_excluded("build/qml/Module.qml"))
         self.assertTrue(audit.is_path_excluded("generated/SearchCatalog.js"))
         self.assertFalse(audit.is_path_excluded("app/services/SystemMonitorService.qml"))
-        self.assertFalse(audit.is_path_excluded("modules/bar/Bar.qml"))
+        self.assertFalse(audit.is_path_excluded("units/bar/Bar.qml"))
         self.assertFalse(audit.is_path_excluded("shared/controls/RippleButton.qml"))
         self.assertFalse(audit.is_path_excluded("app/services/I18nService.qml"))
 
@@ -123,8 +123,8 @@ class TestLifecycleAudit(unittest.TestCase):
         self.assertEqual(violations, [], "Excluded vendor files must be ignored without force flag")
 
     def test_stable_sorting(self):
-        v1 = audit.AuditViolation("LIFE002", "modules/b.qml", 20, "msg2")
-        v2 = audit.AuditViolation("LIFE001", "modules/b.qml", 10, "msg1")
+        v1 = audit.AuditViolation("LIFE002", "units/b.qml", 20, "msg2")
+        v2 = audit.AuditViolation("LIFE001", "units/b.qml", 10, "msg1")
         v3 = audit.AuditViolation("LIFE004", "app/a.qml", 5, "msg0")
         sorted_list = sorted([v1, v2, v3], key=lambda v: v.to_tuple())
         self.assertEqual(sorted_list, [v3, v2, v1])

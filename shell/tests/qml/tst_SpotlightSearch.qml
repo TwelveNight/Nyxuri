@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../modules/launcher/SpotlightSearch.js" as SpotlightSearch
+import "../../units/launcher/SpotlightSearch.js" as SpotlightSearch
 
 TestCase {
     function test_emptyQuery() {

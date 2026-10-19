@@ -10,8 +10,8 @@ from tests.utils import TempEnv
 class PersonalWindowRuleTests(unittest.TestCase):
     def test_zotero_progress_alerts_float_without_matching_work_windows(self):
         with TempEnv() as ctx:
-            install.prepare_sources(ctx.home / "configs")
-            rules = (ctx.home / "configs/niri/personal-window-rules.kdl").read_text()
+            install.prepare_sources(ctx.home / "units")
+            rules = (ctx.home / "units/niri/personal-window-rules.kdl").read_text()
             alert_rule = re.search(
                 r'match app-id=r#"([^"\n]+)"# title=r#"([^"\n]+)"#\s+'
                 r'open-floating true\s+default-column-width \{\}\s+'
@@ -39,10 +39,10 @@ class PersonalWindowRuleTests(unittest.TestCase):
             kitty = ctx.home / ".config/kitty/kitty.conf"
             kitty.parent.mkdir(parents=True)
             kitty.write_text("shell zsh\n")
-            upstream = (install.ROOT / "configs/niri/rules.kdl").read_bytes()
+            upstream = (install.ROOT / "units/niri/rules.kdl").read_bytes()
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), \
                  patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
-                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+                 patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
                 private = ctx.home / ".config/desktop-profiles/nyxuri/niri"
                 custom = private / "__custom__.kdl"
@@ -63,4 +63,4 @@ class PersonalWindowRuleTests(unittest.TestCase):
             self.assertNotIn("match is-active=", (private / "personal-window-rules.kdl").read_text())
             self.assertEqual(custom.read_text(), override)
             self.assertEqual(shared.read_text(), "shared config\n")
-            self.assertEqual((install.ROOT / "configs/niri/rules.kdl").read_bytes(), upstream)
+            self.assertEqual((install.ROOT / "units/niri/rules.kdl").read_bytes(), upstream)

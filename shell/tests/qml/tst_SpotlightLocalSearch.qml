@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../modules/launcher/SpotlightLocalSearch.js" as Search
+import "../../units/launcher/SpotlightLocalSearch.js" as Search
 
 TestCase {
     name: "SpotlightLocalSearch"

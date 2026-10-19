@@ -10,24 +10,29 @@ Singleton {
     // directory. Both installed and source shells therefore use the same
     // relative resource paths.
     readonly property string shareRoot: shellDir
-    readonly property string assetsDir: shareRoot + "/assets"
-    readonly property string builtinMatugenDir: assetsDir + "/matugen"
-    readonly property string userMatugenDir: configHome + "/matugen"
-    readonly property string iconsDir: assetsDir + "/icons"
-    readonly property string weatherIconsDir: iconsDir + "/weather"
+    // Host-owned data directories (KM4.6: the assets/ junk drawer is dissolved —
+    // unit-owned shaders live in units/<domain>/shaders/, host data lives in app/).
+    readonly property string i18nDir: shareRoot + "/app/i18n"
+    readonly property string iconsDir: shareRoot + "/app/icons"
     readonly property string scriptsDir: shareRoot + "/scripts"
-    readonly property string audioScriptsDir: scriptsDir + "/audio"
-    readonly property string captureScriptsDir: scriptsDir + "/capture"
-    readonly property string lyricsScriptsDir: scriptsDir + "/lyrics"
+    readonly property string lyricsScriptsDir: scriptsDir + "/media"
     readonly property string mediaScriptsDir: scriptsDir + "/media"
     readonly property string systemScriptsDir: scriptsDir + "/system"
-    readonly property string themeScriptsDir: scriptsDir + "/theme"
-    readonly property string weatherScriptsDir: scriptsDir + "/weather"
+    readonly property string userMatugenDir: configHome + "/matugen"
     readonly property string homeDir: root.absoluteEnvironment("HOME")
     readonly property string xdgConfigHome: root.absoluteEnvironment("XDG_CONFIG_HOME") || homeDir
                                             + "/.config"
     readonly property string xdgDataHome: root.absoluteEnvironment("XDG_DATA_HOME") || homeDir
                                           + "/.local/share"
+    readonly property string xdgCacheHome: {
+        const orig = root.absoluteEnvironment("NYXURI_ORIGINAL_CACHE_HOME");
+        if (orig)
+            return orig;
+        const raw = root.absoluteEnvironment("XDG_CACHE_HOME") || "";
+        if (raw.endsWith("/nyxuri-shell"))
+            return raw.substring(0, raw.length - "/nyxuri-shell".length);
+        return raw || (homeDir + "/.cache");
+    }
     readonly property string binHome: root.absoluteEnvironment("NYXURI_BIN_HOME") || root.absoluteEnvironment(
                                           "CLAVIS_BIN_HOME") || homeDir + "/.local/bin"
     readonly property string stableKey: root.absoluteEnvironment("NYXURI_KEY") || root.absoluteEnvironment(

@@ -64,7 +64,7 @@ class PersonalIsolationTests(unittest.TestCase):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            upstream = install.ROOT / "configs/noctalia/tools/orbit_translate/config.py"
+            upstream = install.ROOT / "units/noctalia/tools/orbit_translate/config.py"
             original = upstream.read_bytes()
             install.prepare_sources(source)
             path = source / "noctalia/tools/orbit_translate/config.py"
@@ -89,7 +89,7 @@ class PersonalIsolationTests(unittest.TestCase):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            original = (install.ROOT / "configs/niri/config.kdl").read_bytes()
+            original = (install.ROOT / "units/niri/config.kdl").read_bytes()
             install.prepare_sources(source)
             config = (source / "niri/config.kdl").read_text()
             overview = (source / "niri/personal-overview.kdl").read_text()
@@ -105,7 +105,7 @@ class PersonalIsolationTests(unittest.TestCase):
                 self.assertRegex(renderer, namespace)
             for surface in ("skwd-wall-v2", "skwd-paper-picker", "noctalia-wallpaper", "mpvpaper", "noctalia-bar-bar", "noctalia-dock"):
                 self.assertNotRegex(surface, namespace)
-            self.assertEqual((install.ROOT / "configs/niri/config.kdl").read_bytes(), original)
+            self.assertEqual((install.ROOT / "units/niri/config.kdl").read_bytes(), original)
 
     def test_deployed_launchers_ignore_public_tools_and_legacy_shell_selection(self):
         with TempEnv() as ctx:

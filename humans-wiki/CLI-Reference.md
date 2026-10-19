@@ -1,24 +1,44 @@
-`nyxuri` manages install, snapshots and diagnostics. Interactive deployments create a snapshot in `~/.config/nyxuri/backups/` by default.
+`nyxuri` manages installation, snapshots and diagnostics. Interactive deployments create a snapshot in `~/.config/nyxuri/backups/` by default.
 
 > Legacy Bash users must run the bootstrap entrypoint before using these commands. The old `nyxniri update` cannot perform the directory migration.
 
 ---
 
-## Top-level
+## Units (the market verbs)
 
 | Command | Description |
 | :--- | :--- |
-| `nyxuri` | Interactive menu |
-| `nyxuri test` | Developer test deploy (no backup, keep monitor.kdl) |
+| `nyxuri list [unit]` | Every unit with its switch state and active preset, or one unit in detail |
+| `nyxuri on <unit> [--preset <name>]` | Enable a unit (dependencies and missing packages disclosed first); same as `enable` |
+| `nyxuri off <unit> [--cascade]` | Disable a unit — custom files go to the vault, managed files wiped; same as `disable` |
+| `nyxuri doctor [unit]` | Three-state reconciliation (`Synced` / `Drifted` / `Ghost`) plus a system checkup |
+
+Everything on the desktop is a unit — including wallpapers: `nyxuri on wallpapers`
+deploys the built-in fallback into `~/Pictures/Wallpapers`; the full video pack is
+user-domain content installed via `units/wallpapers/hooks/install-pack`.
 
 ---
 
-## Deploy
+## Deployment & themes
 
 | Command | Description |
 | :--- | :--- |
-| `nyxuri install [full\|config]` | Deploy everything, or sync configs only |
-| `nyxuri update [--force\|--no-deploy]` | Update source; force config deployment or skip it |
+| `nyxuri install [full\|config]` | Legacy full pipeline (configs + wallpapers unit + hook replay), or configs only |
+| `nyxuri update [--force\|--no-deploy] [--to <tag\|commit>]` | Update source; force config deployment or skip it; pin a version |
+| `nyxuri preset <app> [list\|apply <name>\|save <name>\|edit <name>\|delete <name>]` | Switch / manage presets |
+| `nyxuri preset <app> [parts\|part <slot> <name>]` | Inspect / hot-swap component parts (effects, glow, …) |
+| `nyxuri theme [toggle\|dark\|light\|sync\|status]` | Switch or sync the dark/light axis |
+| `nyxuri shell [get\|set <noctalia\|nyxuri-shell> [bin_path]\|switch [<target> [bin_path]]\|status]` | Inspect or hot-switch the desktop shell slot (experimental) |
+
+---
+
+## Supply
+
+| Command | Description |
+| :--- | :--- |
+| `nyxuri deps [core\|apps]` | Core dependency checklist, or the recommended-software menu (catalog + optional units) |
+| `nyxuri pkg <install\|upgrade\|remove\|search\|info\|installed>` | Direct package management; search accepts `aur` / `pac` prefixes |
+| `nyxuri clean [-n] [--only <tasks>]` | Cache sweeper; `-n` previews only |
 
 ---
 
@@ -27,9 +47,9 @@
 | Command | Description |
 | :--- | :--- |
 | `nyxuri snapshot [note]` | Save current config state |
-| `nyxuri snapshot delete [idx]` | Delete snapshots (multi-select if no index) |
+| `nyxuri snapshot list` | List snapshots |
+| `nyxuri snapshot delete [index]` | Delete snapshots (multi-select if no index) |
 | `nyxuri rollback [index]` | Restore a snapshot |
-| `nyxuri list` | List snapshots |
 
 ---
 
@@ -37,43 +57,31 @@
 
 | Command | Description |
 | :--- | :--- |
-| `nyxuri doctor` | Dependency + system health check |
-| `nyxuri deps` | Open dependency check & install menu |
-| `nyxuri apps` | Category-grouped recommended apps installer (Brave, Steam, WeChat, ...) |
-| `nyxuri wallpapers` | Download the full wallpaper & video pack from the external repo |
-| `nyxuri theme [toggle\|dark\|light\|sync\|status]` | Switch or sync system dark/light theme |
-| `nyxuri bug` / `nyxuri report` | Generate diagnostic bug report |
+| `nyxuri doctor [unit]` | Unit reconciliation + dependency and system health check |
+| `nyxuri bug` | Export a diagnostic report |
+| `nyxuri test` | Developer sandbox deploy (no backup, keeps monitor.kdl) |
+| `nyxuri uninstall [--all\|standard\|restore\|purge]` | Checkbox uninstall — pick what gets cleaned (or run standard, restore, purge, --all directly) |
+| `nyxuri help` | Show CLI help and usage |
 
 ---
 
-## Uninstall
+## Retired names (KM3.5)
 
-| Command | Description |
-| :--- | :--- |
-| `nyxuri uninstall [--all\|standard\|restore\|purge]` | Checkbox uninstall — pick what to remove (configs, CLI, modules, snapshots, wallpapers); defaults to the standard range |
-| `nyxuri purge` | Shorthand for `uninstall --all` |
-
----
-
-## Extensions
-
-| Command | Description |
-| :--- | :--- |
-| `nyxuri fcitx [install\|status\|uninstall]` | NyxMellow fcitx5 skin |
-| `nyxuri greeter [install\|status\|uninstall]` | Noctalia Greeter (login screen) |
-| `nyxuri gtk [install\|status\|uninstall]` | Material You GTK3/4 theme |
-| `nyxuri fisher [install\|status\|uninstall]` | fisher plugin manager for Fish |
+`deploy` `backup` `restore` `remove` `purge` `recommended` `apps` `wp` `wallpapers`
+`report` and the module verbs `greeter` `fcitx` `gtk` `fisher` are gone — they are
+plain unknown commands now. Use the unit verbs (`on` / `off`) and the state verbs
+(`snapshot` / `rollback` / `uninstall`) instead.
 
 ---
 
-## Cheatsheet nyxhelp
+## Quick reference: nyxhelp
 
-`nyxhelp` is a compact fzf-based reference for the CLI, shell helpers, and core keybindings:
+`nyxhelp` is an `fzf`-based cheat sheet covering the CLI, shell helpers and core keybindings:
 
 | Command | Description |
 | :--- | :--- |
-| `nyxhelp` | Interactive dual-panel cheatsheet |
+| `nyxhelp` | Two-pane interactive cheat menu |
 | `nyxhelp keys` | Niri keybindings |
-| `nyxhelp proxy` | Proxy controls (`proxy_on [port]`, `proxy_off`, `proxy_status`) |
+| `nyxhelp proxy` | Proxy control (`proxy_on [port]`, `proxy_off`, `proxy_status`) |
 | `nyxhelp pkg` | Package shortcuts (`up`, `in`, `se`, `un`, `clean`) |
-| `nyxhelp all` | Full cheatsheet |
+| `nyxhelp all` | Full cheat sheet |

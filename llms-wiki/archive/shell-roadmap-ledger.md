@@ -373,3 +373,141 @@ R1–R7 是已交付基线。下一步从 R8 开始；P4 及之后保留在后�
 - Niri 运行态只允许单一服务状态源；模块不得复制窗口、工作区或输出状态。
 - 新抽象必须减少重复、状态或生命周期复杂度；仅转发的文件不得作为结构性成果保留。
 - 每阶段完成前源码、测试、资源、部署和文档状态相互一致；测试跳过与环境阻断单独报告。
+
+## KM4 实施记录（追加式，2026-10-17）
+
+**状态：M1–M6 实现完成、全量契约测试绿；行为、视觉与六动作实机验收待作者确认。**
+阶段台账在根 ROADMAP；本节按台账约定留可复现证据。
+
+### M1 引擎侧（已完成，此前提交 afc781b）
+
+- registry 命名空间根（`units/` → 裸 ID，`shell/units/` → `shell.` 前缀）；12 个
+  Shell 单元 `runtime = true` 蓝图；`unit-changed` 事件端口 + `desktop/bridge.py`
+  投递（`qs ipc call unit reload`，无订阅者 no-op）；契约同步 unit-model §6 /
+  manifest-schema。
+
+### M2 微内核宿主（已完成）
+
+- `app/services/StateProjection.qml`：FileView 只读挂 `Paths.stateHome/state.json`
+  （与 ledger 同一文件）；`isEnabled()` 无记录 = 默认启用；账本解析失败 = `degraded`
+  全启用降级；`watchChanges: false`——重投影只发生在启动与 `unit` IPC 事件。
+- `app/UnitCatalog.qml`：12 单元 × 六插槽目录（id/label/slot/source），堆叠序保持
+  旧 AppShell 声明序；`app/SlotHost.qml`：`Repeater + Loader` 目录驱动装配，
+  `active = slotActive(unit)`。
+- `AppShell.qml` 377 → 238 行：零按名实例化；宿主保留通用 IPC
+  （unit/shell/theme/shortcut-map/wallpaper——wallpaper 是能力面，视觉单元 off
+  不影响 set/random 语义）+ 宿主级意图源（HotCorners）+ lock 冻结 Binding +
+  IdleService 降级接线。搜索目录执行器留在宿主（模块能力桥接），网关自有意图
+  归 `ActionGateway.executeIntent()`（unit-model §6 命名兑现）。
+- 单元自有 IPC 迁入单元根：lock→`Lock.qml`、power-menu→`SessionHost.qml`、
+  spotlight→`LauncherHost.qml`、control-center+settings→`SettingsHost.qml`
+  （keystone 原已自有）。宿主引用倒置：Lock/SettingsHost/Keystone/Sidebars
+  自注册 ActionGateway（onCompleted 注册 / onDestruction 注销），
+  `lockEngaged` 成网关只读安全事实。
+- 槽仲裁（宿主唯一冲突裁决点）：lock 持有期禁卸载（`off` 延迟至解锁）；
+  keystone 在场独占 `popup:notification` 槽（拆掉 `!keystoneEnabled` 私有互斥）。
+- 降级：`shell.lock` off → idle 锁请求报真实失败（横幅可见）；无锁挂起直接执行
+  （不再 park 等 `secured()` 8 秒超时）；`shell.wallpaper` off → 合成器背景透出。
+- `DesktopCardHost` 原宿主侧数据门（desktopCardIds）移入单元（`model: []` 门），
+  槽装载保持纯存在性。
+
+### M3 单一开关真相（已完成）
+
+- `app/services/UnitControlService.qml`：Process 参数数组派发
+  `nyxuri on/off shell.<domain>`（binHome 探测、15s 有界 watchdog、失败显横幅）；
+  lock 持有期 `canToggle` 拒绝。UI 零乐观翻转。
+- `ShellPage` 模块区改 12 单元全景开关（Repeater over UnitCatalog）+ 应用中/失败/
+  账本降级横幅；`SettingsControlCatalog` keystone/bar/dock 开关改走 UnitControl；
+  子页（GeneralBarPage/KeystonePage/DockPage）私有开关移除（单一投影面）。
+- 私有开关状态干净断裂退役（拍板：不迁移旧值）：PersonalizationConfig 删
+  `barEnabled`/`keystoneEnabled`（属性/toJson/loadFromObject），残留旧键由既有的
+  repair-on-load 重写自然清除；DockModel/DockService 删 `enabled` 选项，
+  `DockService.enabled` 变账本投影读（后台订阅随之精确 gate）。
+- 死刑清单登记 + 执法（unit-model §7）：Shell 私有开关字段、AppShell 硬编码组件
+  与宿主代管单元 IPC、noctalia 命名空间共享池。
+
+### M4 闭包与证据（静态/契约层完成）
+
+- `shell/tests/test_unit_catalog.py`（+11 契约）：目录↔目录（ids ≡ `shell/units/`）、
+  label↔manifest、插槽六分类、source 存在性、宿主闭包（AppShell 零单元组件、
+  SlotHost 唯一装配点、lock 安全规则原文）、事件回路（bridge 原文 ↔ `target: "unit"`
+  ↔ StateProjection 只读）、开关动词回路（UnitControl 无 state.json 写入）。
+- 旧架构契约测试重写为 KM4 语义：`test_r2_startup_closure_and_lazy_hosts`（槽驱动
+  闭包）、`test_r9_feature_toggles`（存在性 = 投影）、`test_r10_action_gateway`
+  （executeIntent + 单元自有 IPC）、`test_p3_notification_fallback`（槽仲裁）、
+  `test_p3_settings_wiring`（自注册）、`test_unit_model.test_shell_coordination`
+  （§6 三条 + 迁移断言）。
+- `run-tests.py` 陈旧 import 修复（`tests.test_shell` → `tests.shell.test_shell`，
+  KM3.5 测试镜像树遗留——分类套件此前在 main 上整体不可运行）。
+- 宿主 118 分类测试 + 引擎 966 测试 + check.sh（qml-lint advisory 与存量同类）
+  + i18n audit 全绿。
+
+### M5 P5 平移项（已完成）
+
+- 共享池中立化：`units/noctalia/templates/`（5 文件）→ 新 `units/theme/` 单元
+  （`target = "~/.config/nyxuri/templates"` + `merge = true` 共享生活区：用户已改
+  模板永不覆盖，off 只撤蓝图具名文件）；`noctalia-config.toml` 5 处 input_path 与
+  shell `assets/templates/config.toml` 4 处 input_path 同源改指新池；部署流程
+  （install/update/test）自动 `on theme`（`deploy.enable_theme_unit`，镜像
+  wallpapers 模式）；蓝图 12 → 13 目录。
+- 双 Shell 输出仲裁：kitty include 去重 + noctalia BEGIN_KITTY_THEME 块剥离既有
+  （`kitty-apply.sh`）；gtk.css/niri colors 同池同输出，切换后活动 Shell 启动即
+  全量重渲（ThemeService.reloadColors 启动路径），无跨 Shell 受管残留。
+- 顺带清算（shell/KNOWN-ISSUES）：quickshell 入根 `catalog.toml`（deps 菜单 +
+  gen-deps optdepends 同源）；修复 KM3.5 搬家遗留的 PKGBUILD 生成标记 stale
+  （`nyxuri/packaging/` → `packaging/`）导致 `gen-deps --update` 静默 no-op 的
+  预存 bug；`nyxuri-shell` 卸载残留复核——清理代码已在，沙箱实证
+  `uninstall --all` 双软链清零，条目过时勾销。TUI 缺口按拍板保留不动。
+
+### M6 契约与文档（已完成）
+
+- unit-model §6 兑现自身承诺：插槽分类学迁 `shell/AGENTS.md`（微内核宿主/六插槽/
+  数据驱动装载/单一开关真相/单元自有 IPC/降级语义），§6 只留内核三条 + 内核侧
+  承载；§7 死刑清单补 KM4 执法三行。
+- overview.md 蓝图数、architecture-matrix 池路径、units/noctalia README、
+  install.sh 蓝图卫 Statement、两级 ROADMAP 同步。
+- 已知边界（如实）：mango.conf 模板仅 noctalia 侧注册渲染，nyxuri TemplateService
+  未加 mango 条目——双合成器过渡形态既有债务（delayed-decisions 在册），不随
+  池迁移扩大战场。
+
+### 运行时调试记录（2026-10-17，实机首切失败定位）
+
+首次实机 `nyxuri shell switch` 探针超时回滚。离屏（offscreen）实跑替代 qmllint
+（其对 Quickshell 合成 qmldir 全盲，322 条 advisory 淹没了真错）逐层定位；随后
+接入 LogService（会话日志环 + `qs ipc call shell log` + 设置页会话日志节 +
+state/logs/shell.log）后，日志点失踪暴露出第三个根因（缓存陈旧化）。共四个
+独立缺陷、全部已修并有干净启动与全链路证据：
+
+1. **qs-import 装载缺陷**：Loader 装载的组件首次解析 qs.* import 图不可靠，
+   败者不确定地报「module not installed / X is not a type」整单元暴毙（与
+   磁盘缓存无关，复现稳定）。修复：SlotHost 静态预热 import 12 个单元模块
+   ——只注册不实例化，零实例化契约不变。
+2. **QML 磁盘缓存陈旧化**：quickshell qmlcache 在源码改动后仍供应旧编译
+   产物——新旧代码混跑（「改了没生效」的另一半真相；曾使诊断日志点整体
+   失踪）。修复：nyxuri-shell wrapper 每次启动清空 qmlcache。实测注意：
+   `QML_DISABLE_DISK_CACHE=1` 不可替代——无缓存写入时每次 Loader 装载都会
+   重新触发缺陷 1（冷编译 + 缓存写入的组合反而干净）。
+3. **IpcHandler 模块归属**：0.3.2 的 IpcHandler 挂在 Quickshell.Io；三个新增
+   handler 的单元根（Session/Settings/Launcher）缺 `import Quickshell.Io`，
+   目标静默消失（mod+i 无响应的直接原因）。已补。
+4. **DockModel decodeConfig 严格校验回归**：退役 `enabled` key 导致现存
+   dock.json 全员被拒读（「无法读取 Dock 设置」横幅）。修复：退役/未知
+   key 丢弃而非拒读，损坏值维持原拒绝语义。
+
+修复后同机实测：零类型错误、READY→IPC_READY 46ms；IPC 面全通——`unit reload`
+回 OK、`control-center toggle` OPENING/CLOSING、`spotlight toggle` OPENING、
+`shell isReady` true；`nyxuri on/off shell.bar` 经 bridge 端到端驱动运行中实例
+无错误。两项约束已登记 shell/AGENTS.md（quickshell 升级后重估）。
+
+### 待实机验收清单（作者签字项）
+
+1. 冷启动闭包：`off` 若干单元后启动 quickshell，未启用域零窗口/零后台；
+2. 开关回路：Shell 设置页翻转 12 单元开关 ↔ `state.json` 落账 ↔ 界面投影
+   （含失败横幅、lock 持有期禁关）；
+3. lock 安全：锁屏中 `off shell.lock` 被拒、`unit reload` 不撕锁、解锁后摘除；
+4. 六动作：`nyxuri-shell --action launcher|session|settings|clipboard|lock|wallpaper-random`
+   全通过，对应单元 off 时得到真实失败而非假成功；
+5. 池迁移：实机 `nyxuri on theme` 后 `~/.config/nyxuri/templates/` 五文件落位，
+   双 Shell 主题渲染正常，旧 `~/.config/noctalia/templates/` 随 noctalia 重部署
+   自然消失；
+6. Noctalia + Wallpaper Picker 双轨互不干扰、各自纯白（P5 平移验收项）。

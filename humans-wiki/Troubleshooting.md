@@ -1,4 +1,4 @@
-When encountering issues, run `./install.sh doctor` first.
+When encountering issues, run `nyxuri doctor` first.
 
 ---
 
@@ -40,7 +40,7 @@ git -C ~/.local/state/noctalia/plugins/sources/official/repo reset --hard HEAD
 ---
 
 ## Greeter sync asks for a password
-Add a Polkit rule (`nyxuri greeter install` does this for you).
+Add a Polkit rule (`nyxuri on greeter` does this for you).
 
 Install the Polkit rule manually if needed:
 

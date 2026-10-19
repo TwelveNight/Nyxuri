@@ -15,7 +15,7 @@ class PersonalCheatsheetTests(unittest.TestCase):
         with TempEnv() as ctx:
             stage = ctx.home / "source"
             stage.mkdir()
-            upstream = (install.ROOT / "configs/niri/binds.kdl").read_bytes()
+            upstream = (install.ROOT / "units/niri/binds.kdl").read_bytes()
             install.prepare_sources(stage)
             config = tomllib.loads((stage / "noctalia/zz-personal-cheatsheet.toml").read_text())
             settings = config["plugin_settings"]["kenn/keybind-cheatsheet"]
@@ -38,7 +38,7 @@ class PersonalCheatsheetTests(unittest.TestCase):
             self.assertIn('repeat=false', shortcut)
             self.assertIn('spawn "noctalia" "msg" "panel-toggle" "kenn/keybind-cheatsheet:cheatsheet";', shortcut)
             self.assertIn('Ctrl+Mod+Slash', binds)
-            self.assertEqual((install.ROOT / "configs/niri/binds.kdl").read_bytes(), upstream)
+            self.assertEqual((install.ROOT / "units/niri/binds.kdl").read_bytes(), upstream)
 
 
 class CheatsheetCategoryTests(unittest.TestCase):

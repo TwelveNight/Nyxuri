@@ -1,57 +1,44 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs.modules.bar
-import qs.modules.launcher
-import qs.modules.lock
 import qs.app
-import qs.modules.session
-import qs.modules.settings
-import qs.modules.keystone
-import qs.modules.wallpaper
-import qs.modules.desktopcards
-import qs.modules.dock
-import qs.modules.regionselector
-import qs.modules.hotcorners
-import qs.modules.sidebars
-import qs.modules.sidebars.dashboard.infotools
-import qs.shared.theme
 import qs.app.services
+import qs.units.settings
+import qs.units.sidebars.dashboard.infotools
+import qs.units.wallpaper
+import qs.shared.theme
 
+// AppShell — the microkernel host (unit-model.md §6). It owns assembly
+// (SlotHost), host-level intent sources (corner gestures), the generic IPC
+// surface (unit / shell / theme / shortcut-map / wallpaper) and lifecycle
+// guards. Zero unit components are instantiated here by name: every unit
+// loads through SlotHost's data-driven Loaders keyed by StateProjection,
+// the read-only projection of the ledger. Hosts (lock, session, settings,
+// launcher, keystone, sidebars) self-register on ActionGateway when they
+// load and unregister on destruction.
 Item {
     id: root
 
-    // The catalog only supplies fixed, build-validated calls. Both IPC and
-    // Search use the same existing business functions, without self-IPC.
-    // Pure delegation: each intent routes to its owning domain; no domain
-    // business lives here.
+    // Search-catalog executor: the host bridges module-level capabilities
+    // the app singletons must not import; gateway-owned intents delegate
+    // to ActionGateway.executeIntent (unit-model.md §6).
     function executeSearchAction(action) {
         switch (action.target) {
-        case "lock":
-            return ActionGateway.powerAction("lock", "launcher:search");
         case "wallpaper":
             return WallpaperService.runCatalogAction(action.method);
-        case "keystone":
-            return keystone ? (keystone.invoke(action.method) !== "KEYSTONE_UNAVAILABLE") : false;
-        case "sidebar":
-            return sidebarHost ? ActionGateway.requestSidebarToggle(action.argument || "dashboard") : false;
         case "shortcut-map":
             ShortcutMapService.open();
             return true;
-        case "power-menu":
-            return ActionGateway.requestSessionOpen();
         default:
-            return false;
+            return ActionGateway.executeIntent(action);
         }
     }
 
     Component.onCompleted: {
-        ActionGateway.sessionLocker = sessionLocker;
-        ActionGateway.settingsHost = settingsHost;
-        ActionGateway.sidebarHost = sidebarHost;
         SpotlightCatalog.actionExecutor = root.executeSearchAction;
-        SpotlightCatalog.keystoneAvailable = Qt.binding(() => keystone ? keystone.searchActionsAvailable :
-                                                                         false);
+        SpotlightCatalog.keystoneAvailable = Qt.binding(() => ActionGateway.keystoneHost
+                                                              ? ActionGateway.keystoneHost.searchActionsAvailable :
+                                                                false);
         ThemeService.reloadColors();
         FontService.refresh();
         I18nService.initialize();
@@ -63,46 +50,24 @@ Item {
         });
     }
 
-    Loader {
-        active: DisplayConfigService.identify || DisplayConfigService.confirming
-        source: Qt.resolvedUrl("../modules/settings/DisplayOverlays.qml")
+    // All twelve Shell units, slot-driven (surface:desktop → overlay).
+    SlotHost {
+        id: slotHost
+
+        // Cross-unit dependency bridge (four-layer rule): the settings
+        // unit's dashboard consumes the todo domain service that lives in
+        // the sidebars module; the host wires it explicitly instead of a
+        // hidden module-to-module import.
+        onUnitLoaded: (unitId, item) => {
+            if (unitId === "settings" && item)
+                item.todoService = TodoService;
+        }
     }
 
-    WallpaperBackground {}
-
-    Loader {
-        active: SystemCardService.desktopCardIds.length > 0
-        source: Qt.resolvedUrl("../modules/desktopcards/DesktopCardHost.qml")
-    }
-
-    Loader {
-        active: PersonalizationConfig.barEnabled
-        source: Qt.resolvedUrl("../modules/bar/Bar.qml")
-    }
-
-    Loader {
-        active: DockService.enabled
-        source: Qt.resolvedUrl("../modules/dock/DockHost.qml")
-    }
-
-    Keystone {
-        id: keystone
-    }
-
-    Loader {
-        id: notificationFallbackLoader
-        active: !PersonalizationConfig.keystoneEnabled
-        source: Qt.resolvedUrl("../modules/notifications/NotificationPopupHost.qml")
-    }
-
-    RegionSelector {}
-
-    SidebarHostWindow {
-        id: sidebarHost
-    }
-
+    // Host-level intent source (app layer, not a unit): corner gestures
+    // translate to gateway intents exactly like keybinds do.
     HotCorners {
-        locked: sessionLocker.active
+        locked: ActionGateway.lockEngaged
         onTriggered: (action, screenName) => {
             if (action === "overview") {
                 WidgetState.closeAllPopups();
@@ -113,13 +78,9 @@ Item {
             if (target.length === 2) {
                 if (NiriService.inOverview)
                     NiriService.toggleOverview();
-                sidebarHost.openOnScreen(target[0], target[1], screenName);
+                ActionGateway.requestSidebarOpenOnScreen(target[0], target[1], screenName);
             }
         }
-    }
-
-    Lock {
-        id: sessionLocker
     }
 
     // Hot reloading rebuilds the object tree, which would destroy the session
@@ -129,22 +90,17 @@ Item {
     Binding {
         target: Quickshell
         property: "watchFiles"
-        value: !sessionLocker.active
+        value: !ActionGateway.lockEngaged
     }
 
-    SessionHost {
-        id: sessionHost
-    }
-
-    SettingsHost {
-        id: settingsHost
-        todoService: TodoService
-    }
-
+    // Idle daemon requests degrade honestly when their owning unit is off:
+    // no lock unit → the lock request reports failure (the idle banner
+    // surfaces it); suspend runs directly (no lock handshake is needed).
     Connections {
         target: IdleService
         function onLockRequested() {
-            IdleService.reportLockResult(sessionLocker.open());
+            IdleService.reportLockResult(ActionGateway.sessionLocker ? ActionGateway.sessionLocker.open() :
+                                                                       "shell.lock is off");
         }
         function onSuspendRequested() {
             IdleService.reportSuspendResult(ActionGateway.powerAction("suspend", "idle"));
@@ -152,8 +108,13 @@ Item {
     }
 
     Loader {
+        active: DisplayConfigService.identify || DisplayConfigService.confirming
+        source: Qt.resolvedUrl("../units/settings/DisplayOverlays.qml")
+    }
+
+    Loader {
         active: ShortcutMapService.visible
-        source: Qt.resolvedUrl("../modules/settings/ShortcutMap.qml")
+        source: Qt.resolvedUrl("../units/settings/ShortcutMap.qml")
         onLoaded: {
             if (item) {
                 item.targetScreen = ShortcutMapService.targetScreen;
@@ -163,215 +124,124 @@ Item {
         }
     }
 
+    // The kernel's unit-changed event lands here (nyxuri/desktop/bridge.py
+    // delivers `qs ipc call unit reload`): re-read the ledger, re-project.
     IpcHandler {
-        target: "power-menu"
+        target: "unit"
+
+        function reload(): string {
+            StateProjection.reload();
+            TemplateService.refresh();
+            slotHost.noteUnitChanged();
+            return StateProjection.degraded ? "DEGRADED" : "OK";
+        }
+    }
+
+    IpcHandler {
+        target: "shortcut-map"
 
         function open(): void {
-        ActionGateway.requestSessionOpen();
-    }
-
-        function close(): void {
-                              ActionGateway.requestSessionClose();
-                          }
-
-        function toggle(): void {
-        ActionGateway.requestSessionToggle();
-    }
-    }
-
-        IpcHandler {
-            target: "shortcut-map"
-
-            function open(): void {
             ShortcutMapService.open();
         }
 
-            function close(): void {
-                                  ShortcutMapService.close();
-                              }
+        function close(): void {
+            ShortcutMapService.close();
+        }
 
-            function toggle(): void {
+        function toggle(): void {
             ShortcutMapService.toggle();
         }
+    }
+
+    IpcHandler {
+        target: "theme"
+
+        function set(mode: string): string {
+            if (mode !== "dark" && mode !== "light")
+                return "INVALID_MODE";
+            ThemeService.setThemeMode(mode);
+            return "OK";
         }
 
-            IpcHandler {
-                target: "lock"
-
-                function open() {
-                    return sessionLocker.open();
-                }
-
-                function isLocked() {
-                    return sessionLocker.isLocked();
-                }
-            }
-
-            LauncherHost {
-                id: spotlightLauncher
-            }
-
-            IpcHandler {
-                target: "spotlight"
-
-                function toggle(): string {
-                    spotlightLauncher.toggleWindow();
-                    return spotlightLauncher.windowPhase.toUpperCase();
-                }
-
-                function open(): string {
-                    spotlightLauncher.openSpotlight();
-                    return spotlightLauncher.windowPhase.toUpperCase();
-                }
-
-                function search(): string {
-                    spotlightLauncher.openSpotlight("search");
-                    return "SEARCH";
-                }
-
-                function close(): string {
-                    spotlightLauncher.requestClose();
-                    return spotlightLauncher.windowPhase.toUpperCase();
-                }
-
-                function web(): string {
-                    spotlightLauncher.openWebMode();
-                    return "WEB";
-                }
-
-                function command(name: string): string {
-                    return spotlightLauncher.runCommand(name);
-                }
-
-                function commands(): string {
-                    return openMode("commands");
-                }
-
-                function files(): string {
-                    return openMode("files");
-                }
-
-                function openMode(mode: string): string {
-                    if (spotlightLauncher.normalizedMode(mode || "") === "")
-                        return "INVALID_MODE";
-
-                    spotlightLauncher.openSpotlight(mode);
-                    return String(mode).toUpperCase();
-                }
-            }
-
-            IpcHandler {
-                target: "wallpaper"
-
-                function set(path: string): string {
-                    return WallpaperService.setWallpaper(path || "", "") ? "OK" : "INVALID";
-                }
-
-                function setForScreen(path: string, screenName: string): string {
-                    return WallpaperService.setWallpaper(path || "", screenName || "") ? "OK" : "INVALID";
-                }
-
-                function clear(): string {
-                    return WallpaperService.clearWallpaper("") ? "OK" : "INVALID";
-                }
-
-                function clearForScreen(screenName: string): string {
-                    return WallpaperService.clearWallpaper(screenName || "") ? "OK" : "INVALID";
-                }
-
-                function previous(): string {
-                    return WallpaperService.cyclePrevious() ? "OK" : "PENDING";
-                }
-
-                function next(): string {
-                    return WallpaperService.cycleNext() ? "OK" : "PENDING";
-                }
-
-                function random(): string {
-                    return WallpaperService.cycleRandom() ? "OK" : "PENDING";
-                }
-
-                function setFolder(path: string): string {
-                    return WallpaperService.setWallpaperFolder(path || "") ? "OK" : "INVALID";
-                }
-            }
-
-            IpcHandler {
-                target: "control-center"
-
-                function open(pageId: string): string {
-                    return ActionGateway.requestSettingsOpen(pageId || "") ? "OK" : "UNAVAILABLE";
-                }
-
-                function close(): string {
-                    return ActionGateway.requestSettingsClose() ? "OK" : "CLOSED";
-                }
-
-                function toggle(pageId: string): string {
-                    return ActionGateway.requestSettingsToggle(pageId || "") ? "OPENING" : "CLOSING";
-                }
-            }
-
-            IpcHandler {
-                target: "settings"
-
-                function open(pageId: string): string {
-                    return ActionGateway.requestSettingsOpen(pageId || "") ? "OK" : "UNAVAILABLE";
-                }
-
-                function close(): string {
-                    return ActionGateway.requestSettingsClose() ? "OK" : "CLOSED";
-                }
-
-                function toggle(pageId: string): string {
-                    return ActionGateway.requestSettingsToggle(pageId || "") ? "OPENING" : "CLOSING";
-                }
-            }
-
-            IpcHandler {
-                target: "theme"
-
-                function set(mode: string): string {
-                    if (mode !== "dark" && mode !== "light")
-                        return "INVALID_MODE";
-                    ThemeService.setThemeMode(mode);
-                    return "OK";
-                }
-
-                function toggle(): string {
-                    ThemeService.toggleThemeMode();
-                    return "OK";
-                }
-
-                function status(): string {
-                    return PersonalizationConfig.themeMode;
-                }
-            }
-
-            IpcHandler {
-                target: "shell"
-
-                function status(): string {
-                    return JSON.stringify(ShellStartupService.startupMetrics());
-                }
-
-                function stage(): string {
-                    return ShellStartupService.currentStage;
-                }
-
-                function isReady(): bool {
-                    return ShellStartupService.currentStage === ShellStartupService.stageIpcReady
-                            || ShellStartupService.currentStage === ShellStartupService.stageReady;
-                }
-
-                function metrics(): string {
-                    return JSON.stringify(ShellStartupService.startupMetrics());
-                }
-
-                // R11: sanitized diagnostics (no env, no config contents,
-                // home paths masked) — same payload the settings page exports.
-                function diagnostics(): string {
-                    return ShellControlService.diagnosticsJson();
-                }
-            }
+        function toggle(): string {
+            ThemeService.toggleThemeMode();
+            return "OK";
         }
+
+        function status(): string {
+            return PersonalizationConfig.themeMode;
+        }
+    }
+
+    IpcHandler {
+        target: "shell"
+
+        function status(): string {
+            return JSON.stringify(ShellStartupService.startupMetrics());
+        }
+
+        function stage(): string {
+            return ShellStartupService.currentStage;
+        }
+
+        function isReady(): bool {
+            return ShellStartupService.currentStage === ShellStartupService.stageIpcReady
+                    || ShellStartupService.currentStage === ShellStartupService.stageReady;
+        }
+
+        function metrics(): string {
+            return JSON.stringify(ShellStartupService.startupMetrics());
+        }
+
+        // R11: sanitized diagnostics (no env, no config contents,
+        // home paths masked) — same payload the settings page exports.
+        function diagnostics(): string {
+            return ShellControlService.diagnosticsJson();
+        }
+
+        // Structured session log (LogService ring) — the feedback surface
+        // for "why did X not happen": read via qs ipc or the settings page.
+        function log(): string {
+            return LogService.text();
+        }
+    }
+
+    // Wallpaper capability IPC stays host-level on purpose: the unit switch
+    // owns the wallpaper visual, while set/random/cycle remain meaningful
+    // against the wallpaper state (and the theme pipeline reads it).
+    IpcHandler {
+        target: "wallpaper"
+
+        function set(path: string): string {
+            return WallpaperService.setWallpaper(path || "", "") ? "OK" : "INVALID";
+        }
+
+        function setForScreen(path: string, screenName: string): string {
+            return WallpaperService.setWallpaper(path || "", screenName || "") ? "OK" : "INVALID";
+        }
+
+        function clear(): string {
+            return WallpaperService.clearWallpaper("") ? "OK" : "INVALID";
+        }
+
+        function clearForScreen(screenName: string): string {
+            return WallpaperService.clearWallpaper(screenName || "") ? "OK" : "INVALID";
+        }
+
+        function previous(): string {
+            return WallpaperService.cyclePrevious() ? "OK" : "PENDING";
+        }
+
+        function next(): string {
+            return WallpaperService.cycleNext() ? "OK" : "PENDING";
+        }
+
+        function random(): string {
+            return WallpaperService.cycleRandom() ? "OK" : "PENDING";
+        }
+
+        function setFolder(path: string): string {
+            return WallpaperService.setWallpaperFolder(path || "") ? "OK" : "INVALID";
+        }
+    }
+}

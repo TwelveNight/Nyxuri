@@ -1,0 +1,4 @@
+# Zed — ships config AND stays optional (apps menu + optdepends)
+optional = true
+label = "Zed"
+category = "dev"

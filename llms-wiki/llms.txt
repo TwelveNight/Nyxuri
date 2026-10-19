@@ -1,33 +1,23 @@
 # Nyxuri
 
-> Nyxuri 把精选桌面配置（niri / kitty / fish / noctalia …）原子部署到 ~/.config。
-> 三层叠加（默认 → 预设 → __custom__），三模式安装（curl|bash / git clone / AUR），
+> Nyxuri 是精选桌面配置的原子部署引擎，收敛为「桌面插件市场」：
+> 单元（units/）× 内核（nyxuri/kernel/）× 市场界面（4 动词 + TUI 工坊）。
 > 纯 Python 标准库引擎（零 pip 依赖，需 3.11+ 因 tomllib）。
 
 这份 wiki 是全项目唯一的架构与设计决策参考：每页一主题、自包含、按需取。
-- **真值分工 (Source of Truth)**：运行时行为与实现细节以**源码（`configs/` + `nyxuri/` + `shell/`）与契约测试（`tests/`）**为准；本 wiki 记录**架构契约、设计决策与原因意图**。
+- **真值分工 (Source of Truth)**：运行时行为与实现细节以**源码（`units/` + `nyxuri/` + `shell/`）与契约测试（`tests/`）**为准；本 wiki 记录**架构契约、设计决策与原因意图**。
 - 根目录 [../AGENTS.md](../AGENTS.md) 仅保留全局不变量、命令路由与秒级验证契约。
 - 文档体系自身的规则（真值拓扑、生命周期、命名、链接）见 [docs-charter](docs-charter.md)。
 
 ## Architecture
 
-- [overview](overview.md): 精神、三概念（Configs / Presets / Customs）、叠加规则
+- [overview](overview.md): 一页仓库地图——文件树即架构、三概念叠加、运行时拓扑速览、真值分工
 - [vision](vision.md): 五条简洁标准（透明/主权/包容/轻盈/自然）与桌面插件市场终态哲学
+- [unit-model](unit-model.md): 单元模型、内核架构（nyxuri/kernel/）、正交状态机、merge 共享生活区、纯文件 Vault、极简 manifest 契约、死刑清单、路径术语表
+- [manifest-schema](manifest-schema.md): manifest.toml 字段参考（target ~/ / merge）、单元钩子契约、catalog.toml 同源规则、声明式边界
 - [preset-mechanism](preset-mechanism.md): active 状态文件、通用零件插槽体系（Parts Slots）、防覆盖自愈、写时序铁律、原子写
 - [file-preservation](file-preservation.md): Dunder __custom__ walk + manifest preserve（两套刻意不合并）
-- [install-modes](install-modes.md): standalone / repo / system 三模式、.system-install marker、软链、PATH 遮蔽、update 分支、AUR
-- [nvidia-patch](nvidia-patch.md): GPU 设备诊断与默认驱动变量移除
-- [uninstall](uninstall.md): 勾选式卸载、5 处历史 [gap]、执行顺序铁律
-- [tui-switcher](tui-switcher.md): 双栏预设与零件工作台（Dual-Pane Studio）、apply 窄 deploy 路径
-- [declarative](declarative.md): 命令式 vs 声明式边界（啥该 / 不该声明式）
-- [orbit-launcher](orbit-launcher.md): 星环启动器设计规格（快捷键、状态机、极坐标防抖、弹簧参数、flick 判定）
-- [orbit-translate](orbit-translate.md): 划词翻译浮窗（Alt+E 一次性进程、指针下方定位、M3 色调面板、渠道协议、设置 TUI 与凭据边界）
-- [runtime-topology](runtime-topology.md): 运行时进程树与 IPC 拓扑（会话启动、守护进程、脚本层、信号广播流）
-- [dual-session](dual-session.md): 个人分支的三套桌面隔离部署与上游更新
-- [personal-cursor](personal-cursor.md): 个人光标与私有 Niri 覆盖
-- [personal-appearance](personal-appearance.md): Nyxuri 私有动态颜色、旧模板迁移与 GTK3 兼容边界
-- [personal-clipboard](personal-clipboard.md): 三套桌面共用 cliphist 的私有监听与面板
-- [personal-bongocat](personal-bongocat.md): Bongo Cat 按键盘身份选择输入、稳定回退与私有部署
+- [state-ops](state-ops.md): 快照生命周期（30 个滚动 prune）与勾选式卸载、执行时序铁律
 
 ## Nyxuri Shell
 
@@ -38,36 +28,23 @@
 - [shell-development](shell/development.md): 纯 QML 调试循环、双 Shell 热切换与分类测试验证
 - [shell-references](shell/references.md): 上游 Clavis (15403b9) 与 iNiR 参考树说明与重现指令
 - [shell-lifecycle-inventory](shell/lifecycle-inventory.json): 机器可读生命周期与副作用审计清单 (Schema v2)
-
-## Decoupled modules
-
-- [subpackages](subpackages.md): nyxuri/{pkg, deploy, state, modules, packaging} 职责、CLI 与菜单分离、TOML 文案
-- [two-axis-config](two-axis-config.md): 可选（.optional-apps.toml）/ 有配置（目录）两轴独立、"加配置不毕业"
-- [manifest-schema](manifest-schema.md): .module.toml + .optional-apps.toml 字段参考
-- [modules](modules.md): 系统级可选模块（fcitx5/greeter/fisher/gtktheme）与 lifecycle 上抛合约
-- [i18n](i18n.md): 双语文案引擎（msg/text 协议）、宏变量替换与 translations.toml 契约
-- [assets-deploy](assets-deploy.md): 壁纸与静态资产流水线、离线 fallback 与 WallpaperDeployResult
-- [backup-snapshot](backup-snapshot.md): 配置快照生命周期、上限 30 个自动 prune 与回滚防灾
-- [packaging](packaging.md): AUR 打包与 gen-deps.py 自动汇聚 depends/optdepends
-- [theme-adaptation](../configs/noctalia/README.md): 主题中枢与 GTK/Brave 信号流全记录（GTK4 双 @media 块、settings.ini 兼容、Problem 1-12 证伪排查）
+- [orbit-launcher](shell/orbit-launcher.md): 星环启动器设计规格（快捷键、状态机、极坐标防抖、弹簧参数、flick 判定）
+- [orbit-translate](shell/orbit-translate.md): 划词翻译浮窗（Alt+E 一次性进程、指针下方定位、M3 色调面板、渠道协议、设置 TUI 与凭据边界）
 
 ## Guidelines & Standards
-
-- [personal-nvidia-clock-policy](personal-nvidia-clock-policy.md): 本机 NVIDIA 插电／外屏／Nyxuri 会话时钟策略、系统副本与恢复边界
 
 - [docs-charter](docs-charter.md): 文档宪章——真值拓扑、生命周期、命名与链接门禁（本体系唯一规则源）
 - [writing-voice](writing-voice.md): 文案风格、去 AI 味、清楚自然的人格语调
 - [changelog-spec](changelog-spec.md): Changelog 规范、真实净变更原则与中间态 Bug 拦截
 - [tui-charter](tui-charter.md): 宏观 TUI 设计宪章、减法降噪、控制感与 Pre-flight 清单
-- [agent-rules-provenance](agent-rules-provenance.md): 规则历史事故溯源、回归测试集与被拒绝规则记录
+- [testing](testing.md): 测试策略与形状、TempEnv 隔离、mock 层级、测试镜像树
 
 ## Reference
 
+- [operation-map](operation-map.md): 全部 CLI 命令目录（17 活动词 + enable/disable + help）
+- [delayed-decisions](delayed-decisions.md): 留待触发条件的事项、多合成器债务登记、被拒绝的规则
+- [i18n](i18n.md): 双语文案引擎（msg/text 协议）、宏变量替换与 translations.toml 契约
 - [roadmap](../ROADMAP.md): 跨域活跃待办（Shell 阶段明细见 shell/ROADMAP.md）
-- [concept-glossary](concept-glossary.md): 路径 / 动作 / 内容术语表（repo_dir、nyx_dir、deploy、preset…）
-- [operation-map](operation-map.md): 全部 CLI 命令目录（install / snapshot / preset / …）
-- [testing](testing.md): 测试策略与形状、TempEnv 隔离、mock 层级
-- [delayed-decisions](delayed-decisions.md): 留待触发条件的事项与已落地的结构调整
 
 ## Upstream（外部参考，冻结）
 
@@ -83,6 +60,25 @@
 已完成阶段的明细台账与时点审计，只进不改；现行契约请勿在此查找。
 
 - [shell-roadmap-ledger](archive/shell-roadmap-ledger.md): Shell R1–R12 详细任务分解与验收记录（追加式台账）
-- [roadmap-history](archive/roadmap-history.md): 全局路线历史全景与阶段 0–3 明细
+- [roadmap-history](archive/roadmap-history.md): 全局路线历史全景、阶段 0–3 与主线 KM0–KM5 存档
+- [install-modes](archive/install-modes.md): standalone / repo / system 三模式与 update 分支（KM3.5 冻结，现行入口见 overview）
+- [assets-deploy](archive/assets-deploy.md): 壁纸旧旁路流水线（KM3.5 冻结，现为 wallpapers 单元）
+- [runtime-topology](archive/runtime-topology.md): 运行时进程树与 IPC 拓扑全图（KM3.5 冻结，速览见 overview）
+- [subpackages](archive/subpackages.md): 旧四子包职责与 import 约定（KM3.5 冻结，现为物理分层）
+- [packaging](archive/packaging.md): AUR 打包与 gen-deps 汇聚算法（KM3.5 冻结，现为根 packaging/）
+- [two-axis-config](archive/two-axis-config.md): 可选/有配置两轴独立（KM3.5 冻结，已并入 manifest-schema）
+- [tui-switcher](archive/tui-switcher.md): 双栏预设工作台（KM3.5 冻结，交互见 tui-charter）
+- [nvidia-patch](archive/nvidia-patch.md): GPU 设备诊断与默认驱动变量移除（KM3.5 冻结）
+- [agent-rules-provenance](archive/agent-rules-provenance.md): 规则历史事故溯源与回归测试集（KM3.5 冻结，被拒绝规则见 delayed-decisions）
+- [backup-snapshot](archive/backup-snapshot.md): 快照生命周期旧页（KM3.5 冻结，已并入 state-ops）
+- [uninstall](archive/uninstall.md): 勾选式卸载旧页（KM3.5 冻结，已并入 state-ops）
 
-- [phase-zero](phase-zero.md): 个人分支保留的安装前清理边界参考
+## Personal overlay
+
+- [dual-session](dual-session.md): Personal desktop contract
+- [personal-appearance](personal-appearance.md): Personal desktop contract
+- [personal-bongocat](personal-bongocat.md): Personal desktop contract
+- [personal-clipboard](personal-clipboard.md): Personal desktop contract
+- [personal-cursor](personal-cursor.md): Personal desktop contract
+- [personal-nvidia-clock-policy](personal-nvidia-clock-policy.md): Personal desktop contract
+- [personal-phase-zero](archive/personal-phase-zero.md): Frozen personal phase record

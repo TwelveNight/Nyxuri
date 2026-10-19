@@ -1,0 +1,12 @@
+# 共享主题模板池（KM4/P5 中立化）：GTK3/GTK4 CSS、Niri glow、Mango 配色与
+# Material You 色板。双 Shell 渲染同源——noctalia daemon（noctalia-config
+# [theme.templates.user]）与 nyxuri-shell TemplateService（assets/templates/
+# config.toml）读同一批文件，输出字节可比。
+# 池位置中立：不再寄宿 noctalia 命名空间，脱离 noctalia 单元独立开关——
+# 单独使用 nyxuri-shell 时池随本单元部署，`off theme` 即撤回。
+# merge 声明（共享生活区）：池是用户可编辑的模板——on 只无碰合流蓝图文件
+# （用户已改的模板永不覆盖），off 只撤回蓝图具名文件。
+target = "~/.config/nyxuri/templates"
+merge = true
+packages = []
+label = "Theme Templates"

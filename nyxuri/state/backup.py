@@ -8,14 +8,14 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional
 
-from nyxuri.constants import Colors
+from nyxuri.core import Colors
 from nyxuri.core import (
     copy_path,
     get_env,
     log_msg,
     register_temp_path,
 )
-from nyxuri.i18n import msg
+from nyxuri.core import msg
 from nyxuri.tui import CheckboxEntry, CheckboxList, Menu, MenuItem, prompt_confirm, truncate_display
 
 
@@ -58,7 +58,7 @@ def backup_configs(
     note: str = "", interactive: bool = True, protected_snapshot: Optional[Path] = None
 ) -> Optional[Path]:
     """Create a complete snapshot of all active dotfiles configurations."""
-    from nyxuri.deploy.deploy import discover_config_items
+    from nyxuri.deploy.deploy import config_item_dest, discover_config_items
 
     env = get_env()
     base_dir = get_backup_base_dir()
@@ -77,7 +77,7 @@ def backup_configs(
 
     items = discover_config_items()
     for item in items:
-        cfg_path = env.config_dir / item
+        cfg_path = config_item_dest(item)
         if cfg_path.exists() or cfg_path.is_symlink():
             target = tmp_dir / item
             copy_path(cfg_path, target)
@@ -184,7 +184,7 @@ def list_backups() -> List[Path]:
 def rollback_configs(target_arg: str = "") -> bool:
     """Restore configuration from a selected historical snapshot."""
     from nyxuri.deploy.atomic import atomic_replace_item
-    from nyxuri.deploy.deploy import discover_config_items
+    from nyxuri.deploy.deploy import config_item_dest, discover_config_items
 
     backups = list_backups()
     if not backups:
@@ -248,7 +248,7 @@ def rollback_configs(target_arg: str = "") -> bool:
 
     for item in expected_items:
         snap_item = chosen_backup / item
-        dest_item = env.config_dir / item
+        dest_item = config_item_dest(item)
         if not atomic_replace_item(snap_item, dest_item, preserve_custom=False):
             print(msg("log_deploy_config_failed", item), file=sys.stderr)
             log_msg("ERROR", f"Failed to restore snapshot item {snap_item}")

@@ -1,0 +1,3 @@
+# fish shell — pinned Fisher plugin set rides on this unit
+post_install = "install-fisher"
+post_remove = "remove-fisher"

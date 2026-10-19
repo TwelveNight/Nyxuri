@@ -1,6 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.3
-import "../../modules/settings/dashboard/lyrics/LyricsParser.js" as LyricsParser
+import "../../units/settings/dashwindow/lyrics/LyricsParser.js" as LyricsParser
 
 // Covers the lyric grammars and the position lookups the dashboard card drives
 // every frame. The parser is a plain library module with no I/O, so it loads

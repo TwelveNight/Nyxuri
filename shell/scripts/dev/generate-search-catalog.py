@@ -129,8 +129,8 @@ def render(catalog):
 
 
 def load(root):
-    routes = json.loads((root/'modules/settings/settings-routes.json').read_text())
-    page_dir = root / 'modules/settings'
+    routes = json.loads((root/'units/settings/settings-routes.json').read_text())
+    page_dir = root / 'units/settings'
     for route in routes['routes']:
         if not (page_dir/route['source']).is_file():
             raise ValueError(f'Missing page: {route["source"]}')
@@ -148,7 +148,7 @@ def main():
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     content = render(load(args.root))
-    output = args.output or args.root/'modules/settings/generated/SearchCatalog.js'
+    output = args.output or args.root/'units/settings/generated/SearchCatalog.js'
     if args.check:
         if not output.is_file() or output.read_text() != content:
             raise SystemExit('Search catalog is stale; run generate-search-catalog.py')

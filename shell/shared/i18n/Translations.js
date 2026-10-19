@@ -2,7 +2,7 @@
 
 // ==============================================================================
 // Nyxuri Shell - Pure QML/JS Translation Catalog & State
-// Managed dynamically at runtime from shell/assets/i18n/*.toml via Toml.js
+// Managed dynamically at runtime from shell/app/i18n/*.toml via Toml.js
 // ==============================================================================
 
 var currentLanguage = "en_US";

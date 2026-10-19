@@ -7,8 +7,8 @@ The root README serves as a minimal storefront and bootstrap entrypoint. This Wi
 
 | Topic | Summary | Reference |
 | :--- | :--- | :--- |
-| Included Configs & Customization | Directory tree, Dunder protocol preservation, post-deploy hooks | [Read guide](Configuration) |
+| Units, Configs & Customization | Directory tree, Dunder protocol preservation, hooks architecture | [Read guide](Configuration) |
 | Presets & Modular Parts | Official Kitty/Niri presets, Parts slots, custom presets | [Read guide](Presets) |
 | Complete Keybindings | Window & column navigation, shell action gateway, nyxhelp | [Read guide](Keybindings) |
-| CLI Reference Manual | Deploy, update, snapshot rollback, doctor, uninstall matrix | [Read guide](CLI-Reference) |
+| CLI Reference Manual | Units, install, update, snapshot rollback, doctor, uninstall matrix | [Read guide](CLI-Reference) |
 | Troubleshooting Guide | DDC bus conflict, hybrid GPU video artifacts, CSS cleanups | [Read guide](Troubleshooting) |

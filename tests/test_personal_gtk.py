@@ -13,7 +13,7 @@ class PersonalGtkTests(unittest.TestCase):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            originals = {name: (install.ROOT / "configs/noctalia/templates" / name).read_bytes()
+            originals = {name: (install.ROOT / "units/theme" / name).read_bytes()
                          for name in ("gtk-3.0.css", "gtk-4.0.css")}
             install.prepare_sources(source)
             template = source / "noctalia/templates/gtk-3.0.css"
@@ -50,7 +50,7 @@ sys.exit(bool(errors))
             for selector in (".navigation-sidebar row:active", "switch:hover"):
                 self.assertRegex(css, re.escape(selector) + r"\s*\{\s*background-color: #[0-9a-f]{6};\s*\}")
             for name, original in originals.items():
-                self.assertEqual((install.ROOT / "configs/noctalia/templates" / name).read_bytes(), original)
+                self.assertEqual((install.ROOT / "units/theme" / name).read_bytes(), original)
             self.assertEqual((source / "noctalia/templates/gtk-4.0.css").read_bytes(), originals["gtk-4.0.css"])
 
 

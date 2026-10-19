@@ -3,10 +3,10 @@ import QtQuick
 import Quickshell
 import qs.app.services
 import qs.shared.i18n
-import "../../modules/systemcards/SystemCardCatalog.js" as Catalog
-import "../../modules/systemcards/SystemCardGeometry.js" as Geometry
-import "../../modules/systemcards/SystemCardState.js" as CardState
-import "../../modules/sidebars/dashboard/drawer/DrawerGridLayout.js" as DrawerLayout
+import "../../shared/cards/SystemCardCatalog.js" as Catalog
+import "../../shared/cards/SystemCardGeometry.js" as Geometry
+import "../../shared/cards/SystemCardState.js" as CardState
+import "../../units/sidebars/dashboard/drawer/DrawerGridLayout.js" as DrawerLayout
 
 Singleton {
     id: root

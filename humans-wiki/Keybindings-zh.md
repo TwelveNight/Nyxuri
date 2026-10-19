@@ -14,10 +14,16 @@
 | <kbd>Super</kbd> + <kbd>F</kbd> | 最大化当前列 |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | 全屏 |
 | <kbd>Super</kbd> + <kbd>Tab</kbd> | 工作区总览 |
+| <kbd>Alt</kbd> + <kbd>Tab</kbd> / <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>Tab</kbd> | 在当前输出跨窗口切换焦点 |
+| <kbd>Alt</kbd> + <kbd>`</kbd> | 在同应用窗口间切换焦点 |
 | <kbd>Super</kbd> + <kbd>Z</kbd> / <kbd>C</kbd> | 聚焦左/右列 |
 | <kbd>Super</kbd> + <kbd>方向键</kbd> | 焦点移动（跨列 / 跨屏 / 跨工作区） |
 | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>方向键</kbd> | 移动窗口（跨列 / 跨屏 / 跨工作区） |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>方向键</kbd> | 本地微调（含列内调位） |
+| <kbd>Super</kbd> + <kbd>,</kbd> | 将窗口吸入当前列（合并） |
+| <kbd>Super</kbd> + <kbd>.</kbd> | 将窗口从当前列分离出新列（拆出） |
+| <kbd>Super</kbd> + <kbd>1..9</kbd> | 快速直跳工作区 1 到 9 |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>1..9</kbd> | 将列直接移至工作区 1 到 9 |
 | <kbd>Super</kbd> + <kbd>D</kbd> / <kbd>U</kbd> | 工作区下/上 |
 | <kbd>Super</kbd> + <kbd>Space</kbd> | 切换预设列宽 |
 | <kbd>Super</kbd> + <kbd>-</kbd> / <kbd>=</kbd> | 收缩/拉伸列宽 |
@@ -40,6 +46,7 @@
 | <kbd>Super</kbd> + <kbd>A</kbd> / <kbd>Super</kbd> + <kbd>鼠标前侧键</kbd> | Orbit 矢量星环启动器 |
 | <kbd>Alt</kbd> + <kbd>E</kbd> | 划词翻译（在指针下方弹出译文浮窗；设置入口：Orbit › System Tools › Translate） |
 | <kbd>Super</kbd> + <kbd>L</kbd> | 锁屏 |
-| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | 截图 |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | 截图（交互式选区） |
+| <kbd>Print</kbd> / <kbd>Ctrl</kbd> + <kbd>Print</kbd> / <kbd>Alt</kbd> + <kbd>Print</kbd> | 截图（交互选区 / 全屏 / 活动窗口） |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | 重载 Niri |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd> | 退出 Niri |

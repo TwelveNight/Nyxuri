@@ -1,4 +1,4 @@
-遇到问题优先运行 `./install.sh doctor`。
+遇到问题优先运行 `nyxuri doctor`。
 
 ---
 
@@ -40,7 +40,7 @@ git -C ~/.local/state/noctalia/plugins/sources/official/repo reset --hard HEAD
 ---
 
 ## Greeter 同步要密码
-加一条 Polkit 免密规则（`nyxuri greeter install` 会自动写入）。
+加一条 Polkit 免密规则（`nyxuri on greeter` 会自动写入）。
 
 手动添加 Polkit 规则：
 

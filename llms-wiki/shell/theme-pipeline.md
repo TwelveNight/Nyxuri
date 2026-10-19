@@ -2,7 +2,7 @@
 
 > 本页是壁纸取色到应用模板渲染的管线契约与渲染队列不变量，以
 > `shell/scripts/theme/`、`shell/app/services/TemplateService.qml` 与
-> `tests/test_shell_runtime.py` 的真实行为为准。
+> `tests/shell/test_shell_runtime.py` 的真实行为为准。
 
 ## 管线
 
@@ -28,6 +28,10 @@
 - **每个异步等待都有 10s 看门狗**：模板读取、输出 settle、hook 运行任一
   丢失事件，都退化为该模板的一条已记录失败并推进队列。`renderingId`
   在结构上不可能永久卡死；下一次 `renderAll`（下一次换壁纸）自然重试。
+- **输入模板加载防重入**：只有路径相同时才调用 `reload()`，路径变更由 `FileView.path` 赋值自发启动加载，杜绝多重 `onLoaded` 触发并发重复 hook 进程。
+- **队列推进跨帧解耦**（`Qt.callLater(root.renderNext)`）：在 `renderDone` 中推进下一个模板必须通过 `Qt.callLater` 投递至下一事件循环。Quickshell 0.3.1 的 `FileView` 在 `onSaved` 信号处理期间如果在同一调用栈内同步改变 `path`，底层 C++ `FileViewOperation` 会发生状态竞争并丢弃后续读操作（`got operation finished from dropped operation`），导致连续无 hook 模板（如 `fcitx5_theme` ➔ `fcitx5_panel`）后者读取超时。
+- **深浅模式即时重载**：`PersonalizationConfig.onThemeModeChanged` 触发时，利用内存中已加载的 `tokenColors` 双模式映射即刻调用 `renderAll()`，避免依赖磁盘写盘延迟。
+- **Hook 执行环境隔离与原始缓存路径透传**：`shell/nyxuri-shell` 启动时将 `XDG_CACHE_HOME` 定向至 `$HOME/.cache/nyxuri-shell` 以隔离 Quickshell QML 磁盘缓存，同时导出 `NYXURI_ORIGINAL_CACHE_HOME`。`TemplateService` 创建 hook 子进程时必须显式注入宿主真实用户目录（`XDG_CACHE_HOME: Paths.xdgCacheHome` 即 `$HOME/.cache`），确保外部脚本（如 `starship-apply.sh`）准确寻址到 `~/.cache/nyxuri/` 下的色板中间件，不被 Shell 私有缓存污染。
 - 空渲染结果按失败处理，不进入写入门控。
 
 ## Quickshell 0.3.1 平台约束（原因记录）
@@ -35,15 +39,14 @@
 - `FileView.setText`：内容等价即 no-op（C++ 侧 `writeCmpData` 比较），
   不会写盘也不会发 `saved()`。
 - `FileView` 异步操作：同视图交错时 `cancelAsync` 会 disown 在途 read，
-  其完成被丢弃；写完成同样可能丢失。队列不得在 settle 窗口之外触碰
-  输出视图。
+  其完成被丢弃；写完成同样可能丢失。保存回调内直接重置路径会导致紧随其后的读操作被丢弃。队列不得在 settle 窗口之外触碰输出视图，且队列切换必须跨事件帧。
 - `Process` 复用：紧随上一个子进程退出的 spawn 请求可能被静默丢弃。
 - 升级 Quickshell 后应重跑队列行为测试；若平台已修复，可重新评估
   `blockWrites` 与看门狗的必要性。
 
 ## 验收方式
 
-`tests/test_shell_runtime.py::test_template_render_queue_writes_outputs_and_hooks`
+`tests/shell/test_shell_runtime.py::test_template_render_queue_writes_outputs_and_hooks`
 在私有合成器里跑真实 QML：palette-modes 热重载必须渲染 kitty/btop/starship
 并运行 hook；同色板重渲染必须排空队列且 hook 照跑；随后的色板改写必须仍被
 跟随；`renderErrors` 保持为空；不得出现 QML 诊断。

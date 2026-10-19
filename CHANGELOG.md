@@ -7,31 +7,27 @@
 
 ## [Unreleased]
 
-- 个人分支的 nyxuri 命令打开快捷管理菜单，安装和更新仍只作用于个人桌面。
+### Added
+- AUR 上架 `nyxuri-git`：`paru -S nyxuri-git` 一条命令安装完整 Nyxuri（管理引擎、全部配置单元与 Nyxuri Shell），此后更新交给 pacman
 
-- 个人分支的 Super+A 打开星环与搜索，Super+S/B/D 分别打开控制中心首页、蓝牙和网络页面。
+## [v4.0.0-alpha.2] - 2026-10-18
 
-- 个人分支的 Super+/ 打开按用途细分、可搜索的快捷键速查面板。
+### Added
+- 桌面全面单元化：每个部件（合成器、终端、输入法，以及 Shell 的状态栏、启动器、锁屏、通知等）都是可开关的单元，`nyxuri on/off <名称>` 一键启停、即时生效
+- 新增交互式控制面板：直接运行 `nyxuri` 浏览、搜索并开关所有单元
+- 新增 Mango WM 适配与多窗口管理器支持：保留 Niri 标准模板的同时，接入 Mango 窗口管理器配置、热重载与门户映射
+- 安装菜单与部署流程支持窗口管理器互斥单选，并按当前运行环境自动首选，避免同时部署多个 WM 导致冲突
 
-- 个人分支沿用 iNiR 的应用浮动、初始尺寸和明日方舟窗口设置，并单独关闭 Folia 背景模糊。
+### Changed
+- 桌面软件不再随安装捆绑：启用哪个单元，才安装它需要的软件
+- `install.sh` 退役为一次性引导，常驻入口是 `nyxuri` 命令；旧软链会在下次运行时自动治愈重指
+- 升级或重装管理器不会动你已部署的配置：对账用 `nyxuri list`，想应用新版本模板时再显式 `nyxuri install full`
+- `Ctrl+Shift+C/V` 成为 Kitty 唯一复制粘贴路径：Windows 式 Ctrl+C/V 劫持与右键粘贴全部退役，按键还给终端程序
+- 沙箱部署测试入口改为 `HOME=$(mktemp -d) python3 -m nyxuri test`（原 `./install.sh test` 随透传退役）
 
-- 个人分支的状态栏壁纸按钮打开 skwd-wall，控制中心选图也交给 skwd 渲染。
-
-- 个人分支的应用搜索和其他 Noctalia 列表支持 Ctrl+J/K 上下选择。
-
-- 个人分支按 Super+Q 或 Alt+Q 隐藏 Folia 到托盘，继续播放音乐。
-
-- 个人分支沿用 iNiR 的 NVIDIA 显卡设置，并保存外屏 144 Hz、内屏关闭的默认布局。
-
-- 个人分支的 Super+V 开关与桌面同主题的历史面板，并与 iNiR、ii 共用文字和图片记录。
-
-- 个人分支的 Nyxuri 光标与 iNiR、ii 一致，使用黑色 Bibata 光标。
-
-- 个人分支的 Nyxuri 支持鼠标移入窗口自动聚焦，也可推向左右屏幕边缘进入相邻窗口。
-
-- 个人分支沿用 iNiR 快捷键与自启动选择，Super+X 留给应用、电源菜单改为 Super+Alt+Delete，并禁用 ToDesk 自启动。
-
-- 个人分支沿用原安装命令，新增独立配置与登录项，沿用个人深浅主题同步选择，壁纸由 skwd 管理并同步 Noctalia 配色，概览沿用 iNiR 样式，并支持合并官方更新。
+### Removed
+- 移除 `nyxniri` 兼容层：旧命令、环境变量与别名全部退役，统一为 `nyxuri` / `NYXURI_*`
+- 配置目录 `configs/` 更名 `units/`：目录即单元
 
 ## [v4.0.0-alpha.1] - 2026-10-07
 

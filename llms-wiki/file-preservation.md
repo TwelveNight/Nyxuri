@@ -23,7 +23,7 @@ test_mode 下跳过 `scratchpad-items__custom__.toml` 和 `orbit-items__custom__
 
 ## 机制 2：manifest preserve（按声明注入）
 
-`.module.toml` 的 `preserve = ["monitor.kdl", "effects.kdl"]` 声明要保留的文件（按**名**，不是魔法文件名）。
+`manifest.toml` 的 `preserve = ["monitor.kdl", "effects.kdl"]` 声明要保留的文件（按**名**，不是魔法文件名）。
 `atomic_replace_item` 接收 `preserve` 参数，在 copytree + Dunder walk 完成、**rename 之前**
 把这些文件从 dest 复制进 tmp_new——swap 完成后 dest 即最终态，没有事后恢复窗口。
 如果是符号链接（如 `effects.kdl` → `effects_normal.kdl`/`effects_eyecare.kdl` 编码的 EyeCare 开关状态），
@@ -35,6 +35,12 @@ effects.kdl 是脚本动态管理的软链接，同样需要固定文件名。�
 
 > **竞态消除**：旧实现先 rename 整目录、再事后拷回 monitor.kdl，Niri 的 inotify 会在恢复前
 > 读到仓库默认的空 monitor.kdl 导致闪屏。现在注入在 rename 前完成，inotify 看到的就是最终态。
+
+**按键级保留 `preserve_values`**：文件级 preserve 的同族扩展，声明形如
+`preserve_values = { "noctalia-config.toml" = ["enable_ddcutil"] }`。换入新目录前从旧文件
+按段读出这些键的原始写法写进暂存新文件，再整体 rename——swap 完成即最终态，没有
+「先覆盖再恢复」的中间窗口。键按所在段匹配，旧文件里没有的键不携带（沿用新模板值），
+路径越界检查与 preserve 走同一套。
 
 ## 机制 3：预设底版继承（Base Overlay）
 
@@ -75,4 +81,4 @@ manifest 的 `preserve_values` 可在保留新模板其他内容的同时，携�
 
 Nyxuri 元数据只许在 `~/.config/nyxuri/`（backups、presets、active 状态、hooks）。
 `~/.config/<app>/` 里不塞 Nyxuri 自己的东西——`__custom__` 是约定保留名，属 app 配置一部分，
-不算"拉屎"。`.module.toml` 是仓库元数据，deploy 时被 `_deploy_ignore_factory` 跳过，不进 dest。
+不算"拉屎"。`manifest.toml` 是仓库元数据，deploy 时被 `_deploy_ignore_factory` 跳过，不进 dest。

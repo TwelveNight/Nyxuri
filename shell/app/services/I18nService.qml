@@ -31,7 +31,7 @@ Singleton {
 
     FileView {
         id: tomlFileView
-        path: root.language === "en_US" ? "" : (Paths.assetsDir + "/i18n/" + root.language + ".toml")
+        path: root.language === "en_US" ? "" : (Paths.i18nDir + "/" + root.language + ".toml")
 
         onLoaded: {
             if (root.language === "en_US")
@@ -73,7 +73,7 @@ Singleton {
         root.lastError = "";
         I18n.setLanguage(lang);
         if (lang !== "en_US") {
-            const targetPath = Paths.assetsDir + "/i18n/" + lang + ".toml";
+            const targetPath = Paths.i18nDir + "/" + lang + ".toml";
             if (tomlFileView.path !== targetPath) {
                 tomlFileView.path = targetPath;
             } else if (tomlFileView.text().length > 0) {

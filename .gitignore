@@ -28,3 +28,8 @@ local/
 
 # Local, pinned upstream reference (recreate from the commit in llms-wiki/shell/references.md)
 /shell/references/
+
+# devtools chroot 构建产物（build 在 packaging/ 内进行）
+packaging/*.log
+packaging/*.pkg.tar.zst
+packaging/nyxuri-git/

@@ -1,18 +1,22 @@
 ```text
 Nyxuri
 ├── install.sh                  # lightweight bootstrap entrypoint
+├── catalog.toml                # package catalogue (17 standalone apps without dotfiles)
 ├── nyxuri/                     # Python core engine (zero pip dependencies)
-├── assets/                     # static assets (wallpapers, fcitx5 skin templates)
-└── configs/
-    ├── niri/                   # window manager (.kdl, .toml)
-    │   └── scripts/            # Orbit launcher, wallpaper picker & scratchpad scripts
-    ├── noctalia/               # shell + theme sync
-    ├── xdg-desktop-portal/     # portal routing (Settings / screencast)
-    ├── kitty/                  # terminal
-    ├── fish/                   # aliases + functions
-    ├── fastfetch/              # system info
-    ├── zed/                    # editor
-    └── starship.toml           # prompt
+├── shell/                      # Nyxuri Shell (QML/Qt6 desktop shell, experimental)
+└── units/                      # 12 modular desktop capability units
+    ├── fastfetch/              # system information
+    ├── fcitx5-rime/            # dynamic Material You input skin & Rime config
+    ├── fish/                   # shell aliases & functions
+    ├── greeter/                # Noctalia Greeter login integration
+    ├── kitty/                  # terminal emulator & opacity presets
+    ├── mango/                  # MangoWM window manager & session scripts
+    ├── niri/                   # window manager & session scripts
+    ├── noctalia/               # desktop shell, theme sync, Orbit & wallpaper picker
+    ├── starship/               # prompt styling
+    ├── wallpapers/             # companion wallpapers & video pack hooks
+    ├── xdg-desktop-portal/     # portal routing (theme sync, screencast)
+    └── zed/                    # editor configuration
 ```
 
 Configs deploy atomically. Personal tweaks survive updates via the Dunder protocol:
@@ -31,6 +35,12 @@ Any file or folder containing `__custom__` survives updates and preset switches:
 
 ---
 
-## Post-deploy hooks
+## Hooks Architecture
 
-Put shell scripts in `~/.config/nyxuri/hooks/` to run your own finishing work after every normal config deploy. Scripts ending in `.sh` run in filename order with a 30-second limit; a failed or timed-out script is reported without blocking the rest. `nyxuri test` skips these hooks, and ordinary uninstall keeps them.
+Nyxuri separates finishing automation into two isolated layers:
+
+### 1. User Post-Deploy Hooks (`~/.config/nyxuri/hooks/`)
+Put personal finishing scripts in `~/.config/nyxuri/hooks/`. Any script ending in `.sh` runs in alphanumeric filename order after normal config deployments (`nyxuri install` or updates) with a 30-second timeout. A failed or timed-out script prints a diagnostic warning without interrupting the rest. `nyxuri test` skips user hooks, and uninstallation preserves them.
+
+### 2. Unit Lifecycle Hooks (`units/<unit>/hooks/`)
+Units declare their own lifecycle side effects in `units/<unit>/manifest.toml` (e.g. `post_install = "setup-rime"`, `install-pack` for wallpaper downloads). These scripts are unit-owned and run strictly through the transaction engine during unit activation (`nyxuri on`), deactivation (`nyxuri off`), or hook replay after updates (`transaction.replay_enabled_hooks()`). Users do not manually place scripts here.

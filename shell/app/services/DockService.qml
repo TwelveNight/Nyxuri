@@ -5,8 +5,8 @@ import Quickshell
 import Quickshell.Io
 import qs.shared.theme
 import qs.app.services
-import "../../modules/dock/DockModel.js" as DockModel
-import qs.modules.dock
+import "../../units/dock/DockModel.js" as DockModel
+import qs.units.dock
 import qs.app
 import qs.shared.i18n
 
@@ -73,7 +73,10 @@ Singleton {
         return root.commitPinned(next);
     }
     readonly property int revision: root._revision
-    readonly property bool enabled: root._options.enabled
+    // The dock unit's existence is the ledger's (unit-model.md §6): this
+    // projection gates the domain's own background work (rebuilds,
+    // subscriptions) exactly while the unit is on.
+    readonly property bool enabled: StateProjection.isEnabled("dock")
     onEnabledChanged: root.rebuild()
     readonly property string position: root._options.position
     readonly property string surfaceStyle: root._options.surfaceStyle

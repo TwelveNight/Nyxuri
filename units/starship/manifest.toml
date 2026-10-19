@@ -1,0 +1,4 @@
+# starship prompt unit — single-file target exception (unit-model.md §4):
+# the unit dir ships one file that lands at ~/.config/starship.toml.
+# "starship" is also the package/binary name, so every other default applies.
+target = "starship.toml"

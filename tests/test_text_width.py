@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from nyxuri.constants import Colors
+from nyxuri.core import Colors
 from nyxuri.tui import display_width, render_check_row, render_menu_item, truncate_display
 
 
@@ -74,7 +74,7 @@ class TestRowRendering(unittest.TestCase):
 
 class TestCleanHelpers(unittest.TestCase):
     def test_tilde_only_shortens_paths_actually_below_home(self):
-        import nyxuri.clean as clean
+        import nyxuri.desktop.clean as clean
 
         with patch.object(clean, "HOME", Path("/home/user")):
             self.assertEqual(clean.tilde("/home/user/.cache"), "~/.cache")
@@ -84,7 +84,7 @@ class TestCleanHelpers(unittest.TestCase):
             self.assertEqual(clean.tilde("/home/users/data"), "/home/users/data")
 
     def test_interactive_helpers_survive_stdin_without_fileno(self):
-        import nyxuri.clean as clean
+        import nyxuri.desktop.clean as clean
 
         class NoFileno:
             def isatty(self):
@@ -95,7 +95,6 @@ class TestCleanHelpers(unittest.TestCase):
 
         tasks = [{"key": "cache", "label": "l", "target": "t", "size": 1}]
         with patch.object(sys, "stdin", NoFileno()):
-            self.assertEqual(clean._read_key(), "ESC")
             self.assertIsNone(clean._checkbox(tasks))
 
 

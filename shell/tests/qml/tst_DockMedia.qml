@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../../modules/dock/DockMedia.js" as DockMedia
+import "../../units/dock/DockMedia.js" as DockMedia
 
 TestCase {
     name: "DockMedia"

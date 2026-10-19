@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""fish on-hook: install the reviewed, pinned Fisher plugin set.
+
+Unit-owned behavior (KM3): everything lands inside this unit's living
+area (~/.config/fish), so the transaction snapshot picks the files up and
+`nyxuri off fish` wipes them — no ownership bookkeeping of its own.
+Refuses to touch a fisher it does not own (content-hash proof) and
+refuses a non-lockfile fish_plugins.
+"""
+import hashlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # standalone runs
+
+from nyxuri.pkg.net import fetch_raw_with_fallback  # noqa: E402
+
+BOOTSTRAP_COMMIT = "791da644d33d392216f6b1a9b5fc1e470db6d7f2"
+BOOTSTRAP_SHA256 = "0fb6c81ae3003e95b5671766fa6c25c3597066e29965b7772f6c1b007387356d"
+PLUGINS = (
+    f"jorgebucaran/fisher@{BOOTSTRAP_COMMIT}",
+    "jorgebucaran/autopair.fish@4d1752ff5b39819ab58d7337c69220342e9de0e2",
+    "PatrickF1/fzf.fish@6a6136998879dcc1f29a405dfdd6b92c5f229c39",
+)
+MARKER_FILES = (
+    "functions/fisher.fish", "completions/fisher.fish",
+    "conf.d/autopair.fish", "conf.d/fzf.fish",
+)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def main() -> int:
+    if not shutil.which("fish"):
+        print("[!] fish is not installed; refusing Fisher setup")
+        return 1
+    fish_dir = Path.home() / ".config/fish"
+    lockfile = fish_dir / "fish_plugins"
+    try:
+        locked = lockfile.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        locked = None
+    if locked != list(PLUGINS):
+        print("[✗] fish_plugins is not the reviewed lockfile; refusing Fisher install")
+        return 1
+
+    fisher_file = fish_dir / "functions" / "fisher.fish"
+    owned = False
+    if fisher_file.is_file():
+        owned = _sha256(fisher_file) == BOOTSTRAP_SHA256
+        # Legacy marker: machines installed by the retired module carry the
+        # ownership json — that record proves ownership just the same.
+        if not owned and (Path.home() / ".local/state/nyxuri/fisher.json").is_file():
+            owned = True
+        if not owned:
+            print("[!] an unowned fisher.fish already exists; refusing to touch it")
+            return 1
+
+    current = owned and all((fish_dir / rel).is_file() for rel in MARKER_FILES)
+    if current:
+        print("[•] pinned Fisher set already installed")
+        return 0
+
+    bootstrap = Path(tempfile.mkstemp(suffix=".fish")[1])
+    try:
+        if not fetch_raw_with_fallback(
+            "jorgebucaran/fisher", BOOTSTRAP_COMMIT, "functions/fisher.fish",
+            bootstrap, BOOTSTRAP_SHA256,
+        ):
+            print("[!] Fisher bootstrap download failed; skipped")
+            return 1
+        plugins = PLUGINS[1:] if fisher_file.is_file() else PLUGINS
+        temp_config = Path(tempfile.mkdtemp(prefix="fisher."))
+        try:
+            result = subprocess.run(
+                ["fish", "-c",
+                 "set --global fisher_path $argv[2]; source -- $argv[1]; fisher install $argv[3..-1]",
+                 "--", str(bootstrap), str(fish_dir), *plugins],
+                check=False, timeout=60,
+                env={**os.environ, "XDG_CONFIG_HOME": str(temp_config)},
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            print(f"[!] pinned Fisher install failed: {exc}")
+            return 1
+        finally:
+            shutil.rmtree(temp_config, ignore_errors=True)
+        if result.returncode != 0:
+            print("[!] pinned Fisher install failed")
+            return 1
+    finally:
+        bootstrap.unlink(missing_ok=True)
+
+    print("[✓] pinned Fisher plugin set installed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

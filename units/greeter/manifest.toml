@@ -1,0 +1,17 @@
+# Noctalia Greeter — greetd 登录界面（/etc + root + systemd 副作用全部声明）
+optional = true
+packages = ["greetd"]
+packages_aur = ["noctalia-greeter"]
+label = "Noctalia Greeter"
+category = "system"
+post_install = "activate"
+post_remove = "deactivate"
+
+[privilege]
+requires_root = true
+system_paths = [
+    "/etc/greetd/config.toml",
+    "/etc/greetd/nyxuri-display-manager",
+    "/etc/polkit-1/rules.d/50-noctalia-greeter.rules",
+    "/var/lib/noctalia-greeter",
+]

@@ -1,0 +1,1322 @@
+"""Contract tests for the preset mechanism (§3.2).
+
+Covers §14 shapes: the four src-selection branches, dest-missing reset with
+upstream-removed warning, state file read/write, and __custom__ preservation
+across preset switches (regression guard for the copytree ignore change).
+"""
+
+import os
+import subprocess
+import tempfile
+import tomllib
+import unittest
+from io import StringIO
+from pathlib import Path
+from unittest.mock import patch
+
+import nyxuri.deploy.preset as preset
+import nyxuri.desktop.presets as presets
+import nyxuri.deploy.manifest as manifest
+from nyxuri.deploy.atomic import atomic_replace_item
+from nyxuri.tui import PresetSwitcher
+from nyxuri.core import msg
+from tests.utils import TempEnv
+
+
+class TestActiveStateFile(unittest.TestCase):
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_read_default_when_no_file(self):
+        self.assertEqual(preset.read_active_preset("kitty"), "default")
+
+    def test_write_then_read(self):
+        preset.write_active_preset("kitty", "transparent")
+        self.assertEqual(preset.read_active_preset("kitty"), "transparent")
+
+    def test_write_creates_presets_dir(self):
+        # presets_dir does not exist initially; write must create it.
+        self.assertFalse(self._ctx.env.presets_dir.exists())
+        preset.write_active_preset("kitty", "compact")
+        self.assertTrue(self._ctx.env.presets_dir.is_dir())
+
+    def test_read_empty_file_freezes_instead_of_default(self):
+        self._ctx.env.presets_dir.mkdir(parents=True, exist_ok=True)
+        (self._ctx.env.presets_dir / "kitty.active").write_text("   \n")
+        with self.assertRaises(preset.InvalidActivePresetError):
+            preset.read_active_preset("kitty")
+
+    def test_read_rejects_active_name_with_outer_whitespace(self):
+        self._ctx.env.presets_dir.mkdir(parents=True, exist_ok=True)
+        active = self._ctx.env.presets_dir / "kitty.active"
+        for value in (" transparent", "transparent ", "transparent\n"):
+            with self.subTest(value=value):
+                active.write_text(value)
+                with self.assertRaises(preset.InvalidActivePresetError):
+                    preset.read_active_preset("kitty")
+
+
+class TestResolvePresetSrc(unittest.TestCase):
+    """The four src branches (§3.2) — parameter-shape contract on src path."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+        self._sandbox = tempfile.TemporaryDirectory()
+        self.env.units_src = Path(self._sandbox.name)
+
+        self.app = "kitty"
+        self.app_root = self.env.units_src / self.app
+        self.app_root.mkdir(parents=True)
+        (self.app_root / "kitty.conf").write_text("# default")
+
+        self.official = self.app_root / "presets" / "transparent"
+        self.official.mkdir(parents=True)
+        (self.official / "kitty.conf").write_text("# transparent")
+
+        self.dest = self.env.config_dir / self.app
+
+    def tearDown(self):
+        self._sandbox.cleanup()
+        self._ctx.__exit__()
+
+    def test_default_branch(self):
+        r = preset.resolve_preset_src(self.app, "default", self.dest)
+        self.assertEqual(r.src, self.app_root)
+        self.assertIsNone(r.reset_active)
+        self.assertEqual(r.warnings, [])
+
+    def test_official_preset_branch(self):
+        self.dest.mkdir(parents=True)
+        (self.dest / "old.conf").write_text("x")
+        r = preset.resolve_preset_src(self.app, "transparent", self.dest)
+        self.assertEqual(r.src, self.official)
+        self.assertIsNone(r.reset_active)
+
+    def test_user_preset_branch(self):
+        self.dest.mkdir(parents=True)
+        user_dir = self.env.presets_dir / self.app / "mine"
+        user_dir.mkdir(parents=True)
+        r = preset.resolve_preset_src(self.app, "mine", self.dest)
+        self.assertEqual(r.src, user_dir)
+
+    def test_official_preferred_over_user_same_name(self):
+        # §2.2: official wins on name collision
+        self.dest.mkdir(parents=True)
+        (self.env.presets_dir / self.app / "transparent").mkdir(parents=True)
+        r = preset.resolve_preset_src(self.app, "transparent", self.dest)
+        self.assertEqual(r.src, self.official)
+
+    def test_not_found_freezes_dest(self):
+        # active = ghost, dest exists → src None (freeze), warning. Do NOT
+        # fall back to default (would silently wipe the user's config). §3.2
+        self.dest.mkdir(parents=True)
+        r = preset.resolve_preset_src(self.app, "ghost", self.dest)
+        self.assertIsNone(r.src)
+        self.assertTrue(r.warnings)
+
+    def test_dest_missing_resets_to_default(self):
+        # dest absent + active=transparent (still upstream) → default, no extra warning
+        r = preset.resolve_preset_src(self.app, "transparent", self.dest)
+        self.assertEqual(r.src, self.app_root)
+        self.assertEqual(r.reset_active, "default")
+        self.assertEqual(r.warnings, [])
+
+    def test_dest_missing_and_upstream_removed_warns(self):
+        # dest absent + active=ghost (gone upstream) → default + extra warning (B1)
+        r = preset.resolve_preset_src(self.app, "ghost", self.dest)
+        self.assertEqual(r.src, self.app_root)
+        self.assertEqual(r.reset_active, "default")
+        self.assertTrue(r.warnings)
+
+
+class TestCustomSurvivesPresetSwitch(unittest.TestCase):
+    """__custom__ files survive preset switches (Dunder + copytree-ignore compat)."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+        self._sandbox = tempfile.TemporaryDirectory()
+        self.env.units_src = Path(self._sandbox.name)
+
+    def tearDown(self):
+        self._sandbox.cleanup()
+        self._ctx.__exit__()
+
+    def test_custom_file_retained_across_two_presets(self):
+        app = "kitty"
+        root = self.env.units_src / app
+        root.mkdir(parents=True)
+        transparent = root / "presets" / "transparent"
+        transparent.mkdir(parents=True)
+        (transparent / "kitty.conf").write_text("# transparent")
+        compact = root / "presets" / "compact"
+        compact.mkdir(parents=True)
+        (compact / "kitty.conf").write_text("# compact")
+
+        dest = self.env.config_dir / app
+        # First deploy transparent, then add a user __custom__.conf, then switch.
+        self.assertTrue(atomic_replace_item(transparent, dest))
+        (dest / "__custom__.conf").write_text("# my overrides")
+        self.assertTrue(atomic_replace_item(compact, dest))
+
+        # compact's kitty.conf is now in dest, and __custom__.conf survived.
+        self.assertEqual((dest / "kitty.conf").read_text(), "# compact")
+        self.assertTrue((dest / "__custom__.conf").exists())
+        self.assertEqual((dest / "__custom__.conf").read_text(), "# my overrides")
+
+    def test_manifest_not_shipped_to_dest(self):
+        # §10.4 boundary: manifest.toml is repo metadata, must not land in dest.
+        app = "kitty"
+        root = self.env.units_src / app
+        root.mkdir(parents=True)
+        (root / "kitty.conf").write_text("# conf")
+        (root / "manifest.toml").write_text('packages = ["kitty"]\n')
+        dest = self.env.config_dir / app
+        atomic_replace_item(root, dest)
+        self.assertFalse((dest / "manifest.toml").exists())
+        # The real kitty.conf did ship.
+        self.assertTrue((dest / "kitty.conf").exists())
+
+    def test_presets_subdir_not_shipped_to_dest(self):
+        # presets/ stays in repo, not deployed into ~/.config/<app>/presets/
+        app = "kitty"
+        root = self.env.units_src / app
+        root.mkdir(parents=True)
+        (root / "kitty.conf").write_text("# conf")
+        (root / "presets" / "transparent").mkdir(parents=True)
+        (root / "presets" / "transparent" / "kitty.conf").write_text("# t")
+        dest = self.env.config_dir / app
+        atomic_replace_item(root, dest)
+        self.assertFalse((dest / "presets").exists())
+
+
+class TestPresetOperations(unittest.TestCase):
+    """list/apply/save/delete against the real repo's kitty + transparent demo."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_list_marks_active_default(self):
+        entries = presets.list_presets("kitty")
+        names = [n for n, _, _ in entries]
+        self.assertIn("default", names)
+        self.assertIn("transparent", names)  # the shipped demo preset
+        active_entry = [e for e in entries if e[2]]
+        self.assertEqual(len(active_entry), 1)
+        self.assertEqual(active_entry[0][0], "default")  # fresh = default
+
+    def test_apply_transparent_writes_active_and_deploys_variant(self):
+        ok = presets.apply_preset("kitty", "transparent")
+        self.assertTrue(ok)
+        self.assertEqual(preset.read_active_preset("kitty"), "transparent")
+        conf = self.env.config_dir / "kitty" / "kitty.conf"
+        self.assertTrue(conf.is_file())
+        self.assertIn("0.75", conf.read_text())  # the transparent variant
+
+    def test_list_includes_niri_glow_preset(self):
+        entries = presets.collect_presets("niri")
+        names = [n for n, _, _ in entries]
+        self.assertEqual(names, ["default"])
+
+        parts = preset.list_parts("niri")
+        self.assertIn("effects", parts)
+        self.assertEqual(set(parts["effects"]["variants"]), {"default", "xray-blur"})
+        self.assertIn("glow", parts)
+        self.assertEqual(set(parts["glow"]["variants"]), {"default", "glow", "glow-material-you"})
+
+    def test_apply_niri_glow_sparse_overlay_end_to_end(self):
+        ok = preset.apply_part("niri", "glow", "glow")
+        self.assertTrue(ok)
+        self.assertEqual(preset.get_active_part("niri", "glow"), "glow")
+
+        glow_file = self.env.config_dir / "niri" / "glow.kdl"
+        self.assertTrue(glow_file.is_file())
+        content = glow_file.read_text(encoding="utf-8")
+        self.assertIn("width 2", content)
+        self.assertIn("shadow", content)
+
+    def test_apply_niri_glow_material_you_sets_sentinel(self):
+        self.assertTrue(preset.apply_part("niri", "glow", "glow-material-you"))
+        self.assertEqual(preset.get_active_part("niri", "glow"), "glow-material-you")
+        glow_file = self.env.config_dir / "niri" / "glow.kdl"
+        self.assertTrue(glow_file.is_file())
+        content = glow_file.read_text(encoding="utf-8")
+        self.assertIn('include optional=true "colors.kdl"', content)
+        self.assertNotIn("#1a73e8", content)
+
+        self.assertTrue(preset.apply_part("niri", "glow", "default"))
+        self.assertEqual(preset.get_active_part("niri", "glow"), "default")
+        def_content = glow_file.read_text(encoding="utf-8")
+        self.assertIn("off", def_content)
+        self.assertNotIn("colors.kdl", def_content)
+
+    def test_niri_glow_material_you_template_is_dynamic(self):
+        template = self.env.units_src / "theme" / "niri-glow-material-you.kdl"
+        content = template.read_text(encoding="utf-8")
+        self.assertIn("{{ colors.primary.default.hex }}", content)
+        self.assertIn("{{ colors.error.default.hex }}", content)
+        self.assertIn("{{ colors.primary_container.default.hex }}", content)
+        self.assertNotIn("#1a73e8", content)
+        noctalia = (self.env.units_src / "noctalia" / "noctalia-config.toml").read_text(encoding="utf-8")
+        self.assertIn('output_path = "/home/user/.config/niri/colors.kdl"', noctalia)
+        self.assertNotIn('output_path = "/home/user/.config/niri/layout.kdl"', noctalia)
+        parsed = tomllib.loads(noctalia)
+        niri_tpl = parsed.get("theme", {}).get("templates", {}).get("user", {}).get("nyxuri_niri_glow_material_you", {})
+        self.assertNotIn("post_hook", niri_tpl)
+
+    @unittest.mock.patch("nyxuri.desktop.presets.timed_run")
+    def test_apply_niri_glow_material_you_has_no_daemon_side_effect(self, mock_timed_run):
+        with patch("shutil.which", side_effect=lambda command: f"/usr/bin/{command}"):
+            self.assertTrue(preset.apply_part("niri", "glow", "glow-material-you"))
+
+        mock_timed_run.assert_not_called()
+
+    @unittest.mock.patch("nyxuri.desktop.presets.timed_run")
+    @unittest.mock.patch("shutil.which", return_value="/usr/bin/niri")
+    def test_apply_preset_niri_has_no_daemon_side_effect(self, mock_which, mock_timed_run):
+        ok = preset.apply_part("niri", "glow", "glow")
+        self.assertTrue(ok)
+        mock_timed_run.assert_not_called()
+
+    @unittest.mock.patch("nyxuri.desktop.presets.timed_run")
+    @unittest.mock.patch("shutil.which", return_value="/usr/bin/pkill")
+    def test_apply_preset_kitty_reloads(self, mock_which, mock_timed_run):
+        ok = presets.apply_preset("kitty", "transparent")
+        self.assertTrue(ok)
+        mock_timed_run.assert_called_with(
+            ["pkill", "-SIGUSR1", "-x", "kitty"],
+            2,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+    def test_apply_default_resets(self):
+        preset.write_active_preset("kitty", "transparent")
+        ok = presets.apply_preset("kitty", "default")
+        self.assertTrue(ok)
+        self.assertEqual(preset.read_active_preset("kitty"), "default")
+
+    def test_apply_unknown_preset_fails_without_writing(self):
+        # Nonexistent preset: fail, do not touch active.
+        preset.write_active_preset("kitty", "transparent")
+        ok = presets.apply_preset("kitty", "ghost")
+        self.assertFalse(ok)
+        self.assertEqual(preset.read_active_preset("kitty"), "transparent")
+
+    def test_apply_then_write_timing_atomic_fail_leaves_active(self):
+        # B2 (§14): if atomic_replace fails, active must NOT be written.
+        preset.write_active_preset("kitty", "default")
+        with patch("nyxuri.deploy.atomic.atomic_replace_item", return_value=False):
+            ok = presets.apply_preset("kitty", "transparent")
+        self.assertFalse(ok)
+        # active still default — deploy-then-write held back the write.
+        self.assertEqual(preset.read_active_preset("kitty"), "default")
+
+    def test_save_rejects_reserved_default(self):
+        # Set up a dest so the rejection is specifically the name, not the empty dest.
+        dest = self.env.config_dir / "kitty"
+        dest.mkdir(parents=True)
+        (dest / "kitty.conf").write_text("# conf")
+        self.assertFalse(presets.save_preset("kitty", "default"))
+
+    def test_save_rejects_official_name_collision(self):
+        dest = self.env.config_dir / "kitty"
+        dest.mkdir(parents=True)
+        (dest / "kitty.conf").write_text("# conf")
+        # 'transparent' is an official preset — collision must be rejected.
+        self.assertFalse(presets.save_preset("kitty", "transparent"))
+
+    def test_save_snapshots_tree_minus_custom(self):
+        dest = self.env.config_dir / "kitty"
+        dest.mkdir(parents=True)
+        (dest / "kitty.conf").write_text("# my conf")
+        (dest / "__custom__.conf").write_text("# private")
+        custom_dir = dest / "__custom__"
+        custom_dir.mkdir()
+        (custom_dir / "extra.conf").write_text("# nested custom")
+
+        self.assertTrue(presets.save_preset("kitty", "mine"))
+        target = self.env.presets_dir / "kitty" / "mine"
+        self.assertTrue((target / "kitty.conf").is_file())
+        # __custom__ entries filtered out (both file and dir).
+        self.assertFalse((target / "__custom__.conf").exists())
+        self.assertFalse((target / "__custom__").exists())
+
+    def test_save_then_apply_user_preset(self):
+        dest = self.env.config_dir / "kitty"
+        dest.mkdir(parents=True)
+        (dest / "kitty.conf").write_text("# my flavor")
+        self.assertTrue(presets.save_preset("kitty", "mine"))
+        # Wipe dest, then re-apply the saved user preset.
+        import shutil
+        shutil.rmtree(dest)
+        self.assertTrue(presets.apply_preset("kitty", "mine"))
+        self.assertEqual(preset.read_active_preset("kitty"), "mine")
+        self.assertEqual((dest / "kitty.conf").read_text(), "# my flavor")
+
+    def test_delete_user_preset(self):
+        target = self.env.presets_dir / "kitty" / "mine"
+        target.mkdir(parents=True)
+        (target / "kitty.conf").write_text("# x")
+        self.assertTrue(presets.delete_preset("kitty", "mine"))
+        self.assertFalse(target.exists())
+
+    def test_delete_rejects_default_and_official(self):
+        self.assertFalse(presets.delete_preset("kitty", "default"))
+        self.assertFalse(presets.delete_preset("kitty", "transparent"))
+
+    def test_save_presets_open_failure_closes_source_fd(self):
+        dest = self.env.config_dir / "kitty"
+        dest.mkdir(parents=True)
+        (dest / "kitty.conf").write_text("# conf")
+        real_open = os.open
+        source_fd = None
+
+        def track_source_open(path, flags, *args, **kwargs):
+            nonlocal source_fd
+            fd = real_open(path, flags, *args, **kwargs)
+            if path == dest:
+                source_fd = fd
+            return fd
+
+        with patch.object(presets.os, "open", side_effect=track_source_open), \
+             patch.object(presets, "_open_presets_dir", side_effect=OSError), \
+             patch.object(presets.os, "close", wraps=os.close) as close:
+            self.assertFalse(presets.save_preset("kitty", "mine"))
+
+        self.assertIsNotNone(source_fd)
+        self.assertTrue(any(call.args == (source_fd,) for call in close.call_args_list))
+
+
+class TestApplyNarrowPath(unittest.TestCase):
+    """Apply runs only atomic_replace + render, without post-install services."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_apply_skips_post_install_services(self):
+        with patch("nyxuri.deploy.deploy._phase_post_install_services") as svc:
+            ok = presets.apply_preset("kitty", "transparent")
+        self.assertTrue(ok)
+        svc.assert_not_called()
+
+
+class TestPresetSwitchPreservesManifestFiles(unittest.TestCase):
+    """The narrow deploy path honours the manifest ``preserve`` list.
+
+    Regression guard: applying a preset must not wipe runtime-managed files the
+    new variant doesn't ship — specifically niri/effects.kdl (a symlink whose
+    target encodes EyeCare on/off) and niri/monitor.kdl (user-generated). Both
+    are declared in niri/manifest.toml preserve and must survive a switch.
+    """
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+        self.niri_dest = self.env.config_dir / "niri"
+        # Deploy niri defaults first so monitor.kdl + effects_*.kdl exist.
+        from nyxuri.deploy.atomic import atomic_replace_item
+        atomic_replace_item(self.env.units_src / "niri", self.niri_dest)
+        # The repo ships effects.kdl as a symlink; recreate it only when the
+        # variant under test dropped it, so the runtime link state is present.
+        effects_normal = self.niri_dest / "effects_normal.kdl"
+        self.effects_sym = self.niri_dest / "effects.kdl"
+        if not self.effects_sym.is_symlink():
+            self.effects_sym.symlink_to(effects_normal)
+        # Mark monitor.kdl so we can detect a wipe.
+        self.monitor = self.niri_dest / "monitor.kdl"
+        with self.monitor.open("a") as f:
+            f.write("# USER-MARKER\n")
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_effects_kdl_symlink_survives_preset_switch(self):
+        self.assertTrue(presets.apply_preset("niri", "default"))
+        self.assertTrue(self.effects_sym.is_symlink(), "effects.kdl symlink was wiped")
+        self.assertIn("effects_normal.kdl", os.readlink(self.effects_sym))
+
+    def test_monitor_kdl_survives_preset_switch(self):
+        self.assertTrue(presets.apply_preset("niri", "default"))
+        self.assertIn("# USER-MARKER", self.monitor.read_text())
+
+    def test_effects_normal_kdl_survives_preset_switch(self):
+        normal_file = self.niri_dest / "effects_normal.kdl"
+        normal_file.write_text("// USER-EFFECTS-MARKER\n")
+        self.assertTrue(presets.apply_preset("niri", "default"))
+        self.assertIn("// USER-EFFECTS-MARKER", normal_file.read_text())
+
+
+class TestKittyRuntimeThemeSurvivesPresetSwitch(unittest.TestCase):
+    """Kitty's palette is rendered at runtime; a preset switch must not reset it.
+
+    Noctalia owns ~/.config/kitty/themes/noctalia.conf (dark/light following the
+    wallpaper). The repo also ships a static copy in both the app root and the
+    transparent preset, so a switch would clobber the rendered palette unless
+    the manifest preserves it.
+    """
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+        self.kitty_dest = self.env.config_dir / "kitty"
+        from nyxuri.deploy.atomic import atomic_replace_item
+        atomic_replace_item(self.env.units_src / "kitty", self.kitty_dest)
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_manifest_preserves_runtime_theme_files(self):
+        m = manifest.load_manifest(self.env.units_src / "kitty")
+        self.assertIn("current-theme.conf", m.preserve)
+        self.assertIn("themes/noctalia.conf", m.preserve)
+
+    def test_rendered_palette_survives_preset_switch(self):
+        theme = self.kitty_dest / "themes" / "noctalia.conf"
+        rendered = theme.read_text(encoding="utf-8").replace("#131318", "#f5f0f7")
+        theme.write_text(rendered, encoding="utf-8")
+
+        self.assertTrue(presets.apply_preset("kitty", "transparent"))
+        self.assertIn("#f5f0f7", theme.read_text(encoding="utf-8"),
+                      "preset switch wiped the runtime-rendered palette")
+
+        self.assertTrue(presets.apply_preset("kitty", "default"))
+        self.assertIn("#f5f0f7", theme.read_text(encoding="utf-8"))
+
+    def test_theme_symlink_still_points_at_noctalia(self):
+        link = self.kitty_dest / "current-theme.conf"
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(os.readlink(link), "themes/noctalia.conf")
+        self.assertTrue(presets.apply_preset("kitty", "transparent"))
+        self.assertTrue(link.is_symlink(), "current-theme.conf symlink was wiped")
+        self.assertEqual(os.readlink(link), "themes/noctalia.conf")
+
+
+class TestPresetPathBoundary(unittest.TestCase):
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_traversal_is_rejected_before_delete_or_active_write(self):
+        victim = self.env.presets_dir / "victim"
+        victim.mkdir(parents=True)
+        sentinel = victim / "sentinel"
+        sentinel.write_text("keep")
+        escaped_active = self.env.config_dir / "escaped.active"
+        escaped_active.write_text("keep")
+
+        self.assertFalse(presets.delete_preset("kitty", "../victim"))
+        with self.assertRaises(ValueError):
+            preset.write_active_preset("../../escaped", "mine")
+
+        self.assertEqual(sentinel.read_text(), "keep")
+        self.assertEqual(escaped_active.read_text(), "keep")
+
+    def test_every_operation_rejects_absolute_and_dot_components(self):
+        absolute = str(self._ctx.home / "outside")
+        for name in ("../victim", absolute, ".", ".."):
+            with self.subTest(name=name), \
+                 patch("nyxuri.deploy.atomic.atomic_replace_item") as replace, \
+                 patch.object(preset.subprocess, "run") as run:
+                self.assertFalse(presets.apply_preset("kitty", name))
+                self.assertFalse(presets.save_preset("kitty", name))
+                self.assertFalse(presets.delete_preset("kitty", name))
+                self.assertFalse(presets.edit_preset("kitty", name))
+                with self.assertRaises(ValueError):
+                    preset.write_active_preset("kitty", name)
+                replace.assert_not_called()
+                run.assert_not_called()
+
+        self.assertFalse(presets.apply_preset("../outside", "default"))
+        with self.assertRaises(ValueError):
+            preset.write_active_preset("../outside", "mine")
+
+    def test_symlinked_user_preset_never_starts_editor(self):
+        outside = self._ctx.home / "outside"
+        outside.mkdir()
+        user_root = self.env.presets_dir / "kitty"
+        user_root.mkdir(parents=True)
+        (user_root / "mine").symlink_to(outside, target_is_directory=True)
+
+        with patch("sys.stdin.isatty", return_value=True), \
+             patch.object(preset.subprocess, "run") as run:
+            self.assertFalse(presets.edit_preset("kitty", "mine"))
+
+        run.assert_not_called()
+
+    def test_symlinked_user_preset_is_never_applied_or_deleted(self):
+        outside = self._ctx.home / "outside"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        sentinel.write_text("keep")
+        user_root = self.env.presets_dir / "kitty"
+        user_root.mkdir(parents=True)
+        (user_root / "mine").symlink_to(outside, target_is_directory=True)
+
+        with patch("nyxuri.deploy.atomic.atomic_replace_item") as replace:
+            self.assertFalse(presets.apply_preset("kitty", "mine"))
+        self.assertFalse(presets.delete_preset("kitty", "mine"))
+
+        replace.assert_not_called()
+        self.assertEqual(sentinel.read_text(), "keep")
+
+    def test_symlinked_config_target_is_rejected_before_apply(self):
+        outside = self._ctx.home / "outside"
+        outside.mkdir()
+        (outside / "sentinel").write_text("keep")
+        (self.env.config_dir / "kitty").symlink_to(outside, target_is_directory=True)
+
+        with patch("nyxuri.deploy.atomic.atomic_replace_item") as replace:
+            self.assertFalse(presets.apply_preset("kitty", "default"))
+
+        replace.assert_not_called()
+        self.assertEqual((outside / "sentinel").read_text(), "keep")
+
+    def test_symlinked_config_target_is_rejected_before_save(self):
+        outside = self._ctx.home / "outside"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        sentinel.write_text("keep")
+        (self.env.config_dir / "kitty").symlink_to(outside, target_is_directory=True)
+
+        self.assertFalse(presets.save_preset("kitty", "mine"))
+
+        self.assertEqual(sentinel.read_text(), "keep")
+
+    def test_active_rejects_absolute_traversal_and_symlink(self):
+        active = self.env.presets_dir / "kitty.active"
+        active.parent.mkdir(parents=True, exist_ok=True)
+        for name in ("../victim", str(self._ctx.home / "outside")):
+            with self.subTest(name=name):
+                active.write_text(name)
+                with self.assertRaises(preset.InvalidActivePresetError):
+                    preset.read_active_preset("kitty")
+        outside = self._ctx.home / "outside-active"
+        outside.write_text("transparent")
+        active.unlink()
+        active.symlink_to(outside)
+        with self.assertRaises(preset.InvalidActivePresetError):
+            preset.read_active_preset("kitty")
+        with self.assertRaises(OSError):
+            preset.write_active_preset("kitty", "default")
+        self.assertEqual(outside.read_text(), "transparent")
+
+    def test_invalid_active_state_freezes_deploy(self):
+        active = self.env.presets_dir / "kitty.active"
+        active.parent.mkdir(parents=True, exist_ok=True)
+        active.write_text("../victim")
+
+        with patch("nyxuri.deploy.deploy.atomic_replace_item") as replace, \
+             patch("sys.stdout", new_callable=StringIO) as output:
+            from nyxuri.deploy.deploy import _phase_atomic_deployment
+            _phase_atomic_deployment(["kitty"])
+
+        replace.assert_not_called()
+        self.assertIn(msg("preset_warn_invalid_active", "kitty"), output.getvalue())
+
+    def test_invalid_active_state_is_visible_when_collecting(self):
+        active = self.env.presets_dir / "kitty.active"
+        active.parent.mkdir(parents=True, exist_ok=True)
+        active.write_text("../victim")
+
+        with patch("sys.stdout", new_callable=StringIO) as output:
+            self.assertEqual(presets.collect_presets("kitty"), [])
+
+        self.assertIn(msg("preset_warn_invalid_active", "kitty"), output.getvalue())
+
+    def test_unicode_leaf_name_remains_usable(self):
+        dest = self.env.config_dir / "kitty"
+        dest.mkdir(parents=True)
+        (dest / "kitty.conf").write_text("current")
+        name = "主题 浅色"
+
+        self.assertTrue(presets.save_preset("kitty", name))
+        self.assertTrue(presets.apply_preset("kitty", name))
+        self.assertTrue(presets.delete_preset("kitty", name))
+
+    def test_delete_rejects_directory_swap_after_lookup(self):
+        user_root = self.env.presets_dir / "kitty"
+        mine = user_root / "mine"
+        mine.mkdir(parents=True)
+        outside = self._ctx.home / "outside"
+        outside.mkdir()
+        sentinel = outside / "sentinel"
+        sentinel.write_text("keep")
+        stash = user_root / "mine-stash"
+        real_open = os.open
+        swapped = False
+
+        def open_then_swap(path, flags, *args, **kwargs):
+            nonlocal swapped
+            if path == "mine" and not swapped:
+                mine.rename(stash)
+                outside.rename(mine)
+                swapped = True
+            return real_open(path, flags, *args, **kwargs)
+
+        with patch("nyxuri.desktop.presets.os.open", side_effect=open_then_swap):
+            self.assertFalse(presets.delete_preset("kitty", "mine"))
+
+        self.assertTrue(swapped)
+        self.assertEqual((mine / "sentinel").read_text(), "keep")
+
+
+class TestPresetSwitcher(unittest.TestCase):
+    """Preset Switcher interactive tests via a mocked key stream."""
+
+    def _run_keys(self, switcher, keys):
+        with patch("sys.stdin.isatty", return_value=True), \
+             patch("nyxuri.tui.read_key", side_effect=keys), \
+             patch("sys.stdout", new_callable=StringIO):
+            return switcher.run()
+
+    def test_enter_returns_app_and_preset(self):
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", True), ("transparent", False)])
+        # RIGHT → expand kitty & land on default; DOWN → transparent; ENTER
+        self.assertEqual(self._run_keys(sw, ["RIGHT", "DOWN", "ENTER"]), ("kitty", "transparent"))
+
+    def test_pane_switch_keeps_app_cursor(self):
+        apps = ["fastfetch", "kitty"]
+        presets_kitty = [("default", True), ("transparent", False)]
+        sw = PresetSwitcher(apps, lambda a: presets_kitty if a == "kitty" else [("default", True)])
+        # DOWN→app kitty; RIGHT→expand; LEFT→back to app kitty; RIGHT→focus presets; DOWN; ENTER
+        self.assertEqual(
+            self._run_keys(sw, ["DOWN", "RIGHT", "LEFT", "RIGHT", "DOWN", "ENTER"]),
+            ("kitty", "transparent"),
+        )
+
+    def test_up_down_cycles_in_pane(self):
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", True), ("transparent", False), ("compact", False)])
+        # RIGHT; DOWN; DOWN; ENTER
+        self.assertEqual(self._run_keys(sw, ["RIGHT", "DOWN", "DOWN", "ENTER"]), ("kitty", "compact"))
+
+    def test_app_switch_lands_cursor_on_active_preset(self):
+        apps = ["fastfetch", "kitty"]
+        presets_kitty = [("default", False), ("transparent", True)]  # transparent is active
+        sw = PresetSwitcher(apps, lambda a: presets_kitty if a == "kitty" else [("default", True)])
+        # DOWN→kitty; RIGHT→expand kitty; ENTER applies active transparent directly
+        self.assertEqual(self._run_keys(sw, ["DOWN", "RIGHT", "ENTER"]), ("kitty", "transparent"))
+
+    def test_cancel_returns_none(self):
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", True)])
+        self.assertIsNone(self._run_keys(sw, ["q"]))
+
+    def test_no_tty_returns_none(self):
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", True)])
+        with patch("sys.stdin.isatty", return_value=False):
+            self.assertIsNone(sw.run())
+
+    def test_parts_keyboard_navigation_and_selection(self):
+        parts_data = {
+            "effects": {
+                "desc": "Window effects",
+                "target": "effects_normal.kdl",
+                "default": "default",
+                "variants": ["default", "xray-blur"],
+            }
+        }
+        sw = PresetSwitcher(
+            apps=["niri"],
+            presets_for=lambda a: [("default", True)],
+            parts_for=lambda a: parts_data if a == "niri" else {},
+            active_part_for=lambda a, slot: "default",
+        )
+        self.assertEqual(
+            self._run_keys(sw, ["RIGHT", "DOWN", "RIGHT", "DOWN", "ENTER"]),
+            ("niri", "effects:xray-blur"),
+        )
+
+    def test_parts_action_callback(self):
+        parts_data = {
+            "effects": {
+                "desc": "Window effects",
+                "target": "effects_normal.kdl",
+                "default": "default",
+                "variants": ["default", "xray-blur"],
+            }
+        }
+        actions = []
+        def on_action(action, app, name):
+            actions.append((action, app, name))
+            return "ok"
+
+        sw = PresetSwitcher(
+            apps=["niri"],
+            presets_for=lambda a: [("default", True)],
+            parts_for=lambda a: parts_data,
+            active_part_for=lambda a, slot: "default",
+            on_action=on_action,
+        )
+        self._run_keys(sw, ["RIGHT", "DOWN", "RIGHT", "DOWN", "ENTER", "q"])
+        self.assertEqual(actions, [("apply_part", "niri", "effects:xray-blur")])
+
+    def test_parts_left_arrow_navigation(self):
+        parts_data = {
+            "effects": {
+                "desc": "Window effects",
+                "target": "effects_normal.kdl",
+                "default": "default",
+                "variants": ["default", "xray-blur"],
+            }
+        }
+        sw = PresetSwitcher(
+            apps=["niri"],
+            presets_for=lambda a: [("default", True)],
+            parts_for=lambda a: parts_data,
+            active_part_for=lambda a, slot: "default",
+        )
+        self.assertEqual(
+            self._run_keys(sw, ["RIGHT", "DOWN", "RIGHT", "LEFT", "LEFT", "LEFT", "ENTER"]),
+            ("niri", "default"),
+        )
+
+
+class TestPresetSwitcherMouse(unittest.TestCase):
+    """Mouse interaction: click selects/expands, wheel scrolls."""
+
+    def _run_keys(self, switcher, keys):
+        import os
+        import nyxuri.tui as tui
+        fake_size = os.terminal_size((80, 24))
+        with patch("sys.stdin.isatty", return_value=True), \
+             patch("nyxuri.tui.read_key", side_effect=keys), \
+             patch.object(tui.shutil, "get_terminal_size", return_value=fake_size), \
+             patch("sys.stdout", new_callable=StringIO):
+            return switcher.run()
+
+    def _click(self, col, row):
+        from nyxuri.tui import MouseEvent
+        return MouseEvent(kind="PRESS", col=col, row=row)
+
+    def _wheel(self, kind, col=3, row=15):
+        from nyxuri.tui import MouseEvent
+        return MouseEvent(kind=kind, col=col, row=row)
+
+    def test_click_app_applies_active_preset_in_standalone_mode(self):
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", True), ("transparent", False)])
+        # Click kitty at row 15 -> returns ("kitty", "default")
+        self.assertEqual(self._run_keys(sw, [self._click(10, 14)]), ("kitty", "default"))
+
+    def test_wheel_down_cycles_app(self):
+        sw = PresetSwitcher(
+            ["fastfetch", "kitty"],
+            lambda a: [("default", True)] if a == "fastfetch" else [("transparent", True)],
+        )
+        # wheel-down -> fastfetch to kitty; Enter applies kitty/transparent.
+        self.assertEqual(
+            self._run_keys(sw, [self._wheel("WHEEL_DOWN"), "ENTER"]),
+            ("kitty", "transparent"),
+        )
+
+    def test_wheel_up_cycles_backwards(self):
+        sw = PresetSwitcher(
+            ["fastfetch", "kitty"],
+            lambda a: [("default", True)] if a == "fastfetch" else [("transparent", True)],
+        )
+        # DOWN to kitty first, then WHEEL_UP back to fastfetch, Enter -> fastfetch/default.
+        self.assertEqual(
+            self._run_keys(sw, ["DOWN", self._wheel("WHEEL_UP"), "ENTER"]),
+            ("fastfetch", "default"),
+        )
+
+    def test_click_on_header_row_is_ignored(self):
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", True)])
+        self.assertEqual(self._run_keys(sw, [self._click(40, 12), "ENTER"]), ("kitty", "default"))
+
+
+class TestEditPreset(unittest.TestCase):
+    """edit_preset: rejects default/official/missing; opens editor on a user preset."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_rejects_default(self):
+        self.assertFalse(presets.edit_preset("kitty", "default"))
+
+    def test_rejects_official(self):
+        # 'transparent' is a shipped official preset — read-only.
+        self.assertFalse(presets.edit_preset("kitty", "transparent"))
+
+    def test_rejects_missing(self):
+        self.assertFalse(presets.edit_preset("kitty", "ghost"))
+
+    def test_non_tty_hints_path(self):
+        target = self.env.presets_dir / "kitty" / "mine"
+        target.mkdir(parents=True)
+        with patch("sys.stdin.isatty", return_value=False), patch("builtins.print"):
+            self.assertFalse(presets.edit_preset("kitty", "mine"))
+
+    def test_opens_editor_on_user_preset(self):
+        target = self.env.presets_dir / "kitty" / "mine"
+        target.mkdir(parents=True)
+        (target / "kitty.conf").write_text("# mine")
+        with patch("sys.stdin.isatty", return_value=True), \
+             patch.dict("os.environ", {"EDITOR": "myed"}), \
+             patch.object(preset.subprocess, "run") as mock_run:
+            self.assertTrue(presets.edit_preset("kitty", "mine"))
+        mock_run.assert_called_once()
+        args, kwargs = mock_run.call_args
+        self.assertEqual(args[0][0], "myed")
+        self.assertTrue(args[0][1].startswith("/proc/self/fd/"))
+        self.assertEqual(kwargs["pass_fds"], (int(args[0][1].rsplit("/", 1)[1]),))
+        self.assertFalse(kwargs["check"])
+
+    def test_open_failure_closes_already_open_preset_dir(self):
+        self.env.presets_dir.mkdir(parents=True, exist_ok=True)
+        presets_fd = os.open(self.env.presets_dir, os.O_RDONLY | os.O_DIRECTORY)
+        real_close = os.close
+        with patch.object(presets, "_open_presets_dir", return_value=presets_fd), \
+             patch.object(presets, "_open_child_dir", side_effect=OSError), \
+             patch.object(presets.os, "close", wraps=real_close) as close:
+            self.assertFalse(presets.edit_preset("kitty", "mine"))
+
+        self.assertIn(((presets_fd,), {}), close.call_args_list)
+
+
+class TestPresetStudioInspection(unittest.TestCase):
+    """Tests for preset metadata inspection (get_preset_info)."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+
+    def tearDown(self):
+        self._ctx.__exit__()
+
+    def test_default_preset_info(self):
+        info = presets.get_preset_info("kitty", "default")
+        self.assertEqual(info.app, "kitty")
+        self.assertEqual(info.name, "default")
+        self.assertEqual(info.source, "official")
+        self.assertFalse(info.is_editable)
+        self.assertFalse(info.is_deletable)
+        self.assertEqual(info.path, "configs/kitty")
+
+    def test_official_preset_info(self):
+        info = presets.get_preset_info("kitty", "transparent")
+        self.assertEqual(info.app, "kitty")
+        self.assertEqual(info.name, "transparent")
+        self.assertEqual(info.source, "official")
+        self.assertFalse(info.is_editable)
+        self.assertFalse(info.is_deletable)
+        self.assertEqual(info.path, "configs/kitty/__presets__/transparent")
+
+    def test_user_preset_info(self):
+        user_dir = self.env.presets_dir / "kitty" / "my-nord"
+        user_dir.mkdir(parents=True)
+        (user_dir / "kitty.conf").write_text("# my theme")
+
+        info = presets.get_preset_info("kitty", "my-nord")
+        self.assertEqual(info.app, "kitty")
+        self.assertEqual(info.name, "my-nord")
+        self.assertEqual(info.source, "user")
+        self.assertTrue(info.is_editable)
+        self.assertTrue(info.is_deletable)
+        self.assertIn("kitty.conf", info.files)
+
+    def test_invalid_info_never_loads_a_manifest(self):
+        for app, name in (("../../outside", "default"), ("kitty", "../outside")):
+            with self.subTest(app=app, name=name), \
+                 patch("nyxuri.deploy.manifest.load_manifest_for") as load_manifest:
+                info = presets.get_preset_info(app, name)
+
+            self.assertEqual(info.path, "(invalid)")
+            load_manifest.assert_not_called()
+
+
+class TestPresetStudioActions(unittest.TestCase):
+    """Tests for Preset Studio interactive actions via on_action callback."""
+
+    def _run_keys(self, switcher, keys):
+        fake_size = os.terminal_size((80, 24))
+        with patch("sys.stdin.isatty", return_value=True), \
+             patch("nyxuri.tui.read_key", side_effect=keys), \
+             patch("shutil.get_terminal_size", return_value=fake_size), \
+             patch("sys.stdout", new_callable=StringIO):
+            return switcher.run()
+
+    def test_apply_action_triggered(self):
+        actions = []
+        def on_action(action, app, name):
+            actions.append((action, app, name))
+            return f"Applied {name}"
+
+        sw = PresetSwitcher(
+            apps=["kitty"],
+            presets_for=lambda a: [("default", "official", True), ("transparent", "official", False)],
+            on_action=on_action,
+        )
+        # RIGHT -> move to presets, DOWN -> transparent, ENTER -> apply, q -> quit
+        self._run_keys(sw, ["RIGHT", "DOWN", "ENTER", "q"])
+        self.assertEqual(actions, [("apply", "kitty", "transparent")])
+
+    def test_save_action_triggered(self):
+        actions = []
+        def on_action(action, app, name):
+            actions.append((action, app, name))
+            return f"Saved {name}"
+
+        sw = PresetSwitcher(
+            apps=["kitty"],
+            presets_for=lambda a: [("default", "official", True)],
+            on_action=on_action,
+        )
+        # 's' triggers save prompt -> type 'm', 'i', 'n', 'e', ENTER -> q to quit
+        self._run_keys(sw, ["s", "m", "i", "n", "e", "ENTER", "q"])
+        self.assertEqual(actions, [("save", "kitty", "mine")])
+
+    def test_delete_action_with_confirmation(self):
+        actions = []
+        def on_action(action, app, name):
+            actions.append((action, app, name))
+            return f"Deleted {name}"
+
+        info_map = {
+            ("kitty", "my-nord"): presets.PresetInfo(
+                app="kitty", name="my-nord", source="user", is_active=False,
+                path="~/.config/nyxuri/presets/kitty/my-nord", files=[], preserve=[],
+                is_editable=True, is_deletable=True
+            )
+        }
+
+        sw = PresetSwitcher(
+            apps=["kitty"],
+            presets_for=lambda a: [("my-nord", "user", False)],
+            info_for=lambda a, n: info_map.get((a, n)),
+            on_action=on_action,
+        )
+        # RIGHT -> presets, 'd' -> delete, 'y' -> confirm, 'q' -> quit
+        self._run_keys(sw, ["RIGHT", "d", "y", "q"])
+        self.assertEqual(actions, [("delete", "kitty", "my-nord")])
+
+    def test_delete_action_cancelled(self):
+        actions = []
+        def on_action(action, app, name):
+            actions.append((action, app, name))
+            return f"Deleted {name}"
+
+        info_map = {
+            ("kitty", "my-nord"): presets.PresetInfo(
+                app="kitty", name="my-nord", source="user", is_active=False,
+                path="~/.config/nyxuri/presets/kitty/my-nord", files=[], preserve=[],
+                is_editable=True, is_deletable=True
+            )
+        }
+
+        sw = PresetSwitcher(
+            apps=["kitty"],
+            presets_for=lambda a: [("my-nord", "user", False)],
+            info_for=lambda a, n: info_map.get((a, n)),
+            on_action=on_action,
+        )
+        # RIGHT -> presets, 'd' -> delete, 'n' -> cancel, 'q' -> quit
+        self._run_keys(sw, ["RIGHT", "d", "n", "q"])
+        self.assertEqual(actions, [])
+
+    def test_tab_toggles_details(self):
+        info_map = {
+            ("kitty", "default"): presets.PresetInfo(
+                app="kitty", name="default", source="official", is_active=True,
+                path="configs/kitty", files=["kitty.conf"], preserve=["monitor.kdl"],
+                is_editable=False, is_deletable=False
+            )
+        }
+        sw = PresetSwitcher(
+            apps=["kitty"],
+            presets_for=lambda a: [("default", "official", True)],
+            info_for=lambda a, n: info_map.get((a, n)),
+        )
+        # TAB expands, TAB collapses, q quits cleanly
+        result = self._run_keys(sw, ["TAB", "TAB", "q"])
+        self.assertIsNone(result)
+
+
+class TestPresetInheritance(unittest.TestCase):
+    """Preset inheritance, whitelists, blacklists, and base overlay deployment."""
+
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+        self._sandbox = tempfile.TemporaryDirectory()
+        self.env.units_src = Path(self._sandbox.name)
+
+        self.app = "niri_test"
+        self.app_root = self.env.units_src / self.app
+        self.app_root.mkdir(parents=True)
+        (self.app_root / "config.kdl").write_text("// base config")
+        (self.app_root / "layout.kdl").write_text("// base layout")
+        (self.app_root / "binds.kdl").write_text("// base binds")
+        (self.app_root / "scripts").mkdir(parents=True)
+        (self.app_root / "scripts" / "run.sh").write_text("#!/bin/sh\necho ok")
+        (self.app_root / "scripts" / "debug.bak").write_text("bak")
+        (self.app_root / "unwanted.txt").write_text("skip me")
+
+        # Create sparse preset 'glow'
+        self.sparse = self.app_root / "presets" / "glow"
+        self.sparse.mkdir(parents=True)
+        (self.sparse / "layout.kdl").write_text("// glow layout")
+
+        # Create standalone preset 'isolated'
+        self.isolated = self.app_root / "presets" / "isolated"
+        self.isolated.mkdir(parents=True)
+        (self.isolated / "isolated.kdl").write_text("// isolated only")
+
+        self.dest = self.env.config_dir / self.app
+
+    def tearDown(self):
+        self._sandbox.cleanup()
+        self._ctx.__exit__()
+
+    def test_inheritance_not_enabled_by_default(self):
+        base_src, inc, exc = preset.resolve_preset_inheritance(self.app, "glow")
+        self.assertIsNone(base_src)
+        self.assertEqual(inc, [])
+        self.assertEqual(exc, [])
+
+    def test_inheritance_allow_whitelist(self):
+        (self.app_root / "manifest.toml").write_text("""
+[presets]
+allow = ["glow"]
+include = ["scripts/**", "*.kdl"]
+exclude = ["*.bak"]
+""")
+        # 'glow' is allowed -> should inherit with whitelists/blacklists
+        base_src, inc, exc = preset.resolve_preset_inheritance(self.app, "glow")
+        self.assertEqual(base_src, self.app_root)
+        self.assertEqual(inc, ["scripts/**", "*.kdl"])
+        self.assertEqual(exc, ["*.bak"])
+
+        # 'other' is not in allow -> should not inherit
+        base_src_other, _, _ = preset.resolve_preset_inheritance(self.app, "other")
+        self.assertIsNone(base_src_other)
+
+    def test_inheritance_standalone_blacklist(self):
+        (self.app_root / "manifest.toml").write_text("""
+[presets]
+inherit = true
+standalone = ["isolated"]
+""")
+        base_src, _, _ = preset.resolve_preset_inheritance(self.app, "glow")
+        self.assertEqual(base_src, self.app_root)
+
+        base_src_iso, _, _ = preset.resolve_preset_inheritance(self.app, "isolated")
+        self.assertIsNone(base_src_iso)
+
+    def test_inheritance_simultaneous_whitelist_and_blacklist(self):
+        (self.app_root / "manifest.toml").write_text("""
+[presets]
+allow = ["style-*"]
+standalone = ["style-dark"]
+include = ["scripts/**", "*.kdl"]
+exclude = ["scripts/debug.bak"]
+""")
+        # 1. Matches allow and not standalone -> inherits
+        base_src, inc, exc = preset.resolve_preset_inheritance(self.app, "style-light")
+        self.assertEqual(base_src, self.app_root)
+        self.assertEqual(inc, ["scripts/**", "*.kdl"])
+        self.assertEqual(exc, ["scripts/debug.bak"])
+
+        # 2. Matches allow BUT also matches standalone -> standalone vetoes -> does NOT inherit
+        base_src_veto, _, _ = preset.resolve_preset_inheritance(self.app, "style-dark")
+        self.assertIsNone(base_src_veto)
+
+        # 3. Does not match allow -> does NOT inherit
+        base_src_none, _, _ = preset.resolve_preset_inheritance(self.app, "other")
+        self.assertIsNone(base_src_none)
+
+    def test_atomic_replace_item_base_overlay_filtering(self):
+        ok = atomic_replace_item(
+            src=self.sparse,
+            dest=self.dest,
+            base_src=self.app_root,
+            base_include=["scripts/**", "*.kdl"],
+            base_exclude=["*.bak"],
+        )
+        self.assertTrue(ok)
+        # 1. Overridden file from preset
+        self.assertEqual((self.dest / "layout.kdl").read_text(), "// glow layout")
+        # 2. Inherited base files
+        self.assertEqual((self.dest / "config.kdl").read_text(), "// base config")
+        self.assertEqual((self.dest / "binds.kdl").read_text(), "// base binds")
+        self.assertTrue((self.dest / "scripts" / "run.sh").is_file())
+        # 3. Excluded file (*.bak) not present
+        self.assertFalse((self.dest / "scripts" / "debug.bak").exists())
+        # 4. Un-whitelisted file (unwanted.txt) not present
+        self.assertFalse((self.dest / "unwanted.txt").exists())
+
+    def test_apply_sparse_preset_end_to_end(self):
+        (self.app_root / "manifest.toml").write_text("""
+preserve = ["monitor.kdl"]
+
+[presets]
+allow = ["glow"]
+include = ["scripts/**", "*.kdl"]
+exclude = ["*.bak"]
+""")
+        # Pre-seed destination with Dunder and Preserved files
+        self.dest.mkdir(parents=True)
+        (self.dest / "monitor.kdl").write_text("// user monitor")
+        (self.dest / "input__custom__.kdl").write_text("// user input")
+
+        ok = presets.apply_preset(self.app, "glow")
+        self.assertTrue(ok)
+        self.assertEqual(preset.read_active_preset(self.app), "glow")
+
+        # Check deployed contents
+        self.assertEqual((self.dest / "layout.kdl").read_text(), "// glow layout")
+        self.assertEqual((self.dest / "config.kdl").read_text(), "// base config")
+        self.assertEqual((self.dest / "binds.kdl").read_text(), "// base binds")
+        self.assertTrue((self.dest / "scripts" / "run.sh").is_file())
+        self.assertFalse((self.dest / "scripts" / "debug.bak").exists())
+        self.assertFalse((self.dest / "unwanted.txt").exists())
+
+        # Check preserved files survived
+        self.assertEqual((self.dest / "monitor.kdl").read_text(), "// user monitor")
+
+class TestPartsMechanism(unittest.TestCase):
+    def setUp(self):
+        self._ctx = TempEnv()
+        self._ctx.__enter__()
+        self.env = self._ctx.env
+        self._sandbox = tempfile.TemporaryDirectory()
+        self.env.units_src = Path(self._sandbox.name)
+
+        self.app = "niri_parts_test"
+        self.app_root = self.env.units_src / self.app
+        self.app_root.mkdir(parents=True)
+        self.dest = self.env.config_dir / self.app
+        self.dest.mkdir(parents=True)
+
+        # Setup manifest
+        (self.app_root / "manifest.toml").write_text("""
+preserve = ["monitor.kdl"]
+
+[parts.effects]
+target = "effects_normal.kdl"
+source_dir = "effects"
+default = "default"
+""")
+
+        # Setup parts files under __presets__/effects
+        effects_dir = self.app_root / "__presets__" / "effects"
+        effects_dir.mkdir(parents=True)
+        (effects_dir / "default.kdl").write_text("// default blur")
+        (effects_dir / "xray.kdl").write_text("// xray blur")
+
+    def tearDown(self):
+        self._sandbox.cleanup()
+        self._ctx.__exit__()
+
+    def test_list_parts(self):
+        parts_info = preset.list_parts(self.app)
+        self.assertIn("effects", parts_info)
+        eff = parts_info["effects"]
+        self.assertEqual(eff["target"], "effects_normal.kdl")
+        self.assertEqual(eff["default"], "default")
+        self.assertEqual(sorted(eff["variants"]), ["default", "xray"])
+
+    def test_apply_part_success(self):
+        from nyxuri.kernel.ledger import read_ledger
+        target_file = self.dest / "effects_normal.kdl"
+        target_file.write_text("// initial")
+
+        ok = preset.apply_part(self.app, "effects", "xray")
+        self.assertTrue(ok)
+        self.assertEqual(target_file.read_text(), "// xray blur")
+        self.assertEqual(read_ledger().get("parts", {}).get(f"{self.app}:effects"), "xray")
+
+    def test_apply_part_nonexistent_returns_false(self):
+        ok = preset.apply_part(self.app, "effects", "ghost")
+        self.assertFalse(ok)
+
+    def test_collect_presets_excludes_parts_source_dir(self):
+        entries = presets.collect_presets(self.app)
+        preset_names = [p[0] for p in entries]
+        self.assertNotIn("effects", preset_names)
+
+    def test_get_active_part(self):
+        self.assertEqual(preset.get_active_part(self.app, "effects"), "default")
+        preset.apply_part(self.app, "effects", "xray")
+        self.assertEqual(preset.get_active_part(self.app, "effects"), "xray")
+
+    def test_preset_switcher_loop_wires_parts_and_on_action(self):
+        from nyxuri.installer.menus import preset_switcher_loop
+        with patch("sys.stdin.isatty", return_value=True), \
+             patch("nyxuri.installer.menus.discover_config_items", return_value=["niri"]), \
+             patch("nyxuri.deploy.preset.apply_part", return_value=True) as mock_apply, \
+             patch("nyxuri.installer.menus.PresetSwitcher") as mock_switcher_cls:
+            preset_switcher_loop()
+            mock_switcher_cls.assert_called_once()
+            _, kwargs = mock_switcher_cls.call_args
+            self.assertIn("parts_for", kwargs)
+            self.assertIn("active_part_for", kwargs)
+            on_action = kwargs["on_action"]
+            toast = on_action("apply_part", "niri", "effects:xray-blur")
+            mock_apply.assert_called_once_with("niri", "effects", "xray-blur")
+            self.assertIn("xray-blur", toast)
+
+    def test_deploy_reconciles_active_parts_end_to_end(self):
+        from nyxuri.deploy.deploy import deploy_selected_configs
+        (self.app_root / "config.kdl").write_text("// base config")
+        (self.app_root / "effects_normal.kdl").write_text("// default blur")
+
+        # 1. Apply xray part
+        self.assertTrue(preset.apply_part(self.app, "effects", "xray"))
+        self.assertEqual(preset.get_active_part(self.app, "effects"), "xray")
+
+        # Re-deploy configs (deploy_selected_configs)
+        with patch("nyxuri.deploy.deploy._phase_render_templates"), \
+             patch("nyxuri.deploy.deploy._phase_post_install_services"):
+            failed = deploy_selected_configs(items_to_deploy=[self.app])
+            self.assertEqual(failed, [])
+
+        target_file = self.dest / "effects_normal.kdl"
+        self.assertTrue(target_file.is_file())
+        self.assertEqual(target_file.read_text(), "// xray blur")
+        self.assertEqual(preset.get_active_part(self.app, "effects"), "xray")
+
+        # 2. Desync healing: disk was reset to default, but ledger records xray
+        target_file.write_text("// default blur")
+        self.assertEqual(target_file.read_text(), "// default blur")
+
+        with patch("nyxuri.deploy.deploy._phase_render_templates"), \
+             patch("nyxuri.deploy.deploy._phase_post_install_services"):
+            failed = deploy_selected_configs(items_to_deploy=[self.app])
+            self.assertEqual(failed, [])
+
+        self.assertEqual(target_file.read_text(), "// xray blur")
+        self.assertEqual(preset.get_active_part(self.app, "effects"), "xray")
+
+
+if __name__ == "__main__":
+    unittest.main()

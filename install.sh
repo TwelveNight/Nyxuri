@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# Nyxuri — Noctalia & Desktop Dotfiles Installer Bootstrap
-# Lightweight Bash bootstrap wrapper for local execution and curl pipelines.
-# Hands over execution to the native Python engine (nyxuri).
+# Nyxuri — One-Time Bootstrap (KM5)
+# Fetches/refreshes the repository into the local cache, verifies tree
+# completeness, then hands off to the dedicated CLI launcher (nyxuri/launcher.sh).
+# This script takes no arguments and is not a general-purpose entry point:
+# after the first run, use `nyxuri <verb>` directly.
 # ==============================================================================
 
 set -euo pipefail
 
-# --- ANSI palette (mirrors nyxuri/constants.py:Colors; single source of style) ---
+# Personal checkout: the permanent CLI owns installation and maintenance.
+self="$(readlink -f -- "${BASH_SOURCE[0]:-}" 2>/dev/null || true)"
+personal_root="$(dirname -- "$self")"
+if [[ -n "$self" && -f "$personal_root/personal/entry.py" ]]; then
+    exec "$personal_root/nyxuri/launcher.sh" "$@"
+fi
+
+# --- ANSI palette (mirrors nyxuri/core.py:Colors; single source of style) ---
 RED=$'\033[1;31m'; GRN=$'\033[1;32m'; YEL=$'\033[1;33m'; BLU=$'\033[1;34m'; OFF=$'\033[0m'
 
 # --- Bilingual helper: bootstrap runs before Python i18n, so sniff $LANG/$LC_ALL ---
@@ -35,8 +44,8 @@ GIT_MIRROR_REGISTRY=(
     "gh-proxy.org|https://gh-proxy.org/https://github.com/ech678/Nyxuri.git"
 )
 
-# NYXURI_REPO / NYXNIRI_REPO: 指定后单源直连(不回退官方),服务 fork 与内网镜像场景
-REPO_OVERRIDE="${NYXURI_REPO:-${NYXNIRI_REPO:-}}"
+# NYXURI_REPO: 指定后单源直连(不回退官方),服务 fork 与内网镜像场景
+REPO_OVERRIDE="${NYXURI_REPO:-}"
 if [ -n "$REPO_OVERRIDE" ]; then
     case "$REPO_OVERRIDE" in
         https://*|git@*|ssh://*)
@@ -89,57 +98,23 @@ clone_repo_bootstrap() {
     return 1
 }
 
-exec_python_engine() {
-    local target_dir="$1"
-    shift
-
-    cd -- "$target_dir" || return 1
-    # -I -S blocks PYTHON* and sitecustomize startup injection; the fixed
-    # launcher receives the validated tree and user arguments separately.
-    local python_launcher='import sys; target = sys.argv.pop(1); sys.path.insert(0, target); sys.argv[0] = "nyxuri"; from nyxuri.cli import main; main()'
-    # Keep personal desktop policy in this branch's entry, including fresh clones.
-    if [ -f "$target_dir/personal/entry.py" ]; then
-        python_launcher='import sys; target = sys.argv.pop(1); sys.path.insert(0, target); sys.argv[0] = "nyxuri"; from personal.entry import main; main()'
-    fi
-
-    # Only reconnect to /dev/tty if stdin is piped (e.g. curl | bash) AND no subcommand args are given
-    if [ "$#" -eq 0 ] && [ ! -t 0 ] && [ -t 1 ] && [ -r /dev/tty ]; then
-        exec python3 -I -S -c "$python_launcher" "$target_dir" "$@" < /dev/tty
-    else
-        exec python3 -I -S -c "$python_launcher" "$target_dir" "$@"
-    fi
-}
-
 engine_is_complete() {
     local target_dir="$1"
-    local module
-    [ -f "$target_dir/install.sh" ] || return 1
+    # KM5: the per-package module enumeration retired with the installer.
+    # Sentinels: launcher + engine top files + one file per package + blueprint probes.
+    [ -f "$target_dir/nyxuri/launcher.sh" ] || return 1
     [ -f "$target_dir/nyxuri/translations.toml" ] || return 1
-    [ -f "$target_dir/nyxuri/migrations/__init__.py" ] || return 1
-    # Top-level engine modules (infrastructure + entrypoints, §13)
-    for module in __init__ __main__ clean cli constants core deps doctor i18n menus network shell_switcher template_registry theme tui workflows; do
+    for module in cli core sysdoctor tui; do
         [ -f "$target_dir/nyxuri/$module.py" ] || return 1
     done
-    # deploy/ subpackage (atomic · manifest · templates · assets · hardware · preset · deploy)
-    for module in __init__ atomic assets deploy hardware manifest preset templates; do
-        [ -f "$target_dir/nyxuri/deploy/$module.py" ] || return 1
+    for sentinel in kernel/transaction deploy/atomic pkg/deps state/backup desktop/theme installer/menus; do
+        [ -f "$target_dir/nyxuri/$sentinel.py" ] || return 1
     done
-    # pkg/ subpackage (cli · detection)
-    for module in __init__ cli detection; do
-        [ -f "$target_dir/nyxuri/pkg/$module.py" ] || return 1
-    done
-    # state/ subpackage (backup · ledger · uninstall)
-    for module in __init__ backup ledger uninstall; do
-        [ -f "$target_dir/nyxuri/state/$module.py" ] || return 1
-    done
-    # modules/ subpackage (fcitx · fisher · greeter · gtktheme)
-    for module in __init__ fcitx fisher greeter gtktheme lifecycle; do
-        [ -f "$target_dir/nyxuri/modules/$module.py" ] || return 1
-    done
-    [ -d "$target_dir/configs" ] \
-        && [ -f "$target_dir/configs/fish/config.fish" ] \
-        && [ -d "$target_dir/assets/wallpapers" ] \
-        && [ -d "$target_dir/assets/fcitx5" ]
+    [ -f "$target_dir/catalog.toml" ] || return 1
+    # 蓝图探测: fish 主配置 + 壁纸 merge hook
+    [ -d "$target_dir/units" ] \
+        && [ -f "$target_dir/units/fish/config.fish" ] \
+        && [ -f "$target_dir/units/wallpapers/hooks/install-pack" ]
 }
 
 legacy_tree_detected() {
@@ -166,6 +141,20 @@ show_legacy_migration() {
     printf '%s\n\n' '    请运行上面的新版引导；~/.config 下的现有配置与快照不会被删除。' >&2
 }
 
+exec_launcher() {
+    local target_dir="$1"
+    local launcher="$target_dir/nyxuri/launcher.sh"
+    chmod +x "$launcher" 2>/dev/null || true
+    # Reconnect stdin to /dev/tty for piped execution (curl | bash) so the
+    # interactive first-run flow can engage. The probe runs in a subshell on
+    # purpose: a failed `exec` redirection would abort a `set -e` shell, and
+    # the error message must not leak on hosts without a controlling tty.
+    if [ ! -t 0 ] && (exec 3</dev/tty) 2>/dev/null; then
+        exec "$launcher" < /dev/tty
+    fi
+    exec "$launcher"
+}
+
 main() {
     # 1. Prevent running as root
     if [ "$(id -u)" -eq 0 ]; then
@@ -175,7 +164,16 @@ main() {
         exit 1
     fi
 
-    # 2. Determine script location and stop legacy checkouts before bootstrapping.
+    # 2. One-time bootstrap takes no arguments (KM5: arg passthrough retired;
+    #    sandbox verification uses `python3 -m nyxuri test`).
+    if [ "$#" -gt 0 ]; then
+        printf '%s[✗] %s%s\n' "$RED" \
+            "$(say "install.sh 是一次性引导，不接收参数。请直接使用: nyxuri <动词>" "install.sh is a one-time bootstrap and takes no arguments. Use: nyxuri <verb>")" \
+            "$OFF" >&2
+        exit 2
+    fi
+
+    # 3. Determine script location and stop legacy checkouts before bootstrapping.
     local real_script="" script_dir=""
     if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
         real_script="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
@@ -186,7 +184,7 @@ main() {
         exit 2
     fi
 
-    # 3. Check for python3
+    # 4. Check for python3
     if ! command -v python3 >/dev/null 2>&1; then
         printf '%s[✗] %s%s\n' "$RED" \
             "$(say "未找到 python3，请先安装 Python 3.11+。" "python3 is required but missing. Please install Python 3.11+ first.")" \
@@ -208,18 +206,18 @@ main() {
         exit 1
     fi
 
-    # 4. Local repository execution
+    # 5. Local repository execution
     if [ -n "$script_dir" ] \
-        && { [ -d "$script_dir/nyxuri" ] || [ -d "$script_dir/configs" ] || [ -d "$script_dir/assets" ]; }; then
+        && { [ -d "$script_dir/nyxuri" ] || [ -d "$script_dir/units" ]; }; then
         if ! engine_is_complete "$script_dir"; then
             printf '%s[✗] %s: %s%s\n' "$RED" "$(say "Nyxuri 源码不完整" "Nyxuri source is incomplete")" "$script_dir" "$OFF" >&2
             printf '    %s\n' "$(say "请恢复或重新克隆仓库后再运行 ./install.sh。" "Restore or clone the repository again, then rerun ./install.sh.")" >&2
             exit 1
         fi
-        exec_python_engine "$script_dir" "$@"
+        exec_launcher "$script_dir"
     fi
 
-    # 5. Standalone / Cache execution
+    # 6. Standalone / Cache execution
     if ! command -v git >/dev/null 2>&1; then
         printf '%s[✗] %s%s\n' "$RED" \
             "$(say "未找到 git，请先安装。" "git is missing. Please install git first.")" \
@@ -250,7 +248,7 @@ main() {
     fi
 
     if engine_is_complete "$CACHE_DIR"; then
-        exec_python_engine "$CACHE_DIR" "$@"
+        exec_launcher "$CACHE_DIR"
     else
         printf '%s[✗] %s: %s%s\n' "$RED" "$(say "缓存源码仍不完整" "Cached source is still incomplete")" "$CACHE_DIR" "$OFF" >&2
         printf '    %s\n' "$(say "请检查网络后重新运行引导。" "Check the network, then run the bootstrap again.")" >&2

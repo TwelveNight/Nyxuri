@@ -5,8 +5,9 @@ import subprocess
 import sys
 from typing import List
 
-from nyxuri.constants import (
+from nyxuri.core import (
     CLI_CMD,
+    Colors,
     PENDING_UPGRADE_ENV,
     PENDING_UPGRADE_MENU_ENV,
     PROJECT_NAME,
@@ -20,18 +21,17 @@ from nyxuri.core import (
     log_msg,
 )
 
-ensure_nyxniri_symlink = ensure_nyxuri_symlink
-from nyxuri.deploy import (
+from nyxuri.deploy import test_deploy
+from nyxuri.desktop.presets import (
     apply_preset,
     delete_preset,
-    deploy_wallpapers,
     edit_preset,
     list_presets,
     save_preset,
-    test_deploy,
 )
-from nyxuri.deps import run_dep_menu_loop, run_optional_apps_menu_loop
-from nyxuri.doctor import generate_bug_report, run_doctor
+from nyxuri.pkg.deps import ensure_aur_helper, run_dep_menu_loop, run_optional_apps_menu_loop
+from nyxuri.sysdoctor import generate_bug_report, run_doctor
+from nyxuri.kernel import ledger, registry, transaction
 from nyxuri.state import (
     backup_configs,
     delete_backup,
@@ -39,11 +39,12 @@ from nyxuri.state import (
     rollback_configs,
     uninstall_nyxuri,
 )
-from nyxuri.i18n import msg
-from nyxuri.network import safe_git_checkout_ref, safe_git_pull
-from nyxuri.tui import press_any_key, select_language
-from nyxuri.menus import deps_menu_loop, main_menu_loop
-from nyxuri.workflows import (
+from nyxuri.core import msg
+from nyxuri.desktop import bridge
+from nyxuri.pkg.net import safe_git_checkout_ref, safe_git_pull
+from nyxuri.tui import press_any_key, prompt_confirm, select_language
+from nyxuri.installer.menus import deps_menu_loop, main_menu_loop
+from nyxuri.installer.workflows import (
     check_new_deps_post_update,
     install_configs_workflow,
     offer_overwrite_upgrade,
@@ -62,6 +63,204 @@ def exit_usage(usage: str) -> None:
     sys.exit(2)
 
 
+# --- KM3 core verbs (unit-model.md §5) ----------------------------------------
+#
+# Four canonical verbs — list / on / off / doctor — are the market-facing
+# surface; every switch flip routes through nyxuri.transaction, and this
+# layer only adds disclosure, prose and exit codes. The legacy alias table
+# was executed at KM3.5: old names are plain unknown commands.
+
+
+def _package_installer(unit_id: str, missing: List[str]) -> bool:
+    """Thin alias: the shared transaction installer lives in deps (CLI and
+    TUI must inject the exact same package-manager behavior)."""
+    from nyxuri.pkg.deps import unit_package_installer
+
+    return unit_package_installer(unit_id, missing)
+
+
+def _report_steps(steps) -> int:
+    """Turn transaction Steps into bilingual prose; 0 only if every unit won."""
+    from nyxuri.tui import format_steps
+
+    lines = format_steps(steps)
+    for line in lines:
+        print(line)
+    return 0 if steps and all(s.ok for s in steps) else (1 if steps else 0)
+
+
+def _cmd_on(sub_args: List[str]) -> int:
+    """nyxuri on <unit> [--preset <name>] — disclose, then transact."""
+    usage = f"{CLI_CMD} on <unit> [--preset <name>]"
+    rest = list(sub_args)
+    unit = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    if not unit:
+        exit_usage(usage)
+    preset = None
+    while rest:
+        cur = rest.pop(0)
+        if cur == "--preset":
+            preset = rest.pop(0) if rest else ""
+            if not preset:
+                exit_usage(usage)
+        else:
+            exit_usage(usage)
+    try:
+        plan = transaction.plan_on(unit)
+    except KeyError:
+        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        return 2
+    enabled = {u for u, rec in ledger.all_units().items() if rec.get("state") == "enabled"}
+    incoming = [u for u in plan if u not in enabled]
+    if incoming:
+        print(msg("cli_plan_on", " → ".join(incoming)))
+    need_install: List[str] = []
+    for uid in incoming:
+        missing = transaction.missing_packages(registry.load_unit(uid))
+        if missing:
+            need_install.extend(missing)
+            print(msg("cli_plan_packages", uid, ", ".join(missing)))
+    if need_install and not prompt_confirm("cli_confirm_install", "y"):
+        print(msg("cli_aborted"), file=sys.stderr)
+        return 1
+    return _report_steps(
+        transaction.unit_on(unit, preset=preset, install_packages=_package_installer)
+    )
+
+
+def _cmd_off(sub_args: List[str]) -> int:
+    """nyxuri off <unit> [--cascade] — guard, disclose, then transact."""
+    usage = f"{CLI_CMD} off <unit> [--cascade]"
+    rest = list(sub_args)
+    unit = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    if not unit:
+        exit_usage(usage)
+    cascade = False
+    while rest:
+        cur = rest.pop(0)
+        if cur == "--cascade":
+            cascade = True
+        else:
+            exit_usage(usage)
+    try:
+        plan = transaction.plan_off(unit)
+    except KeyError:
+        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        return 2
+    dependents = [u for u in plan if u != unit]
+    if dependents and not cascade:
+        print(msg("cli_off_blocked", unit, ", ".join(dependents)), file=sys.stderr)
+        return 1
+    if dependents:
+        print(msg("cli_plan_off_cascade", ", ".join(dependents)))
+    return _report_steps(transaction.unit_off(unit, cascade=cascade))
+
+
+def _state_cell(state: str, width: int) -> str:
+    """Ledger state as a width-fixed colored cell."""
+    if state == "enabled":
+        text, color = state, Colors.BOLD_GREEN
+    elif state == "disabled":
+        text, color = state, Colors.DIM
+    else:
+        text, color = "-", Colors.DIM
+    return f"{color}{text.ljust(width)}{Colors.RESET}"
+
+
+def _cmd_list(sub_args: List[str]) -> int:
+    """nyxuri list [unit] — the whole blueprint, or one unit in detail."""
+    if len(sub_args) > 1:
+        exit_usage(f"{CLI_CMD} list [unit]")
+    if sub_args:
+        return _show_unit_detail(sub_args[0])
+    recs = ledger.all_units()
+    ids = sorted(set(registry.unit_ids()) | set(recs))
+    if not ids:
+        print(msg("cli_list_none"))
+        return 0
+    print(msg("cli_list_header"))
+    for uid in ids:
+        rec = recs.get(uid) or {}
+        print(f"  {uid:<24}{_state_cell(rec.get('state', ''), 12)}{rec.get('preset', '-')}")
+    return 0
+
+
+def _show_unit_detail(unit: str) -> int:
+    """One unit: manifest declarations joined with its ledger record."""
+    known = unit in registry.unit_ids()
+    if not known and unit not in ledger.all_units():
+        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        return 2
+    print(f"{Colors.BOLD}{unit}{Colors.RESET}")
+    if known:
+        m = registry.load_unit(unit)
+        if m.label:
+            print(f"  {msg('cli_detail_label')}: {m.label}")
+        if m.category:
+            print(f"  {msg('cli_detail_category')}: {m.category}")
+        if m.runtime:
+            print(f"  {msg('cli_detail_runtime')}")
+        else:
+            print(f"  {msg('cli_detail_target')}: {get_env().config_dir / (m.target or unit)}")
+        if m.dependencies:
+            print(f"  {msg('cli_detail_dependencies')}: {', '.join(m.dependencies)}")
+        pkgs = (*m.packages_repo, *m.packages_aur, *m.packages_flatpak)
+        if pkgs:
+            print(f"  {msg('cli_detail_packages')}: {', '.join(pkgs)}")
+        if m.requires_root or m.system_paths:
+            paths = f" ({', '.join(m.system_paths)})" if m.system_paths else ""
+            print(f"  {msg('cli_detail_privilege')}: root{paths}")
+    rec = ledger.get_unit(unit)
+    if rec:
+        print(f"  {msg('cli_detail_state')}: {rec.get('state', '-')}")
+        print(f"  {msg('cli_detail_preset')}: {rec.get('preset', '-')}")
+        if rec.get("vault"):
+            print(f"  {msg('cli_detail_vault')}: {rec['vault']}")
+        if rec.get("updated"):
+            print(f"  {msg('cli_detail_updated')}: {rec['updated']}")
+    else:
+        print(f"  {msg('cli_detail_never_switched')}")
+    try:
+        audit = transaction.audit_units(unit)
+    except KeyError:
+        audit = {}
+    if audit.get(unit):
+        print(f"  {msg('cli_detail_audit')}: {audit[unit]}")
+    return 0
+
+
+def _print_audit(report: dict) -> None:
+    """Three-state reconciliation table (Synced / Drifted / Ghost)."""
+    if not report:
+        print(msg("cli_audit_clean"))
+        return
+    print(msg("cli_audit_header"))
+    marks = {
+        transaction.STATE_SYNCED: (Colors.BOLD_GREEN, "[✓]"),
+        transaction.STATE_DRIFTED: (Colors.BOLD_YELLOW, "[!]"),
+        transaction.STATE_GHOST: (Colors.BOLD_RED, "[✗]"),
+    }
+    for uid in sorted(report):
+        color, mark = marks.get(report[uid], (Colors.DIM, "[•]"))
+        print(f"  {color}{mark}{Colors.RESET} {uid:<24}{report[uid]}")
+
+
+def _cmd_doctor(sub_args: List[str]) -> int:
+    """nyxuri doctor [unit] — audit first, system checkup as the annex."""
+    if len(sub_args) > 1:
+        exit_usage(f"{CLI_CMD} doctor [unit]")
+    unit = sub_args[0] if sub_args else None
+    try:
+        report = transaction.audit_units(unit)
+    except KeyError:
+        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        return 2
+    _print_audit(report)
+    if unit is None:
+        run_doctor()
+    return 0
+
+
 def _cmd_install(sub_args: List[str]) -> int:
     mode = sub_args[0] if sub_args else "full"
     if len(sub_args) > 1 or mode not in ("full", "config"):
@@ -70,6 +269,11 @@ def _cmd_install(sub_args: List[str]) -> int:
 
 
 def _cmd_snapshot(sub_args: List[str]) -> int:
+    if sub_args and sub_args[0] == "list":
+        if len(sub_args) > 1:
+            exit_usage(f"{CLI_CMD} snapshot list")
+        list_backups()
+        return 0
     if sub_args and sub_args[0] in ("delete", "rm"):
         if len(sub_args) > 2:
             exit_usage(f"{CLI_CMD} snapshot delete [index]")
@@ -86,13 +290,6 @@ def _cmd_rollback(sub_args: List[str]) -> int:
     return 0 if rollback_configs(target) else 1
 
 
-def _cmd_list(sub_args: List[str]) -> int:
-    if sub_args:
-        exit_usage(f"{CLI_CMD} list")
-    list_backups()
-    return 0
-
-
 def _cmd_uninstall(sub_args: List[str]) -> int:
     target = sub_args[0] if sub_args else ""
     valid = ("", "standard", "restore", "purge", "--all", "all",
@@ -100,19 +297,6 @@ def _cmd_uninstall(sub_args: List[str]) -> int:
     if len(sub_args) > 1 or target not in valid:
         exit_usage(f"{CLI_CMD} uninstall [--all|standard|restore|purge]")
     return 0 if uninstall_nyxuri(target) else 1
-
-
-def _cmd_purge(sub_args: List[str]) -> int:
-    if sub_args:
-        exit_usage(f"{CLI_CMD} purge")
-    return 0 if uninstall_nyxuri("purge") else 1
-
-
-def _cmd_doctor(sub_args: List[str]) -> int:
-    if sub_args:
-        exit_usage(f"{CLI_CMD} doctor")
-    run_doctor()
-    return 0
 
 
 def _cmd_deps(sub_args: List[str]) -> int:
@@ -126,19 +310,6 @@ def _cmd_deps(sub_args: List[str]) -> int:
     else:
         ok = deps_menu_loop()
     return 0 if ok else 1
-
-
-def _cmd_apps(sub_args: List[str]) -> int:
-    if sub_args:
-        exit_usage(f"{CLI_CMD} apps")
-    return 0 if run_optional_apps_menu_loop() else 1
-
-
-def _cmd_wallpapers(sub_args: List[str]) -> int:
-    if sub_args:
-        exit_usage(f"{CLI_CMD} wallpapers")
-    wallpaper_result = deploy_wallpapers(do_download=True)
-    return 0 if wallpaper_result.downloaded else 1
 
 
 def _cmd_bug(sub_args: List[str]) -> int:
@@ -171,7 +342,7 @@ def _cmd_preset(sub_args: List[str]) -> int:
         if len(sub_args) > 2:
             exit_usage(f"{CLI_CMD} preset {app} parts")
         from nyxuri.deploy.preset import list_parts
-        from nyxuri.state.ledger import read_ledger
+        from nyxuri.kernel.ledger import read_ledger
         slots = list_parts(app)
         if not slots:
             print(f"[!] {app} 暂无可用零件插槽")
@@ -206,53 +377,11 @@ def _cmd_preset(sub_args: List[str]) -> int:
     exit_usage(usage)
 
 
-def _module_handler(module_name: str, triad_name: str):
-    """Factory: build a handler for install|status|uninstall triad (greeter/fcitx).
-
-    """
-    def handler(sub_args: List[str]) -> int:
-        import importlib
-        root_pkg = (__package__ or "nyxuri").split(".")[0]
-        mod = importlib.import_module(f"{root_pkg}.modules.{module_name}")
-        install_fn = getattr(mod, f"{module_name}_install")
-        uninstall_fn = getattr(mod, f"{module_name}_uninstall")
-        status_fn = getattr(mod, f"{module_name}_status")
-        deploy_fn = getattr(mod, f"{module_name}_deploy_assets", None)
-        activate_fn = getattr(mod, f"{module_name}_activate", None)
-
-        valid_subs = ["", "install", "setup", "status", "uninstall", "remove"]
-        if deploy_fn is not None:
-            valid_subs.append("deploy")
-        if activate_fn is not None:
-            valid_subs.append("activate")
-
-        sub = sub_args[0].lower() if sub_args else ""
-        deploy_only = "--deploy-only" in sub_args
-        if len(sub_args) > 2 or (len(sub_args) == 2 and not deploy_only) or sub not in valid_subs:
-            usage_cmds = "|".join(s for s in ("install", "deploy", "activate", "status", "uninstall") if s in valid_subs or s in ("install", "status", "uninstall"))
-            exit_usage(f"{CLI_CMD} {triad_name} [{usage_cmds}]")
-
-        if sub == "deploy":
-            return 0 if (deploy_fn() if deploy_fn else install_fn()) else 1
-        elif sub == "activate":
-            return 0 if (activate_fn() if activate_fn else install_fn()) else 1
-        elif sub in ("install", "setup"):
-            if deploy_only and deploy_fn is not None:
-                return 0 if deploy_fn() else 1
-            return 0 if install_fn() else 1
-        elif sub in ("uninstall", "remove"):
-            return 0 if uninstall_fn() else 1
-        else:
-            status_fn()
-            return 0
-    return handler
-
-
 def _cmd_theme(sub_args: List[str]) -> int:
     sub = sub_args[0] if sub_args else "toggle"
     if len(sub_args) > 1 or sub not in ("toggle", "dark", "light", "sync", "status"):
         exit_usage(f"{CLI_CMD} theme [toggle|dark|light|sync|status]")
-    from nyxuri.theme import status, sync
+    from nyxuri.desktop.theme import status, sync
     if sub == "status":
         return status()
     return sync(sub)
@@ -267,8 +396,8 @@ _SHELL_EXPERIMENTAL_NOTE = (
 def _cmd_shell(sub_args: List[str]) -> int:
     sub = sub_args[0] if sub_args else "status"
     usage = f"{CLI_CMD} shell [get|set <noctalia|nyxuri-shell> [bin_path]|switch [<noctalia|nyxuri-shell> [bin_path]]|status] [EXPERIMENTAL]"
-    from nyxuri.state.ledger import active_shell, nyxuri_shell_bin
-    from nyxuri.shell_switcher import normalize_shell_name, probe_running_shell, resolve_custom_bin, hot_switch_shell
+    from nyxuri.kernel.ledger import active_shell, nyxuri_shell_bin
+    from nyxuri.desktop.shell_switcher import normalize_shell_name, probe_running_shell, resolve_custom_bin, hot_switch_shell
     if sub == "get":
         if len(sub_args) > 1:
             exit_usage(usage)
@@ -350,12 +479,10 @@ def _cmd_update(sub_args: List[str]) -> int:
             capture_output=True, text=True, check=False,
         )
         if head.returncode == 0 and head.stdout.strip():
-            from nyxuri.state.ledger import update_ledger
+            from nyxuri.kernel.ledger import update_ledger
             update_ledger(last_update_head=head.stdout.strip())
-        from nyxuri.migrations import run as run_migrations
-        if not run_migrations():
-            print(msg("migration_failed"), file=sys.stderr)
-            return 1
+        # KM5: the linear migrations module was liquidated — the ledger is the
+        # only truth and the nyxniri-era tombstones are years past their sweep.
         # Hand the deploy over to a fresh process so it runs on the updated
         # engine code instead of the modules loaded before the pull.
         try:
@@ -372,12 +499,12 @@ def _cmd_update(sub_args: List[str]) -> int:
 
 
 def _cmd_clean(sub_args: List[str]) -> int:
-    from nyxuri.clean import main as clean
+    from nyxuri.desktop.clean import main as clean
     return clean(sub_args)
 
 
 def _cmd_pkg(sub_args: List[str]) -> int:
-    from nyxuri.pkg.cli import main as packages
+    from nyxuri.pkg.fzf import main as packages
     return packages(sub_args)
 
 
@@ -389,42 +516,26 @@ def _cmd_help(sub_args: List[str]) -> int:
 
 
 COMMANDS = {
+    "on":        (_cmd_on,        f"{CLI_CMD} on <unit> [--preset <name>]"),
+    "enable":    (_cmd_on,        f"{CLI_CMD} on <unit> [--preset <name>]"),
+    "off":       (_cmd_off,       f"{CLI_CMD} off <unit> [--cascade]"),
+    "disable":   (_cmd_off,       f"{CLI_CMD} off <unit> [--cascade]"),
+    "list":      (_cmd_list,      f"{CLI_CMD} list [unit]"),
     "pkg":       (_cmd_pkg,       f"{CLI_CMD} pkg <install|upgrade|remove|search|info|installed>"),
     "clean":     (_cmd_clean,     f"{CLI_CMD} clean [-n] [--only <tasks>]"),
     "install":   (_cmd_install,   f"{CLI_CMD} install [full|config]"),
-    "deploy":    (_cmd_install,   f"{CLI_CMD} install [full|config]"),
-    "snapshot":  (_cmd_snapshot,  f"{CLI_CMD} snapshot [note]"),
-    "backup":    (_cmd_snapshot,  f"{CLI_CMD} snapshot [note]"),
+    "snapshot":  (_cmd_snapshot,  f"{CLI_CMD} snapshot [note|list|delete [index]]"),
     "rollback":  (_cmd_rollback,  f"{CLI_CMD} rollback [index]"),
-    "restore":   (_cmd_rollback,  f"{CLI_CMD} rollback [index]"),
-    "list":      (_cmd_list,      f"{CLI_CMD} list"),
     "uninstall": (_cmd_uninstall, f"{CLI_CMD} uninstall [--all|standard|restore|purge]"),
-    "remove":    (_cmd_uninstall, f"{CLI_CMD} uninstall [--all|standard|restore|purge]"),
-    "purge":     (_cmd_purge,     f"{CLI_CMD} purge"),
-    "doctor":    (_cmd_doctor,    f"{CLI_CMD} doctor"),
+    "doctor":    (_cmd_doctor,    f"{CLI_CMD} doctor [unit]"),
     "deps":      (_cmd_deps,      f"{CLI_CMD} deps [core|apps]"),
-    "apps":      (_cmd_apps,      f"{CLI_CMD} apps"),
-    "recommended": (_cmd_apps,    f"{CLI_CMD} apps"),
-    "wallpapers": (_cmd_wallpapers, f"{CLI_CMD} wallpapers"),
-    "wp":        (_cmd_wallpapers, f"{CLI_CMD} wallpapers"),
     "bug":       (_cmd_bug,       f"{CLI_CMD} bug"),
-    "report":    (_cmd_bug,       f"{CLI_CMD} bug"),
     "test":      (_cmd_test,      f"{CLI_CMD} test"),
     "preset":    (_cmd_preset,    f"{CLI_CMD} preset <app> [list|apply <name>|save <name>|edit <name>|delete <name>|parts|part <slot> <name>]"),
-    "greeter":   (_module_handler("greeter", "greeter"),
-                  f"{CLI_CMD} greeter [install|status|uninstall]"),
-    "fcitx":     (_module_handler("fcitx", "fcitx"),
-                  f"{CLI_CMD} fcitx [install|deploy|activate|status|uninstall]"),
-    "gtk":       (_module_handler("gtktheme", "gtk"),
-                  f"{CLI_CMD} gtk [install|status|uninstall]"),
-    "fisher":    (_module_handler("fisher", "fisher"),
-                  f"{CLI_CMD} fisher [install|status|uninstall]"),
     "theme":     (_cmd_theme,     f"{CLI_CMD} theme [toggle|dark|light|sync|status]"),
     "shell":     (_cmd_shell,     f"{CLI_CMD} shell [get|set <noctalia|nyxuri-shell> [bin_path]|switch [<noctalia|nyxuri-shell> [bin_path]]|status] [EXPERIMENTAL]"),
     "update":    (_cmd_update,    f"{CLI_CMD} update [--force|--no-deploy] [--to <tag|commit>]"),
     "help":      (_cmd_help,      f"{CLI_CMD} help"),
-    "-h":        (_cmd_help,      f"{CLI_CMD} help"),
-    "--help":    (_cmd_help,      f"{CLI_CMD} help"),
 }
 
 
@@ -442,13 +553,16 @@ def main() -> None:
     acquire_lock()
     init_logger()
     env = get_env()
-    ensure_nyxuri_symlink()
-
     if (env.nyx_dir / "personal-mode").is_file():
         args = sys.argv[1:]
         if not args or args[0].lower() in ("install", "deploy", "update"):
-            print("Personal desktop: use nyxuri install/update through this branch's install.sh.", file=sys.stderr)
+            print("Personal desktop: use nyxuri install/update through the personal launcher.", file=sys.stderr)
             sys.exit(2)
+    # The event delivery is the outer layer's job (unit-model.md §6): wire
+    # the Shell bridge once so every verb (CLI, TUI, installer menus) that
+    # lands a unit transaction notifies the running shell over its own IPC.
+    bridge.wire()
+    ensure_nyxuri_symlink()
 
     # Post-update handoff: a previous run pulled new code and re-execed into
     # us, so the deploy offer runs on the updated engine instead of the stale
@@ -463,8 +577,7 @@ def main() -> None:
 
         entry = COMMANDS.get(cmd)
         if entry:
-            handler, _ = entry
-            sys.exit(handler(sub_args))
+            sys.exit(entry[0](sub_args))
 
         print(msg("err_unknown_command", args[0]), file=sys.stderr)
         print_help(file=sys.stderr)

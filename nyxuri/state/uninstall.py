@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from nyxuri.constants import CLI_CMD, PROJECT_NAME, STORAGE_NAME
+from nyxuri.core import CLI_CMD, PROJECT_NAME, STORAGE_NAME
 from nyxuri.core import (
     get_env,
     get_pics_dir,
@@ -21,10 +21,8 @@ from nyxuri.core import (
     remove_path,
     is_nyxuri_cli_symlink,
     clear_nyxuri_cli_symlink_marker,
-    is_nyxniri_cli_symlink,
-    clear_nyxniri_cli_symlink_marker,
 )
-from nyxuri.i18n import msg
+from nyxuri.core import msg
 from nyxuri.tui import CheckboxEntry, CheckboxList, drain_stdin, prompt_confirm
 from nyxuri.state.backup import get_all_backups, rollback_configs
 
@@ -46,11 +44,8 @@ def uninstall_nyxuri(mode: str = "") -> bool:
     non-interactive use the same standard scope. Legacy 'restore' rolls back to the origin
     snapshot (folded into `nyxuri rollback`).
     """
-    from nyxuri.deploy.deploy import discover_config_items
-    from nyxuri.modules.fcitx import fcitx5_installed, fcitx_uninstall
-    from nyxuri.modules.fisher import fisher_installed, fisher_uninstall
-    from nyxuri.modules.greeter import greeter_installed, greeter_uninstall
-    from nyxuri.modules.gtktheme import gtktheme_registered, gtktheme_uninstall
+    from nyxuri.deploy.deploy import config_item_dest, discover_config_items
+    from nyxuri.kernel import ledger, registry, transaction
 
     env = get_env()
     items = discover_config_items()
@@ -71,11 +66,15 @@ def uninstall_nyxuri(mode: str = "") -> bool:
     elif mode in ("3", "--purge", "purge", "--all", "all"):
         mode = "all"
 
-    # --- Detect installed modules (only installed ones are shown) ---
-    has_fcitx = fcitx5_installed()
-    has_gtk = gtktheme_registered()
-    has_greeter = greeter_installed()
-    has_fisher = fisher_installed()
+    # --- KM3: unit switches replace the module checkboxes. Enabled units
+    # with living-area side effects are offered through `off` (cascade off),
+    # which vaults customs and wipes to white paper.
+    HOOK_UNITS = ("fcitx5-rime", "fish", "greeter", "noctalia")
+    enabled_hooked = [
+        uid for uid in HOOK_UNITS
+        if uid in registry.unit_ids()
+        and (ledger.get_unit(uid) or {}).get("state") == "enabled"
+    ]
 
     # --- Build checkbox entries (defaults = standard scope) ---
     entries = [
@@ -89,18 +88,13 @@ def uninstall_nyxuri(mode: str = "") -> bool:
         CheckboxEntry(key="state", label=msg("uninstall_item_state"), checked=False),
         CheckboxEntry(key="cache", label=msg("uninstall_item_cache"), checked=False),
     ]
-    module_entries = []
-    if has_fcitx:
-        module_entries.append(CheckboxEntry(key="fcitx", label=msg("uninstall_item_fcitx"), checked=True))
-    if has_gtk:
-        module_entries.append(CheckboxEntry(key="gtk", label=msg("uninstall_item_gtk"), checked=True))
-    if has_greeter:
-        module_entries.append(CheckboxEntry(key="greeter", label=msg("uninstall_item_greeter"), checked=True))
-    if has_fisher:
-        module_entries.append(CheckboxEntry(key="fisher", label=msg("uninstall_item_fisher"), checked=True))
-    if module_entries:
-        entries.append(CheckboxEntry(key="__sep_mod__", label=msg("uninstall_group_modules"), is_separator=True))
-        entries.extend(module_entries)
+    unit_entries = [
+        CheckboxEntry(key=f"unit:{uid}", label=msg("uninstall_item_unit", uid), checked=True)
+        for uid in enabled_hooked
+    ]
+    if unit_entries:
+        entries.append(CheckboxEntry(key="__sep_mod__", label=msg("uninstall_group_units"), is_separator=True))
+        entries.extend(unit_entries)
 
     all_keys = [e.key for e in entries if not e.is_separator]
     default_keys = [e.key for e in entries if not e.is_separator and e.checked]
@@ -145,24 +139,21 @@ def uninstall_nyxuri(mode: str = "") -> bool:
     # read_key), so stale \r would feed its password prompt as bad input.
     drain_stdin()
 
-    # 1. Module uninstallers FIRST — fcitx reads .prev in state_dir; greeter's
-    #    sudo restore+rm runs here. nyx_dir/state must outlive these.
-    for key, fn, label in (
-        ("fcitx", fcitx_uninstall, "fcitx"),
-        ("gtk", gtktheme_uninstall, "GTK theme"),
-        ("greeter", greeter_uninstall, "greeter"),
-        ("fisher", fisher_uninstall, "fisher"),
-    ):
-        if key in selected:
+    # 1. Enabled hook units FIRST — `off` vaults customs and wipes to white
+    #    paper (side-domain cleanup via each unit's post_remove hook).
+    #    nyx_dir/state must outlive these.
+    for uid in enabled_hooked:
+        if f"unit:{uid}" in selected:
             try:
-                if not fn():
-                    log_msg("WARN", f"{label} uninstall reported failure")
-                    print(msg("uninstall_failed", label))
+                steps = transaction.unit_off(uid, cascade=True)
+                if not all(s.ok for s in steps):
+                    log_msg("WARN", f"unit off reported failure: {uid}")
+                    print(msg("uninstall_failed", uid))
                     return False
-                print(msg("uninstall_module_done", label))
+                print(msg("uninstall_module_done", uid))
             except Exception as e:
-                log_msg("WARN", f"{label} uninstall failed: {e}")
-                print(msg("uninstall_failed", label))
+                log_msg("WARN", f"unit off failed for {uid}: {e}")
+                print(msg("uninstall_failed", uid))
                 return False
 
     # 2. Configs — archive-then-delete (interactive), or delete-only (purge).
@@ -181,7 +172,7 @@ def uninstall_nyxuri(mode: str = "") -> bool:
                     archive_dir = env.config_dir / f"{base_name}_{suffix}"
                     suffix += 1
         for item in items:
-            p = env.config_dir / item
+            p = config_item_dest(item)
             if p.exists() or p.is_symlink():
                 if archive_dir is not None:
                     copy_path(p, archive_dir / item)
@@ -233,18 +224,16 @@ def uninstall_nyxuri(mode: str = "") -> bool:
     # 6. CLI entry.
     if "cli" in selected:
         target_bin = env.home / ".local/bin" / CLI_CMD
-        if is_nyxuri_cli_symlink(target_bin) or is_nyxniri_cli_symlink(target_bin):
+        if is_nyxuri_cli_symlink(target_bin):
             target_bin.unlink(missing_ok=True)
             clear_nyxuri_cli_symlink_marker()
-            clear_nyxniri_cli_symlink_marker()
             print(msg("uninstall_removed", str(target_bin)))
         else:
             print(msg("uninstall_skipped", str(target_bin)))
         # Also clean legacy nyxniri symlink if present
         legacy_bin = env.home / ".local/bin" / "nyxniri"
-        if legacy_bin.is_symlink() and (is_nyxuri_cli_symlink(legacy_bin) or is_nyxniri_cli_symlink(legacy_bin)):
+        if legacy_bin.is_symlink() and (is_nyxuri_cli_symlink(legacy_bin)):
             legacy_bin.unlink(missing_ok=True)
-            clear_nyxniri_cli_symlink_marker()
         shell_bin = env.home / ".local/bin" / "nyxuri-shell"
         if shell_bin.is_symlink():
             try:
@@ -277,7 +266,3 @@ def uninstall_nyxuri(mode: str = "") -> bool:
     print(msg("uninstall_done"))
     log_msg("INFO", f"Uninstall completed (selected: {sorted(selected)})")
     return True
-
-
-# Backward compatibility alias
-uninstall_nyxniri = uninstall_nyxuri

@@ -36,7 +36,7 @@ class TestPersonalSession(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text("original\n")
                 originals[target] = target.read_bytes()
-            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
                 private = config / "desktop-profiles/nyxuri"
                 niri = (private / "niri/config.kdl").read_text()
@@ -82,7 +82,7 @@ class TestPersonalSession(unittest.TestCase):
             kitty = ctx.home / ".config/kitty"
             kitty.mkdir()
             (kitty / "kitty.conf").write_text("shell zsh\n")
-            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
             private = ctx.home / ".config/desktop-profiles/nyxuri"
             for app in ("niri", "noctalia", "kitty-nyxuri"):
@@ -100,7 +100,7 @@ class TestPersonalSession(unittest.TestCase):
             kitty = ctx.home / ".config/kitty"
             kitty.mkdir()
             (kitty / "kitty.conf").write_text("shell zsh\n")
-            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
             private = ctx.home / ".config/desktop-profiles/nyxuri"
             for app in ("niri", "noctalia", "kitty-nyxuri"):
@@ -128,7 +128,7 @@ class TestPersonalSession(unittest.TestCase):
                 self.assertTrue(entry["enabled"])
                 self.assertEqual(entry["input_path"], str(ctx.home / ".config/noctalia/templates/fcitx5" / filename))
                 self.assertEqual(entry["output_path"], str(ctx.home / ".local/share/fcitx5/themes/nyxmellow" / filename))
-                self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "assets/fcitx5/nyxmellow/templates" / filename).read_bytes())
+                self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "units/fcitx5-rime/hooks/skin/templates" / filename).read_bytes())
             self.assertIn("ReloadAddonConfig s classicui", templates["nyxmellow_highlight"]["post_hook"])
             self.assertNotIn("pkill", templates["nyxmellow_highlight"]["post_hook"])
             for version in (3, 4):
@@ -246,9 +246,9 @@ class TestPersonalUpdate(unittest.TestCase):
 
 
     def test_incompatible_upstream_layout_stops_before_merge_or_deploy(self):
-        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", subprocess.CalledProcessError(1, ["git", "cat-file", "-e", "FETCH_HEAD:configs/niri/config.kdl"])]) as git, patch("personal.update.subprocess.run") as deploy:
+        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", subprocess.CalledProcessError(1, ["git", "cat-file", "-e", "FETCH_HEAD:units/niri/config.kdl"])]) as git, patch("personal.update.subprocess.run") as deploy:
             self.assertEqual(update.main([]), 1)
-            self.assertEqual(git.call_args.args, ("cat-file", "-e", "FETCH_HEAD:configs/niri/config.kdl"))
+            self.assertEqual(git.call_args.args, ("cat-file", "-e", "FETCH_HEAD:units/niri/config.kdl"))
             self.assertFalse(any(call.args[:1] == ("merge",) for call in git.call_args_list))
             deploy.assert_not_called()
 

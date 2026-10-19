@@ -84,6 +84,10 @@ Singleton {
             cliphist_watcher_inactive: I18n.tr(
                                            "The cliphist watcher is not running; enable the service and copy content again"),
             cliphist_unavailable: I18n.tr("cliphist is missing; clipboard history cannot be read"),
+            cliphist_list_failed: I18n.tr("Unable to read clipboard history"),
+            cliphist_store_failed: I18n.tr("Unable to store clipboard entry"),
+            cliphist_delete_failed: I18n.tr("Unable to delete clipboard entry"),
+            cliphist_clear_failed: I18n.tr("Unable to clear clipboard history"),
             wl_copy_unavailable: I18n.tr("wl-copy is missing; clipboard contents cannot be restored"),
             clipboard_dependency_unavailable: I18n.tr(
                                                   "cliphist or wl-copy is missing; clipboard history is unavailable"),
@@ -180,21 +184,25 @@ Singleton {
             return;
         }
 
-        root.available = response.available === true;
-        root.canList = response.canList === true;
-        root.canRestore = response.canRestore === true;
-        root.watcherRunning = response.watcherRunning === true;
-        root.dependencies = response.dependencies || {
+        const deps = response.dependencies || {
             cliphist: false,
             wlCopy: false,
             wlPaste: false
         };
-        root.capabilities = response.capabilities;
         const nextEntries = Array.isArray(response.entries) ? response.entries : [];
+        const isListError = response.ok !== true && response.error && response.error.code === "cliphist_list_failed";
+        const isEmptyDbFallback = isListError && deps.cliphist !== false && nextEntries.length === 0;
+
+        root.available = isEmptyDbFallback ? true : (response.available === true);
+        root.canList = isEmptyDbFallback ? true : (response.canList === true);
+        root.canRestore = isEmptyDbFallback ? (deps.wlCopy === true) : (response.canRestore === true);
+        root.watcherRunning = response.watcherRunning === true;
+        root.dependencies = deps;
+        root.capabilities = response.capabilities;
         root.entries = nextEntries;
         root.pruneDetails(nextEntries);
-        root.error = response.ok === true ? null : root.normalizedError(response.error, "clipboard_unavailable",
-                                                                        I18n.tr("Clipboard history is unavailable"));
+        root.error = (response.ok === true || isEmptyDbFallback) ? null : root.normalizedError(response.error, "clipboard_unavailable",
+                                                                                                I18n.tr("Clipboard history is unavailable"));
         root.revision += 1;
     }
 
@@ -485,6 +493,10 @@ Singleton {
     Process {
         id: configProcess
 
+        environment: [
+            "XDG_CACHE_HOME=" + Paths.xdgCacheHome
+        ]
+
         stdout: StdioCollector {
             onStreamFinished: {
                 root._configOutput = this.text;
@@ -501,6 +513,10 @@ Singleton {
 
     Process {
         id: listProcess
+
+        environment: [
+            "XDG_CACHE_HOME=" + Paths.xdgCacheHome
+        ]
 
         stdout: StdioCollector {
             onStreamFinished: {
@@ -522,6 +538,10 @@ Singleton {
     Process {
         id: actionProcess
 
+        environment: [
+            "XDG_CACHE_HOME=" + Paths.xdgCacheHome
+        ]
+
         stdout: StdioCollector {
             onStreamFinished: {
                 root._actionOutput = this.text;
@@ -541,6 +561,10 @@ Singleton {
 
     Process {
         id: inspectProcess
+
+        environment: [
+            "XDG_CACHE_HOME=" + Paths.xdgCacheHome
+        ]
 
         stdout: StdioCollector {
             onStreamFinished: {

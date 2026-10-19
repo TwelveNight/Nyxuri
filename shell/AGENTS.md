@@ -54,22 +54,68 @@ Nyxuri Shell 以完整 Clavis 母体为起点，就地净化、重构；当前�
 封存只解决当前隔离，不能代替最终清理。记录保留理由、入口、依赖、检查范围和重新启用
 条件；无消费者且无保留理由的代码核实后删除。重新启用须验证接口、依赖、生命周期与视觉。
 
-## 四层边界
+## 三层边界与单元目录（KM4.5 拆迁正名后）
 
-目标运行代码严格分为 `app/`、`modules/`、`shared/` 三层（原 `native/` 层已于 R4-C 彻底解耦并物理删除，全库转为纯 QML/JS/Script 架构）。遗留母体结构 `Modules/`、`Components/`、`Widgets/`、`Common/`、`Services/` 与 `core/` 已全面清算归并；旧平铺目录已移除，但功能是否完整保留必须按恢复矩阵逐项验证。静态资源统一由 `assets/` 枢纽归口（吸收 `i18n` 与 `matugen`），所有模块与深层目录严格遵循全小写规范，根目录已消除上游独立发行残余（`install.sh`、`scripts/ci/`）。测试、资源、工具和许可证保留各自合理位置。
+目标运行代码严格分为 `app/`、`units/`、`shared/` 三层（原 `native/` 层已于 R4-C 彻底解耦并物理删除，全库转为纯 QML/JS/Script 架构；原 `modules/` 层已于 KM4.5 整体正名为 `units/`，代码与 `manifest.toml` 同目录——目录即单元，内核 registry 以目录名派生 `shell.<domain>` id）。遗留母体结构 `Modules/`、`Components/`、`Widgets/`、`Common/`、`Services/` 与 `core/` 已全面清算归并。KM4.6 起 `assets/` Junk Drawer 解散——单元自有 shader 归 `units/<domain>/shaders/`，宿主数据（i18n 词典、icons、内置模板注册表）归 `app/`，第三方许可证与溯源记录折入 `LICENSE` 第三方附录；`fallback/`、`packaging/` 同阶段处决。所有单元与深层目录严格遵循全小写规范，根目录已消除上游独立发行残余（`install.sh`、`scripts/ci/`）。测试、资源、工具和许可证保留各自合理位置。
 
-- **app**：顶层装配、环境与能力感知、IPC、全局快捷键意图、生命周期与存储协调；
-  业务执行归明确 backend，不把 app 变成包揽所有业务的控制中心。
-- **modules**：功能域自治；视图、模型和专属 backend 内聚，通过显式属性注入依赖。
-  禁止跨域随手调用全局 Service；跨模块协调由 app 的窄接口完成。
-- **shared**：复用的原子控件、几何、动画和纯计算。不得读取配置/环境、写文件、发请求、
-  起进程或持有业务连接；接收注入的色板、字体、尺寸与数据。
-- **native**：*(已退役)* 原生 C++ 插件与构建体系已在 R4-C 全量移除，运行时外部可选插件降级由 `fallback/` 纯 QML 桩承载。
+- **app**：顶层装配（`AppShell`/`SlotHost`/`UnitCatalog`）、环境与能力感知、IPC、全局快捷键意图、生命周期与存储协调；业务执行归明确 backend，不把 app 变成包揽所有业务的控制中心。`app/services/` 同时承载宿主能力面（`HotCorners`、`FilePickerWindow`、`IdleInhibitorSurface`）与直读 app 单例的跨单元渲染边（`SystemCardContent`、`SystemClockCard`、`SidebarCookieClock` 等）。
+- **units**：功能域自治，一单元一目录（`manifest.toml` + 视图、模型和专属 backend 内聚），通过显式属性注入依赖。禁止跨域随手调用全局 Service；跨单元协调由 app 的窄接口完成。新增单元 = 加目录 + manifest + 代码，零宿主代码改动。
+- **shared**：复用的原子控件（`controls/`）、纯展示系统卡片（`cards/`）、几何、动画和纯计算（`utils/`）。不得读取配置/环境、写文件、发请求、起进程或持有业务连接；接收注入的色板、字体、尺寸与数据。凡需直读 app 单例的卡片不进 `shared/`，留 `app/services/`。
+- **支撑代码归宿**（KM4.5 裁决，不设第四棵树）：宿主能力面归 `app/services/`；单消费者组件并入唯一消费单元（如 `sidebars/quicksettings/`）；跨单元纯展示组件归 `shared/cards|controls/`。
 
 UI 只呈现和响应输入；桌面意图经 Action Gateway 执行。命令、文件修改、网络请求
 由明确 backend/执行器承担并登记 owner，不在展示组件深处执行。外部命令使用参数数组，
 不 eval、不拼 shell 字符串；后台订阅也必须有归属，不能绕过生命周期管理。
 每个域迁移时同步检查旧路径，验收后移除被替代实现，避免新旧两套长期共存。
+
+## 微内核宿主与几何插槽（KM4 契约，迁自 unit-model §6）
+
+Shell 是极致精简的**微内核宿主**：宿主只保留装配（`SlotHost`）、动作网关
+（`ActionGateway`，含 `executeIntent` 跨域意图路由）、会话协议（`NiriService`）、
+主题代币（`ThemeTokens`/ThemeService）与账本投影（`StateProjection`）。内核侧
+三条（同一账本、单一事件通道、点分 ID）冻结在 unit-model §6，此处承载实现契约。
+
+- **六大几何插槽**：所有 Shell 单元（`shell/units/<domain>/`，`runtime = true`，
+  manifest 与代码同目录——目录即单元，KM4.5 后 modules/ 已正名并入）
+  向唯一的 6 种几何插槽声明挂载——`edge`（bar/dock）、`island`（keystone）、
+  `overlay`（launcher/lock/session/settings/regionselector）、`drawer`（sidebars）、
+  `surface:desktop`（desktopcards/wallpaper）、`popup:notification`（notifications）。
+  插槽归属数据在 `app/UnitCatalog.qml`，与 `shell/units/` 由
+  `shell/tests/test_unit_catalog.py` 强制同步。
+- **数据驱动装载**：`AppShell.qml` 不按名实例化任何单元组件；`SlotHost` 以
+  `Repeater + Loader` 依目录装配，`active` 只读 `StateProjection`。单元 `disabled`
+  即 `Loader.active = false`：实例销毁，Process/Timer/Socket/回调全部注销；冷启动
+  未启用域零读文件、零实例化。槽仲裁归宿主：lock 持有期间禁卸载（延迟至解锁）；
+  keystone 在场时独占 `popup:notification` 槽。
+- **单一开关真相**：Shell 永不直写账本。开关只经 `UnitControlService` 派发
+  `nyxuri on/off shell.<domain>`，UI 不乐观翻转——`unit-changed` 事件
+  （`qs ipc call unit reload`，宿主 `IpcHandler target: "unit"` 接收）到达后由
+  `StateProjection` 重投影。账本无记录 = 默认启用；账本损坏 = 全启用降级 + 诊断
+  横幅。外观轴（位置/样式/覆盖等）仍归 PersonalizationConfig，与开关轴正交。
+- **单元自有 IPC**：单元的 IPC surface 属单元（lock/spotlight/power-menu/
+  control-center/settings/keystone），随单元装载生死；宿主只保留通用面
+  （unit/shell/theme/shortcut-map/wallpaper）。单元 off 时其 IPC 目标消失，
+  六动作经 `nyxuri-shell --action` 得到真实失败而非假成功。
+- **Quickshell 0.3.2 运行时约束**（KM4 实测，quickshell 升级后重估）：
+  ① Loader 动态装载的组件首次解析 qs.* import 图不可靠——单元以「module not
+  installed / X is not a type」不确定地整单元暴毙（与 QML 磁盘缓存无关）。
+  对策：SlotHost 静态预热 import 全部 12 个单元模块（只注册不实例化），装载仍
+  纯 Loader 驱动；禁用单元零实例化、零窗口、零驻留内存不变，代价是预热注册的
+  仅解析成本。**推广（KM4.6 实机验收教训）**：任何新建的 qs.* 合成池（如
+  `qs.app.cards`）只要被单元组件消费，就必须进 SlotHost 预热名单——全库没有
+  顶层文件 import 它时，首次解析必然发生在 Loader 内，单元确定性 compiled
+  empty；宿主自愈重试两次后放弃并在日志明示，unit-changed 重新武装。
+  ② QML 磁盘缓存会供应陈旧编译产物——源码改动后新旧代码混跑（表现为「改了没
+  生效」「部分单元是新逻辑部分是旧逻辑」）。对策：nyxuri-shell wrapper 每次
+  启动清空 qmlcache（永远冷编译，预热 import 已证冷编译干净）。注意不可用
+  `QML_DISABLE_DISK_CACHE=1` 替代——没有缓存写入时每次 Loader 装载都会重新
+  踩中 ① 的 import 缺陷。
+  ③ `IpcHandler` 类型挂在 `Quickshell.Io` 模块下——单元根新增 handler 时必须
+  `import Quickshell.Io`（仅 import Quickshell 不够，报「IpcHandler is not a
+  type」且目标静默消失）。
+- **降级语义**：能力全开、副作用明示——`off shell.lock` 后 idle 锁请求报失败
+  横幅、无锁挂起直接执行；`off shell.wallpaper` 卸载壁纸视觉，合成器背景透出；
+  域服务（通知接收、壁纸状态、主题管线输入）是 app 层能力，不随视觉单元卸载。
 
 ## 生命周期与退出
 

@@ -21,6 +21,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.local:
         return deploy(args.yes)
+    helper = Path.home() / ".local/bin/desktop-update"
+    registry = Path.home() / ".config/desktop-profiles/profiles.json"
+    if helper.is_file() and registry.is_file():
+        action = "sync" if args.no_deploy else "update"
+        return subprocess.run([str(helper), action, "nyxuri"], check=False).returncode
     if git("status", "--porcelain"):
         print("Working tree has local changes. Finish or save them before updating.", file=sys.stderr)
         return 1
@@ -31,9 +36,9 @@ def main(argv=None):
         print("origin must point to the official Nyxuri repository.", file=sys.stderr)
         return 1
     git("-c", "http.lowSpeedTime=15", "-c", "http.lowSpeedLimit=1000", "fetch", "origin", "main")
-    # The personal adapter consumes configs/. Never merge an incompatible
+    # The personal adapter consumes units/. Never merge an incompatible
     # upstream unit-layout migration and discover the mismatch during deployment.
-    for source in ("configs/niri/config.kdl", "configs/noctalia/noctalia-config.toml"):
+    for source in ("units/niri/config.kdl", "units/noctalia/noctalia-config.toml"):
         try:
             git("cat-file", "-e", "FETCH_HEAD:" + source)
         except subprocess.CalledProcessError:

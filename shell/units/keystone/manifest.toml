@@ -1,0 +1,5 @@
+# Shell unit (unit-model.md §6): runtime-only — the switch lives in the
+# ledger and the running shell projects it; no files ship from here.
+runtime = true
+packages = []
+label = "Keystone Island"

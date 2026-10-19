@@ -1,6 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.3
-import "../../modules/systemcards/SystemCardState.js" as CardState
+import "../../shared/cards/SystemCardState.js" as CardState
 
 TestCase {
     function test_legacyMissingStateDefaultsEveryCardToSidebar() {

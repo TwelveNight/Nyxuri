@@ -72,7 +72,7 @@ nyxuri shell switch noctalia
 每轮回答：现在什么能用，这一轮证明什么，失败回到哪里。
 
 1. 查看工作区与 `git status`，确认基线绿再动工。
-2. 选择一个功能域，遵守 `app/`、`modules/`、`shared/` 三层分层契约（参见 [架构边界矩阵](architecture-matrix.md)）。
+2. 选择一个功能域，遵守 `app/`、`units/`、`shared/` 三层分层契约（一单元一目录，`manifest.toml` 与代码同目录）（参见 [架构边界矩阵](architecture-matrix.md)）。
 3. 修改 QML/JS，通过 `run-tests.py` 本地验证；必要时拉起 Tier 2 隔离进程预览视觉。
 4. 维护全树清晰度，更新 ROADMAP 与对应 Wiki。
 
@@ -90,7 +90,7 @@ python3 shell/scripts/dev/compile-i18n.py
 | 改动/问题 | 调试方式 | 注意 |
 | --- | --- | --- |
 | QML 布局/动画/文案 | 真实 Niri 预览、日志、保存热重载 | 对照上游几何与动画；只格式化改动文件 |
-| 跨层引用/边界违规 | `audit-lifecycle.py --check` | 严禁 shared 层包含副作用，严禁 modules 交叉越界 |
+| 跨层引用/边界违规 | `audit-lifecycle.py --check` | 严禁 shared 层包含副作用，严禁 units 交叉越界 |
 | Niri IPC 与通信 | `test_display_preview.py` / `NiriService.qml` | 必须通过单一运行时入口 NiriService，禁止直接连接底层 Socket |
 | 后台/关闭/切换 | 完整退出/重启、进程与连接观察 | 退出限时 2.5s 优雅终止，停用必须真实销毁 Process / Timer |
 | 锁屏/多屏/通知 | 真实原版 Niri 会话验收 | 遵循 Wayland 安全锁屏与会话互斥契约 |
@@ -102,15 +102,15 @@ python3 shell/scripts/dev/compile-i18n.py
 
 | 代号 | 检查项 | 治理契约与修复要求 |
 |---|---|---|
-| `ARCH001` | 分层边界违规 | 必须遵循 app -> modules -> shared 单向依赖，shared 绝对纯净 |
+| `ARCH001` | 分层边界违规 | 必须遵循 app -> units -> shared 单向依赖，shared 绝对纯净 |
 | `LIFE001` | 缺少 owner 声明 | `ActionGateway.execute(args, owner)` 必须传入非空 owner 标识 |
 | `LIFE002` | 缺少销毁/清理路径 | 创建 Process、网络请求、长期订阅、周期 Timer 的组件必须具备释放钩子 |
 | `LIFE003` | shared 层副作用 | `shared/` 严禁 Process、FileView、XMLHttpRequest、环境读取及业务服务引用 |
-| `LIFE004` | 直接外部命令执行 | `app/` 与 `modules/` 严禁直接调用 `Quickshell.execDetached`，必须走 `ActionGateway` |
+| `LIFE004` | 直接外部命令执行 | `app/` 与 `units/` 严禁直接调用 `Quickshell.execDetached`，必须走 `ActionGateway` |
 | `LIFE005` | 可选依赖无降级 | 可选插件导入必须经由 fallback 隔离层，缺失时不崩溃、有降级提示 |
 | `LIFE006` | 仅通过 visible 隐藏 | 弹窗与面板停用时必须真实卸载或断开流（`active: false`），禁止仅用 `visible: false` |
 | `LIFE007` | 事件循环空转 | 禁止 `Timer interval: 0` 隐式空转；帧级批处理统一走 `Qt.callLater` |
-| `LIFE008` | UI 层直接 I/O | `modules/` 视图与 `app/` 顶层文件禁止持有 `FileView`/`Process`；I/O 归 `*Service/*Config/*Backend/*State/*Catalog` 域文件或显式 allowlist，用户意图经 `ActionGateway` 派发 |
+| `LIFE008` | UI 层直接 I/O | `units/` 视图与 `app/` 顶层文件禁止持有 `FileView`/`Process`；I/O 归 `*Service/*Config/*Backend/*State/*Catalog` 域文件或显式 allowlist，用户意图经 `ActionGateway` 派发 |
 
 ```bash
 # 一键静态与生命周期集成检查

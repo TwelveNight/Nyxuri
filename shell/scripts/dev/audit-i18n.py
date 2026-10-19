@@ -23,7 +23,7 @@ import sys
 import tomllib
 
 SHELL_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PACK_PATH = os.path.join(SHELL_ROOT, "assets", "i18n", "zh_CN.toml")
+PACK_PATH = os.path.join(SHELL_ROOT, "app", "i18n", "zh_CN.toml")
 
 # Two call styles coexist: I18n.tr()/I18n.t() is what the tree uses since the
 # pure QML/JS runtime replaced QTranslator (R4-C-04), and qsTr() survives in a

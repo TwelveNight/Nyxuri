@@ -5,7 +5,7 @@ import qs.app.services
 import Quickshell
 import Quickshell.Io
 import qs.shared.theme
-import "../../modules/launcher/SpotlightAppOrder.js" as AppOrder
+import "../../units/launcher/SpotlightAppOrder.js" as AppOrder
 import qs.app
 
 Singleton {

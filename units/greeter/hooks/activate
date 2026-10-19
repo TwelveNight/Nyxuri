@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+"""greeter on-hook: configure greetd to launch the Noctalia Greeter.
+
+Unit-owned behavior (KM3): executed by the transaction from
+`nyxuri on greeter`. Packages (greetd, noctalia-greeter) are already
+installed by the transaction preflight — this hook only does the
+declared root-level work: /etc/greetd, polkit rule, display-manager
+switch (with full rollback on any failure). Every privileged write goes
+through `sudo install` with a private temp file, never a shell string.
+"""
+import os  # noqa: F401  (module-era port fixes the missing-import NameError)
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # standalone runs
+
+from nyxuri.core import (  # noqa: E402
+    GREETER_DM_STATE,
+    GREETER_ETC_CFG,
+    GREETER_PKG,
+    GREETER_POLKIT_RULE,
+    GREETER_SESSION_BIN,
+    GREETER_STATE_DIR,
+    MAIN_WM,
+    THEME_ENGINE,
+)
+from nyxuri.core import msg  # noqa: E402
+
+CONFLICT_DMS = ["sddm", "lightdm", "gdm", "ly"]
+TRUSTED_EXEC_DIRS = (Path("/usr/bin"), Path("/usr/local/bin"))
+UNSAFE_PATH_CHARS = frozenset(chr(code) for code in range(32)) | {chr(127)} | set(" '$;&|<>(){}[]*?!\\\"`")
+
+
+def _trusted_executable(candidate):
+    """Return a canonical root-owned executable from a non-writable system path."""
+    if not candidate or any(char in UNSAFE_PATH_CHARS for char in candidate):
+        return None
+    try:
+        path = Path(candidate).resolve(strict=True)
+        file_stat = path.stat()
+    except OSError:
+        return None
+    if path.parent not in TRUSTED_EXEC_DIRS or not stat.S_ISREG(file_stat.st_mode):
+        return None
+    if file_stat.st_uid != 0 or not file_stat.st_mode & 0o111:
+        return None
+    parent = path.parent
+    while True:
+        try:
+            parent_stat = parent.stat()
+        except OSError:
+            return None
+        if parent_stat.st_uid != 0 or parent_stat.st_mode & 0o022:
+            return None
+        if parent == parent.parent:
+            return str(path)
+        parent = parent.parent
+
+
+def _greeter_session_path():
+    return _trusted_executable(shutil.which(GREETER_SESSION_BIN) or f"/usr/bin/{GREETER_SESSION_BIN}")
+
+
+def _write_root_file(content: str, destination: Path, mode: str = "644") -> bool:
+    """Install private temporary content without passing it through a shell."""
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+        result = subprocess.run(
+            ["sudo", "install", "-D", "-o", "root", "-g", "root", "-m", mode, temp_path, str(destination)],
+            check=False,
+        )
+        return result.returncode == 0
+    except OSError:
+        return False
+    finally:
+        if temp_path:
+            Path(temp_path).unlink(missing_ok=True)
+
+
+def _backup_path(path: Path) -> Path:
+    return Path(f"{path}.nyxuri.bak")
+
+
+def _backup_file(path: Path, skip_if_ours: bool = False):
+    backup = _backup_path(path)
+    if not path.is_file() or backup.exists() or skip_if_ours:
+        return True, False
+    try:
+        copied = subprocess.run(
+            ["sudo", "cp", "-n", "--", str(path), str(backup)], check=False
+        ).returncode == 0
+        return copied, copied
+    except OSError:
+        return False, False
+
+
+def _snapshot_file(path: Path):
+    if not path.is_file():
+        return True, None
+    try:
+        result = subprocess.run(["sudo", "cat", str(path)], capture_output=True, text=True, check=False)
+    except OSError:
+        return False, None
+    return result.returncode == 0, result.stdout if result.returncode == 0 else None
+
+
+def _restore_or_remove_file(path: Path, content):
+    return _write_root_file(content, path) if content is not None else _clear_file(path)
+
+
+def _clear_file(path: Path) -> bool:
+    try:
+        return subprocess.run(["sudo", "rm", "-f", str(path)], check=False).returncode == 0
+    except OSError:
+        return False
+
+
+def _rollback_setup(
+    config_content,
+    polkit_content,
+    state_existed: bool,
+    config_backup_created: bool,
+    polkit_backup_created: bool,
+) -> bool:
+    config_restored = _restore_or_remove_file(GREETER_ETC_CFG, config_content)
+    if config_restored and config_backup_created:
+        config_restored = _clear_file(_backup_path(GREETER_ETC_CFG))
+    polkit_restored = _restore_or_remove_file(GREETER_POLKIT_RULE, polkit_content)
+    if polkit_restored and polkit_backup_created:
+        polkit_restored = _clear_file(_backup_path(GREETER_POLKIT_RULE))
+    restored = config_restored and polkit_restored
+    if not state_existed:
+        try:
+            restored = subprocess.run(
+                ["sudo", "rm", "-rf", str(GREETER_STATE_DIR)], check=False
+            ).returncode == 0 and restored
+        except OSError:
+            restored = False
+    return restored
+
+
+def _enabled_conflicting_dm():
+    if not shutil.which("systemctl"):
+        return None
+    for dm in CONFLICT_DMS:
+        if subprocess.run(["systemctl", "is-enabled", dm], capture_output=True, check=False).returncode == 0:
+            return dm
+    return None
+
+
+def _recorded_display_manager():
+    """Read the root-owned previous display manager record, if present."""
+    if not GREETER_DM_STATE.is_file():
+        return True, None
+    try:
+        result = subprocess.run(
+            ["sudo", "cat", str(GREETER_DM_STATE)], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return False, None
+    dm = result.stdout.strip()
+    if result.returncode != 0 or dm not in CONFLICT_DMS:
+        return False, None
+    return True, dm
+
+
+def _clear_display_manager_record() -> bool:
+    try:
+        return subprocess.run(["sudo", "rm", "-f", str(GREETER_DM_STATE)], check=False).returncode == 0
+    except OSError:
+        return False
+
+
+def _restore_display_manager(previous_dm) -> bool:
+    try:
+        greetd_disabled = subprocess.run(
+            ["sudo", "systemctl", "disable", "greetd"], check=False
+        ).returncode == 0 and subprocess.run(
+            ["systemctl", "is-enabled", "greetd"], capture_output=True, check=False
+        ).returncode != 0
+    except OSError:
+        greetd_disabled = False
+    if not previous_dm:
+        return greetd_disabled
+    try:
+        previous_enabled = subprocess.run(
+            ["sudo", "systemctl", "enable", "--force", previous_dm], check=False
+        ).returncode == 0 and subprocess.run(
+            ["systemctl", "is-enabled", previous_dm], capture_output=True, check=False
+        ).returncode == 0
+    except OSError:
+        previous_enabled = False
+    restored = greetd_disabled and previous_enabled
+    print(msg("greeter_dm_restored" if restored else "greeter_dm_restore_failed", previous_dm))
+    return restored
+
+
+def _switch_to_greetd(previous_dm, keep_record_on_rollback: bool = False) -> bool:
+    """Switch the next-boot display manager and roll back any failed switch."""
+    switch_started = False
+    committed = False
+    try:
+        if previous_dm:
+            switch_started = True
+            if subprocess.run(["sudo", "systemctl", "disable", previous_dm], check=False).returncode != 0:
+                print(msg("greeter_dm_disable_failed", previous_dm))
+                return False
+        switch_started = True
+        enabled = subprocess.run(["sudo", "systemctl", "enable", "greetd"], check=False).returncode == 0
+        verified = subprocess.run(
+            ["systemctl", "is-enabled", "greetd"], capture_output=True, check=False
+        ).returncode == 0
+        if enabled and verified:
+            committed = True
+            print(msg("greeter_enabled"))
+            return True
+        print(msg("greeter_enable_failed"))
+        return False
+    except OSError:
+        print(msg("greeter_enable_failed"))
+        return False
+    finally:
+        if switch_started and not committed and _restore_display_manager(previous_dm) and not keep_record_on_rollback:
+            _clear_display_manager_record()
+
+
+def _greeter_session_arg() -> str:
+    """Check if session is discoverable by noctalia-greeter."""
+    greeter_cli = _trusted_executable(shutil.which(GREETER_PKG))
+    if greeter_cli:
+        try:
+            res = subprocess.run([greeter_cli, "sessions"], capture_output=True, text=True, check=False)
+            pref = "mango" if os.environ.get("XDG_CURRENT_DESKTOP", "").lower() == "mango" else MAIN_WM
+            if pref.lower() in res.stdout.lower():
+                return f"-- --session {pref}"
+            if MAIN_WM.lower() in res.stdout.lower():
+                return f"-- --session {MAIN_WM}"
+        except Exception:
+            pass
+    return ""
+
+
+def main() -> int:
+    # Reject control characters and shell syntax before any privileged step.
+    session_candidate = shutil.which(GREETER_SESSION_BIN)
+    if session_candidate and any(char in UNSAFE_PATH_CHARS for char in session_candidate):
+        return 1
+    sess_path = _greeter_session_path()
+    if not sess_path:
+        print(msg("greeter_install_failed"))
+        return 1
+    sess_arg = _greeter_session_arg()
+    command_str = f"{sess_path} {sess_arg}".strip()
+
+    toml_content = (
+        "[terminal]\n"
+        "vt = 1\n\n"
+        "[default_session]\n"
+        f'command = "{command_str}"\n'
+        'user = "greeter"\n'
+    )
+
+    config_ok, config_content = _snapshot_file(GREETER_ETC_CFG)
+    polkit_ok, polkit_content = _snapshot_file(GREETER_POLKIT_RULE)
+    state_existed = GREETER_STATE_DIR.exists()
+    if not config_ok or not polkit_ok:
+        print(msg("greeter_cmd_failed", "backup"))
+        return 1
+    config_backup_ok, config_backup_created = _backup_file(GREETER_ETC_CFG, skip_if_ours=state_existed)
+    if not config_backup_ok:
+        print(msg("greeter_cmd_failed", "backup"))
+        return 1
+    polkit_backup_ok, polkit_backup_created = _backup_file(GREETER_POLKIT_RULE)
+    if not polkit_backup_ok:
+        if config_backup_created:
+            _clear_file(_backup_path(GREETER_ETC_CFG))
+        print(msg("greeter_cmd_failed", "backup"))
+        return 1
+
+    if not _write_root_file(toml_content, GREETER_ETC_CFG):
+        print(msg("greeter_config_failed", str(GREETER_ETC_CFG)))
+        _rollback_setup(config_content, polkit_content, state_existed,
+                        config_backup_created, polkit_backup_created)
+        return 1
+    print(msg("greeter_config_written", str(GREETER_ETC_CFG)))
+
+    if subprocess.run(
+        ["sudo", "install", "-d", "-o", "greeter", "-g", "greeter", "-m", "755", str(GREETER_STATE_DIR)],
+        check=False,
+    ).returncode != 0:
+        print(msg("greeter_cmd_failed", str(GREETER_STATE_DIR)))
+        _rollback_setup(config_content, polkit_content, state_existed,
+                        config_backup_created, polkit_backup_created)
+        return 1
+    print(msg("greeter_state_dir_created"))
+
+    polkit_rule = (
+        'polkit.addRule(function(action, subject) {\n'
+        f'    if (action.id == "org.{THEME_ENGINE}.greeter.sync-appearance" &&\n'
+        '        subject.isInGroup("wheel")) {\n'
+        '        return polkit.Result.YES;\n'
+        '    }\n'
+        '});\n'
+    )
+    if not _write_root_file(polkit_rule, GREETER_POLKIT_RULE):
+        print(msg("greeter_polkit_failed"))
+        _rollback_setup(config_content, polkit_content, state_existed,
+                        config_backup_created, polkit_backup_created)
+        return 1
+    print(msg("greeter_polkit_written", str(GREETER_POLKIT_RULE)))
+
+    if not shutil.which("systemctl") or subprocess.run(
+        ["systemctl", "cat", "greetd"], capture_output=True, check=False
+    ).returncode != 0:
+        print(msg("greeter_service_missing"))
+        _rollback_setup(config_content, polkit_content, state_existed,
+                        config_backup_created, polkit_backup_created)
+        return 1
+    valid_record, recorded_dm = _recorded_display_manager()
+    if not valid_record:
+        print(msg("greeter_dm_record_invalid"))
+        _rollback_setup(config_content, polkit_content, state_existed,
+                        config_backup_created, polkit_backup_created)
+        return 1
+    greetd_enabled = subprocess.run(
+        ["systemctl", "is-enabled", "greetd"], capture_output=True, check=False
+    ).returncode == 0
+    if greetd_enabled:
+        print(msg("greeter_enabled_skip"))
+        print(msg("greeter_reboot_hint"))
+        return 0
+
+    previous_dm = _enabled_conflicting_dm()
+    if previous_dm:
+        print(msg("greeter_dm_conflict", previous_dm))
+        if not _write_root_file(f"{previous_dm}\n", GREETER_DM_STATE, "600"):
+            print(msg("greeter_cmd_failed", str(GREETER_DM_STATE)))
+            _rollback_setup(config_content, polkit_content, state_existed,
+                            config_backup_created, polkit_backup_created)
+            return 1
+    rollback_dm = previous_dm or recorded_dm
+    if not _switch_to_greetd(rollback_dm, previous_dm is None and recorded_dm is not None):
+        _rollback_setup(config_content, polkit_content, state_existed,
+                        config_backup_created, polkit_backup_created)
+        return 1
+
+    print(msg("greeter_reboot_hint"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.3
-import "../../modules/desktopcards/DesktopCardLayout.js" as DesktopCardLayout
-import "../../modules/systemcards/SystemCardGeometry.js" as CardGeometry
+import "../../units/desktopcards/DesktopCardLayout.js" as DesktopCardLayout
+import "../../shared/cards/SystemCardGeometry.js" as CardGeometry
 
 TestCase {
     function realisticAnalysis() {

@@ -5,7 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.shared.theme
 import qs.app
-import "../../modules/settings/DisplaySchedule.js" as Schedule
+import "../../units/settings/DisplaySchedule.js" as Schedule
 import qs.shared.i18n
 
 Singleton {

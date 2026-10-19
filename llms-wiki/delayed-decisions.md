@@ -6,19 +6,26 @@
 
 | 事项 | 触发条件 | 当前决策 |
 |---|---|---|
-| **硬件适配 Overlay**（NVIDIA / AMD / 多显示器…） | 出现多个明确的硬件适配需求 | 当前无自动驱动补丁，不引入硬件 overlay；应用预设底版继承（Base Overlay）保持独立。详见 [nvidia-patch](nvidia-patch.md) |
+| **硬件适配 Overlay**（NVIDIA / AMD / 多显示器…） | 出现多个明确的硬件适配需求 | 当前无自动驱动补丁，不引入硬件 overlay；应用预设底版继承（Base Overlay）保持独立。历史案卷见 [archive/nvidia-patch](archive/nvidia-patch.md) |
+| **单元服务声明字段**（manifest 声明 systemd unit 等服务副作用） | 出现跨单元或系统级服务效果的真实需求 | **已部分落地（KM3）**：副作用走单元钩子（`post_install` / `post_remove`）+ `[privilege]` 声明（greeter 案例：服务启停在钩子内部，manifest 只声明事实）。独立服务字段仍不设，出现真实需求再议。详见 [unit-model](unit-model.md) §4 与 [manifest-schema](manifest-schema.md) |
+| **多合成器 (Multi-WM) 驱动抽象**（原 mango-adaptation 页的债务登记，KM3.5 并入） | 第三个合成器（Hyprland/Sway）接入前必须收编，禁止再往元组里加第三个字面量 | 现状为过渡形态：`SUPPORTED_WMS` 硬编码元组 + `detect_preferred_wm()`（`nyxuri/core.py`，原 constants）；组件菜单 WM radio 特判（`installer/menus.py`）；doctor 三处 `("mango", "niri")` 字面量（`sysdoctor.py`）。收编为 `CompositorDriver` 驱动抽象层（ROADMAP「T5 多合成器解耦」）。不属于债务：`units/mango/` 整目录（单元形态）、theme 的 `mmsg` 探针、`/home/user` 占位符渲染 |
 
 ## 这次重构已落地（主动覆盖延迟）
 
 | 事项 | 原触发 | 实际 |
 |---|---|---|
 | **CLI 菜单与流程分离** | 阶段二职责收束 | `cli.py` 保留命令路由，`menus.py` 管菜单，`workflows.py` 管安装与更新编排 |
-| **通用零件插槽与底版继承** | 预设差异细粒度化、按需局部替换 | **已落地**。`atomic_replace_item` 支持底版继承；`.module.toml` 支持 `[parts.<slot>]` 声明通用零件插槽（如 Niri 的 `effects` 与 `glow` 均为独立热插拔零件，无需重载全部配置）。详见 [preset-mechanism](preset-mechanism.md) 与 [manifest-schema](manifest-schema.md) |
-| **子目录分组**（deploy/state/modules 子包） | >28 文件 或 某子领域 >5 文件 | **已做**。重构前 17 个 .py（< 28 触发未到），但为贯彻子包架构目标主动拆了四个子包。详见 [subpackages](subpackages.md) |
+| **通用零件插槽与底版继承** | 预设差异细粒度化、按需局部替换 | **已落地**。`atomic_replace_item` 支持底版继承；`manifest.toml` 支持 `[parts.<slot>]` 声明通用零件插槽（如 Niri 的 `effects` 与 `glow` 均为独立热插拔零件，无需重载全部配置）。详见 [preset-mechanism](preset-mechanism.md) 与 [manifest-schema](manifest-schema.md) |
+| **子目录分组**（deploy/state/modules 子包） | >28 文件 或 某子领域 >5 文件 | **已做**。重构前 17 个 .py（< 28 触发未到），但为贯彻子包架构目标主动拆了四个子包。详见 [archive/subpackages](archive/subpackages.md) |
 | **doctor 预设漂移检查** | preset 系统落地后即加 | **已加** `_check_preset_drift`：扫所有 app 的 active 预设是否还在仓库/用户预设目录，给汇总。平时不 update 也能在 doctor 撞见"你的 kitty 透明预设已不在上游"。符合扩展指南（写 `_check_xxx` append 到 `DOCTOR_CHECKS`，不碰 `run_doctor`） |
 
-## `.module.toml` schema（字段全可选，无文件 = 全默认）
+## `manifest.toml` 字段契约
 
-详见 [manifest-schema](manifest-schema.md)。如 fastfetch 这种"目录名=二进制名=单包=无例外"的直接不写 manifest。kitty 仅声明 `[presets] reload` 信号。niri 声明 `preserve` 与 `[parts.*]` 零件插槽。fcitx5-rime 在 `.optional-apps.toml` 的 `[[app]]` 块里声明包名与 `post_install` 钩子。
+全可选字段参考与边界契约见唯一权威页 [manifest-schema](manifest-schema.md)。
 
-不放进 manifest 的：doctor 检查项、i18n 键（防 manifest 膨胀成 DSL）。
+## 被拒绝的规则（原 agent-rules-provenance 页收录，拒绝即决策）
+
+完整事故溯源与回归映射见 [archive/agent-rules-provenance](archive/agent-rules-provenance.md)。
+经评估明确拒绝、不得反复提出的：用户 drop-in app 目录、manifest 声明 doctor 项/i18n 键、
+stable+git 双 AUR 包、Nix 式纯函数引擎、按 PCI 设备选驱动变量、`.nyxignore`、
+安装方式优先级表、`preset diff`、`detect` 前缀 DSL（详见 [manifest-schema](manifest-schema.md) 边界节）。

@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 import tempfile
-import tomllib
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -25,41 +25,6 @@ def _quiet(fn, *args, **kwargs):
         return fn(*args, **kwargs)
 
 
-class TestMigrationsResilience(unittest.TestCase):
-
-    def test_symlink_tombstone_pointing_outside_home_is_removed(self):
-        from nyxuri import migrations
-        with TempEnv() as ctx:
-            outside = Path(tempfile.mkdtemp()) / "nyxniri.fish"
-            outside.write_text("x", encoding="utf-8")
-            link = ctx.home / ".config/fish/completions/nyxniri.fish"
-            link.parent.mkdir(parents=True)
-            link.symlink_to(outside)
-            with patch.object(migrations, "TOMBSTONES", (".config/fish/completions/nyxniri.fish",)):
-                self.assertTrue(_quiet(migrations.run))
-                self.assertTrue(_quiet(migrations.run))
-            self.assertFalse(link.is_symlink())
-
-    def test_corrupt_migration_level_does_not_raise(self):
-        from nyxuri import migrations
-        with TempEnv() as ctx:
-            path = migrations._ledger_path()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('{"migration_level": "abc"}', encoding="utf-8")
-            self.assertTrue(_quiet(migrations.run))
-            self.assertEqual(migrations._read()["migration_level"], migrations.MIGRATION_LEVEL)
-
-    def test_traversal_tombstone_is_rejected(self):
-        from nyxuri import migrations
-        with TempEnv() as ctx:
-            victim = ctx.home.parent / "nyxuri-outside-victim.txt"
-            victim.write_text("keep", encoding="utf-8")
-            with patch.object(migrations, "TOMBSTONES", ("../nyxuri-outside-victim.txt",)):
-                self.assertFalse(_quiet(migrations.run))
-            self.assertTrue(victim.exists())
-            victim.unlink()
-
-
 class TestGitTimeoutDegrades(unittest.TestCase):
 
     def _repo(self, ctx):
@@ -69,7 +34,7 @@ class TestGitTimeoutDegrades(unittest.TestCase):
         return repo
 
     def test_safe_git_pull_timeout_returns_falsy(self):
-        import nyxuri.network as net
+        import nyxuri.pkg.net as net
         with TempEnv() as ctx:
             repo = self._repo(ctx)
 
@@ -83,7 +48,7 @@ class TestGitTimeoutDegrades(unittest.TestCase):
                 self.assertFalse(_quiet(net.safe_git_pull, repo))
 
     def test_safe_git_checkout_ref_timeout_returns_falsy(self):
-        import nyxuri.network as net
+        import nyxuri.pkg.net as net
         with TempEnv() as ctx:
             repo = self._repo(ctx)
 
@@ -97,84 +62,51 @@ class TestGitTimeoutDegrades(unittest.TestCase):
                 self.assertFalse(_quiet(net.safe_git_checkout_ref, repo, "v1"))
 
 
-class TestTemplateRegistryHeaders(unittest.TestCase):
-
-    def test_commented_header_is_found_by_set_section_key(self):
-        from nyxuri.template_registry import set_section_key
-        content = '[package]  # main\nname = "test"\n'
-        updated = set_section_key(content, "package", "version", "1")
-        self.assertNotEqual(updated, content)
-        self.assertEqual(tomllib.loads(updated)["package"]["version"], "1")
-
-    def test_add_section_does_not_duplicate_commented_header(self):
-        from nyxuri.template_registry import add_section
-        content = '[package]  # main\nname = "test"\n'
-        updated = add_section(content, "package", {"version": "3.0.5"})
-        self.assertEqual(updated.count("[package]"), 1)
-        self.assertEqual(tomllib.loads(updated)["package"]["name"], "test")
-
-    def test_write_atomic_preserves_destination_mode(self):
-        from nyxuri.template_registry import write_atomic
-        with TempEnv() as ctx:
-            target = ctx.home / "sample.toml"
-            target.write_text("[a]\nb = 1\n", encoding="utf-8")
-            target.chmod(0o644)
-            write_atomic(target, "[a]\nb = 2\n")
-            self.assertEqual(target.stat().st_mode & 0o777, 0o644)
-
-
-class TestGtkThemeUninstall(unittest.TestCase):
-
-    def test_partial_registration_is_still_unregistered(self):
-        from nyxuri.modules import gtktheme
-        with TempEnv() as ctx:
-            conf = ctx.env.config_dir / "noctalia" / "noctalia-config.toml"
-            conf.parent.mkdir(parents=True, exist_ok=True)
-            conf.write_text('[theme.templates.user.nyxuri_gtk3]\ncss = "x"\n', encoding="utf-8")
-            self.assertFalse(gtktheme.gtktheme_registered())
-            self.assertTrue(gtktheme.gtktheme_any_registered())
-            self.assertTrue(_quiet(gtktheme.gtktheme_uninstall))
-            self.assertNotIn("theme.templates.user.nyxuri_gtk3", conf.read_text(encoding="utf-8"))
-
-
-class TestDeployAssets(unittest.TestCase):
+class TestWallpaperPackProbe(unittest.TestCase):
+    """wallpapers_pack_present: video-validated pack probe (user-domain)."""
 
     def test_pack_requires_a_real_video(self):
-        from nyxuri.deploy import assets
-        root = Path(tempfile.mkdtemp())
-        (root / "video").mkdir(parents=True)
-        (root / "video" / "README.md").write_text("docs", encoding="utf-8")
-        self.assertFalse(assets._wallpaper_pack_present_at(root))
-        (root / "video" / "clip.mp4").write_text("v", encoding="utf-8")
-        self.assertTrue(assets._wallpaper_pack_present_at(root))
+        from nyxuri.deploy.deploy import WALLPAPER_VIDEO_SUFFIXES, wallpapers_pack_present
+        with TempEnv() as ctx:
+            video_dir = ctx.home / "Pictures" / "Wallpapers" / "video"
+            self.assertFalse(wallpapers_pack_present())
+            video_dir.mkdir(parents=True)
+            (video_dir / "README.md").write_text("docs", encoding="utf-8")
+            self.assertFalse(wallpapers_pack_present())
+            clip = video_dir / "clip.mp4"
+            clip.write_text("v", encoding="utf-8")
+            self.assertTrue(clip.suffix in WALLPAPER_VIDEO_SUFFIXES)
+            self.assertTrue(wallpapers_pack_present())
 
-    def test_existing_user_wallpaper_is_not_claimed_as_managed(self):
-        from nyxuri.deploy import assets
+    def test_existing_user_wallpaper_is_never_clobbered_or_tracked(self):
+        from nyxuri.kernel import ledger, transaction
         with TempEnv() as ctx:
             wp = ctx.home / "Pictures" / "Wallpapers"
             wp.mkdir(parents=True)
             user_file = wp / "lawson_fuji.webp"
             user_file.write_text("USER", encoding="utf-8")
-            _quiet(assets.deploy_wallpapers, do_download=False)
-            marker = wp / ".nyxuri-managed.json"
-            managed = json.loads(marker.read_text(encoding="utf-8")) if marker.exists() else []
-            self.assertNotIn("lawson_fuji.webp", managed)
+            _quiet(transaction.unit_on, "wallpapers")
+            # No tracking marker exists at all — the pack era is over.
+            self.assertFalse((wp / ".nyxuri-managed.json").exists())
             self.assertEqual(user_file.read_text(encoding="utf-8"), "USER")
+            # The user's same-named file blocked the layout: not ours.
+            self.assertNotIn("lawson_fuji.webp", ledger.get_unit("wallpapers")["files"])
 
 
 class TestManifestCoercion(unittest.TestCase):
 
     def _sandbox(self, ctx):
-        ctx.env.configs_src = Path(tempfile.mkdtemp())
-        return ctx.env.configs_src
+        ctx.env.units_src = Path(tempfile.mkdtemp())
+        return ctx.env.units_src
 
     def test_scalar_package_fields_become_single_element_lists(self):
         from nyxuri.deploy.manifest import load_manifest
         with TempEnv() as ctx:
             src = self._sandbox(ctx) / "demo"
             src.mkdir(parents=True)
-            (src / ".module.toml").write_text(
-                '[packages]\nrepo = "kitty"\naur = "foo-bar"\npreserve = "single.conf"\n',
+            (src / "config.conf").write_text("# conf\n", encoding="utf-8")
+            (src / "manifest.toml").write_text(
+                'packages = "kitty"\npackages_aur = "foo-bar"\npreserve = "single.conf"\n',
                 encoding="utf-8",
             )
             m = _quiet(load_manifest, src)
@@ -187,30 +119,43 @@ class TestManifestCoercion(unittest.TestCase):
         with TempEnv() as ctx:
             src = self._sandbox(ctx) / "demo2"
             src.mkdir(parents=True)
-            (src / ".module.toml").write_text(
+            (src / "config.conf").write_text("# conf\n", encoding="utf-8")
+            (src / "manifest.toml").write_text(
                 '[parts]\ngood = { target = "a.conf" }\nbad = "oops"\n', encoding="utf-8"
             )
             m = _quiet(load_manifest, src)
             self.assertEqual(sorted(m.parts), ["good"])
 
-    def test_wrong_shaped_optional_apps_does_not_break_discovery(self):
-        from nyxuri.deploy.manifest import discover_manifest_apps, load_optional_apps
+    def test_empty_packages_list_stays_empty(self):
+        from nyxuri.deploy.manifest import load_manifest
         with TempEnv() as ctx:
-            self._sandbox(ctx).joinpath(".optional-apps.toml").write_text('app = "nope"\n', encoding="utf-8")
-            self.assertEqual(_quiet(load_optional_apps), {})
-            self.assertIsInstance(_quiet(discover_manifest_apps), list)
+            src = self._sandbox(ctx) / "flatpak-only"
+            src.mkdir(parents=True)
+            (src / "manifest.toml").write_text(
+                'packages = []\npackages_flatpak = ["com.example.App"]\n', encoding="utf-8"
+            )
+            m = _quiet(load_manifest, src)
+            self.assertEqual(m.packages_repo, [])
 
-    def test_corrupt_optional_apps_is_ignored(self):
-        from nyxuri.deploy.manifest import load_optional_apps
+    def test_malformed_manifest_does_not_break_discovery(self):
+        from nyxuri.deploy.manifest import discover_manifest_apps
         with TempEnv() as ctx:
-            self._sandbox(ctx).joinpath(".optional-apps.toml").write_text("not = = toml\n", encoding="utf-8")
-            self.assertEqual(_quiet(load_optional_apps), {})
+            sandbox = self._sandbox(ctx)
+            bad = sandbox / "bad-unit"
+            bad.mkdir()
+            (bad / "manifest.toml").write_text("not = = toml\n", encoding="utf-8")
+            good = sandbox / "good-unit"
+            good.mkdir()
+            (good / "config.conf").write_text("# conf\n", encoding="utf-8")
+            apps = _quiet(discover_manifest_apps)
+            self.assertIsInstance(apps, list)
+            self.assertEqual([n for n, _ in apps], ["good-unit"])
 
 
 class TestDepsMenuReportsFailure(unittest.TestCase):
 
     def test_failed_install_propagates(self):
-        import nyxuri.deps as deps
+        import nyxuri.pkg.deps as deps
         with TempEnv():
             with patch.object(deps.CheckboxList, "run", return_value=["fish"]), \
                  patch.object(deps, "install_selected_deps", return_value=False), \
@@ -218,7 +163,7 @@ class TestDepsMenuReportsFailure(unittest.TestCase):
                 self.assertFalse(_quiet(deps.run_dep_menu_loop))
 
     def test_empty_selection_is_success(self):
-        import nyxuri.deps as deps
+        import nyxuri.pkg.deps as deps
         with TempEnv():
             with patch.object(deps.CheckboxList, "run", return_value=[]), \
                  patch.object(deps.sys.stdin, "isatty", return_value=True):
@@ -229,7 +174,7 @@ class TestGenDepsQuoting(unittest.TestCase):
 
     def _load(self):
         import importlib.util
-        path = Path(__file__).resolve().parent.parent / "nyxuri" / "packaging" / "gen-deps.py"
+        path = Path(__file__).resolve().parent.parent / "packaging" / "gen-deps.py"
         spec = importlib.util.spec_from_file_location("gen_deps_under_test", path)
         mod = importlib.util.module_from_spec(spec)
         try:
@@ -255,7 +200,7 @@ class TestOrbitConfigValidation(unittest.TestCase):
 
     def _config(self):
         import importlib.util
-        path = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools" / "orbit" / "config.py"
+        path = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "tools" / "orbit" / "config.py"
         spec = importlib.util.spec_from_file_location("orbit_config_under_test", path)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -298,7 +243,7 @@ class TestHexParsingRejectsMalformed(unittest.TestCase):
 
     def _module(self, relative, name):
         import importlib.util
-        path = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools" / relative
+        path = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "tools" / relative
         spec = importlib.util.spec_from_file_location(name, path)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
@@ -321,7 +266,7 @@ class TestNaturalSort(unittest.TestCase):
 
     def test_numeric_runs_sort_numerically(self):
         import importlib.util
-        path = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools" / "wallpaper_picker" / "scanner.py"
+        path = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "tools" / "wallpaper_picker" / "scanner.py"
         source = path.read_text(encoding="utf-8")
         namespace = {"re": re}
         start = source.index("_NATURAL_SPLIT")
@@ -336,14 +281,14 @@ class TestNaturalSort(unittest.TestCase):
 class TestLedgerResilience(unittest.TestCase):
 
     def test_unhashable_active_shell_falls_back_to_default(self):
-        from nyxuri.state import ledger
+        from nyxuri.kernel import ledger
         with TempEnv():
             for bad in ([], {}, ["a"], 5, None, "weird"):
                 ledger.update_ledger(active_shell=bad)
                 self.assertEqual(ledger.active_shell(), "noctalia")
 
     def test_concurrent_updates_do_not_lose_keys(self):
-        from nyxuri.state import ledger
+        from nyxuri.kernel import ledger
         with TempEnv():
             ledger.update_ledger(seed="x")
             read_fd, write_fd = os.pipe()
@@ -367,22 +312,10 @@ class TestLedgerResilience(unittest.TestCase):
             self.assertEqual([data.get(f"k{i}") for i in range(6)], list(range(6)))
 
 
-class TestFisherCompletion(unittest.TestCase):
-
-    def test_incomplete_install_is_not_reported_installed(self):
-        from nyxuri.modules import fisher
-        with TempEnv():
-            with patch.object(fisher.shutil, "which", return_value="/usr/bin/fish"), \
-                 patch.object(fisher, "fetch_raw_with_fallback", return_value=True), \
-                 patch.object(fisher.subprocess, "run", return_value=type("R", (), {"returncode": 1})()):
-                self.assertFalse(_quiet(fisher.fisher_install))
-            self.assertFalse(fisher.fisher_installed())
-
-
 class TestShellSwitcherClassification(unittest.TestCase):
 
     def test_third_party_quickshell_is_not_nyxuri_shell(self):
-        from nyxuri import shell_switcher
+        from nyxuri.desktop import shell_switcher
         with TempEnv():
             cmdline = b"quickshell\x00-p\x00/home/u/.config/quickshell\x00"
             real_read = Path.read_bytes
@@ -393,8 +326,8 @@ class TestShellSwitcherClassification(unittest.TestCase):
                 self.assertEqual(shell_switcher.probe_running_shells(), [])
 
     def test_already_active_keeps_the_running_bin(self):
-        from nyxuri import shell_switcher
-        from nyxuri.state.ledger import custom_shell_bin, set_shell
+        from nyxuri.desktop import shell_switcher
+        from nyxuri.kernel.ledger import custom_shell_bin, set_shell
         with TempEnv():
             old_bin = str(Path(tempfile.mkdtemp()) / "old-shell")
             new_bin = str(Path(tempfile.mkdtemp()) / "new-shell")
@@ -413,7 +346,7 @@ class TestShellSwitcherClassification(unittest.TestCase):
             self.assertEqual(custom_shell_bin(), old_bin)
 
     def test_failed_restore_returns_tuple_instead_of_raising(self):
-        from nyxuri import shell_switcher
+        from nyxuri.desktop import shell_switcher
         with TempEnv():
             attempts = {"n": 0}
 
@@ -436,29 +369,88 @@ class TestShellSwitcherClassification(unittest.TestCase):
             self.assertFalse(ok)
             self.assertIn("also failed", message)
 
+    def test_probe_sees_parent_shell_dispatching_a_unit_switch(self):
+        # Regression (2026-10-17): UnitControlService dispatches `nyxuri
+        # on/off shell.X` from inside the RUNNING shell, so this CLI's
+        # parent process IS the qs instance the bridge must notify.
+        # probe_running_shells() used to exclude getppid(), went blind
+        # there, and every shell-originated unit-changed delivery became
+        # a silent no-op (toggles landed the ledger, the desktop never
+        # re-projected). Reproduces the exact topology: a fake qs process
+        # (binary exec, argv preserved verbatim in /proc) → child prober
+        # whose getppid() is that qs.
+        from nyxuri.desktop import shell_switcher
+        repo = Path(shell_switcher.__file__).resolve().parents[2]
+        with TempEnv() as ctx:
+            fake_wrapper = ctx.home / "nyxuri-shell"
+            fake_wrapper.write_text("#!/bin/sh\n", encoding="utf-8")
+            fake_wrapper.chmod(0o755)
+            # resolve_custom_bin() via env pins known_shell_dirs to ctx.home,
+            # so the fake instance must target -p ctx.home to classify.
+            prober = ctx.home / "prober.py"
+            prober.write_text(
+                "import json\n"
+                "from nyxuri.desktop import shell_switcher\n"
+                "print(json.dumps(shell_switcher.probe_running_shells()))\n",
+                encoding="utf-8")
+            out_path = ctx.home / "probe-out.json"
+            err_path = ctx.home / "probe-err.txt"
+            # The fake qs is the real python binary (execve keeps argv
+            # verbatim: /proc shows "qs -c ... -p ... --no-duplicate").
+            # -c must precede -p or CPython's own parser would reject -p.
+            # The driver text ships inside the fake cmdline, so it touches
+            # no module names (classify() bad-lists several); the prober
+            # path travels via env instead.
+            driver = (
+                "import json, os, subprocess\n"
+                "r = subprocess.run([os.environ['PROBE_PY'], os.environ['PROBER']],\n"
+                "                   capture_output=True, text=True, timeout=25)\n"
+                "with open(os.environ['PROBE_OUT'], 'w', encoding='utf-8') as fh:\n"
+                "    fh.write(json.dumps({'out': r.stdout, 'err': r.stderr}))\n"
+            )
+            env = dict(os.environ,
+                       NYXURI_CUSTOM_SHELL_BIN=str(fake_wrapper),
+                       PROBE_PY=sys.executable, PROBER=str(prober), PROBE_OUT=str(out_path),
+                       PYTHONPATH=str(repo) + os.pathsep + os.environ.get("PYTHONPATH", ""))
+            fakeqs = subprocess.Popen(
+                ["qs", "-c", driver, "-p", str(ctx.home), "--no-duplicate"],
+                executable=sys.executable, env=env,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                fakeqs.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                fakeqs.kill()
+                self.fail("fake qs instance did not exit")
+            self.assertTrue(out_path.exists(), "prober driver wrote nothing")
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertTrue(payload["out"].strip(),
+                            f"prober produced no output; stderr: {payload['err']}")
+            result = [tuple(item) for item in json.loads(payload["out"])]
+            self.assertIn(("nyxuri-shell", fakeqs.pid), result)
+
 
 class TestPresetDurability(unittest.TestCase):
 
     def _sandbox(self, ctx):
-        ctx.env.configs_src = Path(tempfile.mkdtemp())
+        ctx.env.units_src = Path(tempfile.mkdtemp())
         import nyxuri.deploy.manifest as manifest
         manifest._MANIFEST_CACHE = None
-        return ctx.env.configs_src
+        return ctx.env.units_src
 
-    def _app(self, src, name, module_toml, files):
+    def _app(self, src, name, manifest_toml, files):
         root = src / name
         for rel, content in files.items():
             path = root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-        (root / ".module.toml").write_text(module_toml, encoding="utf-8")
+        (root / "manifest.toml").write_text(manifest_toml, encoding="utf-8")
         return root
 
     def test_failed_save_keeps_the_existing_preset(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
-            self._app(src, "kitty", "[packages]\n", {"kitty.conf": "# conf"})
+            self._app(src, "kitty", "", {"kitty.conf": "# conf"})
             dest = ctx.env.config_dir / "kitty"
             dest.mkdir(parents=True)
             (dest / "kitty.conf").write_text("# live", encoding="utf-8")
@@ -471,10 +463,10 @@ class TestPresetDurability(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in (ctx.env.presets_dir / "kitty").iterdir()), ["mine"])
 
     def test_deleting_the_active_preset_resets_to_default(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
-            self._app(src, "kitty", "[packages]\n", {"kitty.conf": "# base"})
+            self._app(src, "kitty", "", {"kitty.conf": "# base"})
             user = ctx.env.presets_dir / "kitty" / "mine"
             user.mkdir(parents=True)
             (user / "kitty.conf").write_text("# mine", encoding="utf-8")
@@ -484,10 +476,10 @@ class TestPresetDurability(unittest.TestCase):
             self.assertEqual(preset.read_active_preset("kitty"), "default")
 
     def test_official_guard_uses_the_resolved_official_dir(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
-            root = self._app(src, "kitty", "[packages]\n", {"kitty.conf": "# base"})
+            root = self._app(src, "kitty", "", {"kitty.conf": "# base"})
             official = root / "__presets__" / "shared"
             official.mkdir(parents=True)
             (official / "kitty.conf").write_text("# official", encoding="utf-8")
@@ -499,11 +491,11 @@ class TestPresetDurability(unittest.TestCase):
             self.assertTrue(shadow.is_dir())
 
     def test_active_file_is_authoritative_and_syncs_the_ledger(self):
-        from nyxuri.deploy import preset
-        from nyxuri.state.ledger import read_ledger
+        import nyxuri.deploy.preset as preset
+        from nyxuri.kernel.ledger import read_ledger
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
-            self._app(src, "demo", "[packages]\n", {"config.kdl": "// b"})
+            self._app(src, "demo", "", {"config.kdl": "// b"})
             preset.write_active_preset("demo", "A")
             self.assertEqual(preset.read_active_preset("demo"), "A")
             (ctx.env.presets_dir / "demo.active").write_text("B", encoding="utf-8")
@@ -511,7 +503,7 @@ class TestPresetDurability(unittest.TestCase):
             self.assertEqual(read_ledger().get("presets", {}).get("demo"), "B")
 
     def test_non_string_part_target_returns_false(self):
-        from nyxuri.deploy import preset
+        import nyxuri.deploy.preset as preset
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
             root = self._app(src, "demo", '[parts.x]\ntarget = ["a.kdl"]\nsource_dir = "x"\n',
@@ -522,7 +514,7 @@ class TestPresetDurability(unittest.TestCase):
             self.assertFalse(_quiet(preset.apply_part, "demo", "x", "default"))
 
     def test_preset_include_keeps_directory_and_double_star_matches(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
         cases = (
             ('["scripts"]', {"a.kdl", "scripts/run.sh"}),
             ('["**/*.kdl"]', {"a.kdl", "sub/x.kdl"}),
@@ -546,11 +538,11 @@ class TestPresetDurability(unittest.TestCase):
                 self.assertTrue(expected <= got, f"{include}: missing {sorted(expected - got)}")
 
     def test_apply_preset_applies_manifest_chmod(self):
-        from nyxuri.deploy import preset
+        from nyxuri.desktop import presets as preset
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
             root = self._app(src, "demo",
-                             '[packages]\nchmod = ["scripts/*.sh"]\n[presets]\ninherit = true\n',
+                             'chmod = ["scripts/*.sh"]\n[presets]\ninherit = true\n',
                              {"config.kdl": "// c", "scripts/run.sh": "#!/bin/sh\n"})
             os.chmod(root / "scripts" / "run.sh", 0o644)
             slot = root / "__presets__" / "A"
@@ -590,30 +582,30 @@ class TestMultibyteInput(unittest.TestCase):
 class TestDeployRobustness(unittest.TestCase):
 
     def _sandbox(self, ctx):
-        ctx.env.configs_src = Path(tempfile.mkdtemp())
+        ctx.env.units_src = Path(tempfile.mkdtemp())
         import nyxuri.deploy.manifest as manifest
         import nyxuri.deploy.deploy as deploy
         manifest._MANIFEST_CACHE = None
         deploy._CONFIG_ITEMS_CACHE = []
-        return ctx.env.configs_src
+        return ctx.env.units_src
 
-    def _app(self, src, name, module_toml, files):
+    def _app(self, src, name, manifest_toml, files):
         root = src / name
         for rel, content in files.items():
             path = root / rel
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-        (root / ".module.toml").write_text(module_toml, encoding="utf-8")
+        (root / "manifest.toml").write_text(manifest_toml, encoding="utf-8")
         return root
 
     def test_unrealizable_part_variant_is_reported(self):
         import nyxuri.deploy.deploy as deploy
-        from nyxuri.state.ledger import update_ledger
+        from nyxuri.kernel.ledger import update_ledger
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
             root = self._app(
                 src, "demo",
-                '[packages]\npreserve = ["part.kdl"]\n[parts.effects]\ntarget = "part.kdl"\n'
+                'preserve = ["part.kdl"]\n\n[parts.effects]\ntarget = "part.kdl"\n'
                 'source_dir = "effects"\ndefault = "default"\n',
                 {"part.kdl": "// default-part\n"},
             )
@@ -629,7 +621,7 @@ class TestDeployRobustness(unittest.TestCase):
         import nyxuri.deploy.deploy as deploy
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
-            self._app(src, "demo", '[packages]\nchmod = ["/etc/*", ""]\n', {"config.kdl": "// c\n"})
+            self._app(src, "demo", 'chmod = ["/etc/*", ""]\n', {"config.kdl": "// c\n"})
             with patch.object(deploy, "_phase_post_install_services"):
                 failed = _quiet(deploy.deploy_selected_configs, items_to_deploy=["demo"], preserved_log=[])
             self.assertEqual(failed, [])
@@ -639,7 +631,7 @@ class TestDeployRobustness(unittest.TestCase):
         import nyxuri.deploy.deploy as deploy
         with TempEnv() as ctx:
             src = self._sandbox(ctx)
-            self._app(src, "demo", "[packages]\n", {"config.kdl": "// c\n"})
+            self._app(src, "demo", "", {"config.kdl": "// c\n"})
             with patch.object(deploy, "_phase_post_install_services"):
                 failed = _quiet(deploy.deploy_selected_configs, items_to_deploy="demo", preserved_log=[])
             self.assertEqual(failed, [])
@@ -660,7 +652,7 @@ class TestPackageArgv(unittest.TestCase):
         self.assertEqual(runner.call_args.args[0][-1], "fish")
 
     def test_shelly_aur_search_passes_the_separator(self):
-        from nyxuri.pkg import cli
+        from nyxuri.pkg import fzf as cli
         with patch.object(cli, "preferred_manager", return_value="shelly"), \
              patch.object(cli, "run", return_value=type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})()) as runner:
             cli.search("aur --regex")
@@ -669,7 +661,7 @@ class TestPackageArgv(unittest.TestCase):
         self.assertEqual(argv[-1], "--regex")
 
     def test_shelly_remove_classifies_aur_operands(self):
-        from nyxuri.pkg import cli
+        from nyxuri.pkg import fzf as cli
         with patch.object(cli, "preferred_manager", return_value="shelly"), \
              patch.object(cli, "run") as runner:
             runner.side_effect = [
@@ -689,7 +681,7 @@ class TestEntryPointImportGuard(unittest.TestCase):
         root = Path(tempfile.mkdtemp()) / "tree"
         shutil.copytree(Path(__file__).resolve().parent.parent / "nyxuri", root / "nyxuri")
         cli = root / "nyxuri" / "cli.py"
-        cli.write_text("from nyxuri.constants import NYXURI_MISSING_SYMBOL\n" + cli.read_text(encoding="utf-8"),
+        cli.write_text("from nyxuri.core import NYXURI_MISSING_SYMBOL\n" + cli.read_text(encoding="utf-8"),
                        encoding="utf-8")
         try:
             result = subprocess.run(
@@ -706,7 +698,7 @@ class TestEntryPointImportGuard(unittest.TestCase):
 class TestScriptContracts(unittest.TestCase):
 
     def _niri_scripts(self):
-        return Path(__file__).resolve().parent.parent / "configs" / "niri" / "scripts"
+        return Path(__file__).resolve().parent.parent / "units" / "niri" / "scripts"
 
     def test_scripts_read_the_config_root_the_deployer_writes(self):
         for name in ("niri-brightness.sh", "shell-action.sh"):
@@ -714,17 +706,17 @@ class TestScriptContracts(unittest.TestCase):
             self.assertNotIn("XDG_CONFIG_HOME", source, name)
 
     def test_mpvpaper_reads_the_assignments_envelope(self):
-        script = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "mpvpaper-sync.sh"
+        script = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "mpvpaper-sync.sh"
         source = script.read_text(encoding="utf-8")
         self.assertIn(".assignments // .", source)
 
     def test_thumbnail_temp_file_keeps_an_image_suffix(self):
-        script = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "mpvpaper-sync.sh"
+        script = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "mpvpaper-sync.sh"
         source = script.read_text(encoding="utf-8")
         self.assertIn("${THUMB_PATH%.jpg}.tmp.$$.jpg", source)
 
     def test_eyecare_temp_is_preserved_across_deploys(self):
-        manifest = Path(__file__).resolve().parent.parent / "configs" / "niri" / ".module.toml"
+        manifest = Path(__file__).resolve().parent.parent / "units" / "niri" / "manifest.toml"
         self.assertIn("eyecare_temp", manifest.read_text(encoding="utf-8"))
 
     def test_set_temp_rejects_out_of_range_values(self):
@@ -752,7 +744,7 @@ class TestTerminalStyleColorParsing(unittest.TestCase):
 
     def _parse_rgb(self):
         import importlib
-        tools = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools"
+        tools = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "tools"
         if str(tools) not in sys.path:
             sys.path.insert(0, str(tools))
         return importlib.import_module("orbit_translate.tui_style")._parse_rgb
@@ -777,7 +769,7 @@ class TestTranslateConfigErrors(unittest.TestCase):
 
     def _module(self, name):
         import importlib
-        tools = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools"
+        tools = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "tools"
         if str(tools) not in sys.path:
             sys.path.insert(0, str(tools))
         return importlib.import_module(f"orbit_translate.{name}")
@@ -841,7 +833,7 @@ class TestRuntimeHomeContract(unittest.TestCase):
 class TestLockMarkerDirectory(unittest.TestCase):
 
     def test_lock_creates_the_runtime_directory_before_writing_the_marker(self):
-        lock = Path(__file__).resolve().parent.parent / "shell" / "modules" / "lock" / "Lock.qml"
+        lock = Path(__file__).resolve().parent.parent / "shell" / "units" / "lock" / "Lock.qml"
         source = lock.read_text(encoding="utf-8")
         self.assertIn('command: ["mkdir", "-p", Paths.runtimeHome]', source)
         self.assertIn('path: root.markerReady ? root.lockMarkerPath : ""', source)
@@ -917,12 +909,12 @@ class TestFetchCoverContract(unittest.TestCase):
 class TestToolConfigRoot(unittest.TestCase):
 
     def test_scratch_menu_wrapper_ignores_a_divergent_xdg_config_home(self):
-        script = (Path(__file__).resolve().parent.parent / "configs" / "niri" / "scripts"
+        script = (Path(__file__).resolve().parent.parent / "units" / "niri" / "scripts"
                   / "niri-scratch-menu.py")
         self.assertNotIn("XDG_CONFIG_HOME", script.read_text(encoding="utf-8"))
 
     def test_translate_config_path_follows_the_deployer(self):
-        tools = Path(__file__).resolve().parent.parent / "configs" / "noctalia" / "tools"
+        tools = Path(__file__).resolve().parent.parent / "units" / "noctalia" / "tools"
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)
             result = subprocess.run(
@@ -1046,13 +1038,13 @@ class TestDockFolderMenuModelAccess(unittest.TestCase):
         return Path(__file__).resolve().parent.parent / "shell"
 
     def test_list_view_reads_entries_through_the_folder_model_wrapper(self):
-        menu = (self._shell() / "modules" / "dock" / "DockFolderMenu.qml").read_text(
+        menu = (self._shell() / "units" / "dock" / "DockFolderMenu.qml").read_text(
             encoding="utf-8")
         self.assertIn("root.contents.get(i)", menu)
         self.assertNotIn("root.contents.model.get(", menu)
 
     def test_the_wrapper_owns_the_model_alias_that_the_menu_must_not_index(self):
-        model = (self._shell() / "modules" / "dock" / "DockFolderModel.qml").read_text(
+        model = (self._shell() / "units" / "dock" / "DockFolderModel.qml").read_text(
             encoding="utf-8")
         self.assertIn("function get(index)", model)
         self.assertIn("readonly property alias model: dirModel", model)
@@ -1066,7 +1058,7 @@ class TestTranslatePtyTimeoutScaling(unittest.TestCase):
         import importlib
         import inspect
 
-        from tests import test_translate_tui_pty as module
+        from tests.tools.translate.tui import test_translate_tui_pty as module
 
         with patch.dict(os.environ, {}, clear=False):
             for key in ("NYXURI_PRESENTATION_TIMEOUT_SCALE", "CLAVIS_PRESENTATION_TIMEOUT_SCALE"):
@@ -1093,17 +1085,17 @@ class TestFolderListModelRoleNames(unittest.TestCase):
         return (self._shell() / relative).read_text(encoding="utf-8")
 
     def test_the_wrapper_reads_the_role_the_plugin_exposes(self):
-        source = self._source("modules/dock/DockFolderModel.qml")
+        source = self._source("units/dock/DockFolderModel.qml")
         self.assertIn('directory.get(index, "fileUrl")', source)
         self.assertNotIn("fileURL", source)
         self.assertNotIn("fileInfo", source)
 
     def test_the_fan_view_indexes_the_wrapper_instead_of_the_raw_model(self):
-        fan = self._source("modules/dock/DockFolderFan.qml")
+        fan = self._source("units/dock/DockFolderFan.qml")
         self.assertIn("model: root.count", fan)
         self.assertIn("required property int index", fan)
         self.assertIn("readonly property var fileInfo: root.model ? root.model.get(index) : ({})", fan)
-        popup = self._source("modules/dock/DockFilePopup.qml")
+        popup = self._source("units/dock/DockFilePopup.qml")
         self.assertIn("model: root.presented && directory.item ? directory.item : null", popup)
 
     def test_the_deployed_wrapper_returns_real_urls(self):
@@ -1111,7 +1103,7 @@ class TestFolderListModelRoleNames(unittest.TestCase):
         if not runner.exists():
             self.skipTest("qml runtime not available")
         probe = """import QtQuick
-import qs.modules.dock
+import qs.units.dock
 Item {
     DockFolderModel { id: model; folder: "___FOLDER___" }
     Timer {
@@ -1138,18 +1130,18 @@ Item {
             (root / "dir" / "a.txt").write_text("x", encoding="utf-8")
             imports = root / "imports"
             (imports / "qs" / "app" / "services").mkdir(parents=True)
-            (imports / "qs" / "modules" / "dock").mkdir(parents=True)
+            (imports / "qs" / "units" / "dock").mkdir(parents=True)
             (imports / "qs" / "qmldir").write_text("module qs\n", encoding="utf-8")
             (imports / "qs" / "app" / "qmldir").write_text("module qs.app\n", encoding="utf-8")
-            (imports / "qs" / "modules" / "qmldir").write_text("module qs.modules\n", encoding="utf-8")
+            (imports / "qs" / "units" / "qmldir").write_text("module qs.units\n", encoding="utf-8")
             (imports / "qs" / "app" / "services" / "qmldir").write_text(
                 "module qs.app.services\nsingleton DesktopFiles 1.0 DesktopFiles.qml\n", encoding="utf-8")
-            (imports / "qs" / "modules" / "dock" / "qmldir").write_text(
-                "module qs.modules.dock\nDockFolderModel 1.0 DockFolderModel.qml\n", encoding="utf-8")
-            os.symlink(shell / "modules" / "dock" / "DesktopFiles.qml",
+            (imports / "qs" / "units" / "dock" / "qmldir").write_text(
+                "module qs.units.dock\nDockFolderModel 1.0 DockFolderModel.qml\n", encoding="utf-8")
+            os.symlink(shell / "units" / "dock" / "DesktopFiles.qml",
                        imports / "qs" / "app" / "services" / "DesktopFiles.qml")
-            os.symlink(shell / "modules" / "dock" / "DockFolderModel.qml",
-                       imports / "qs" / "modules" / "dock" / "DockFolderModel.qml")
+            os.symlink(shell / "units" / "dock" / "DockFolderModel.qml",
+                       imports / "qs" / "units" / "dock" / "DockFolderModel.qml")
             script = root / "probe.qml"
             script.write_text(probe.replace("___FOLDER___", "file://" + str(root / "dir")), encoding="utf-8")
             result = subprocess.run([str(runner), str(script)], capture_output=True, text=True, timeout=120,
@@ -1166,7 +1158,7 @@ Item {
 class TestDesktopCardHostStructure(unittest.TestCase):
 
     def _source(self):
-        return (Path(__file__).resolve().parent.parent / "shell" / "modules" / "desktopcards"
+        return (Path(__file__).resolve().parent.parent / "shell" / "units" / "desktopcards"
                 / "DesktopCardHost.qml").read_text(encoding="utf-8")
 
     def test_no_property_change_signal_is_redeclared(self):
@@ -1185,7 +1177,7 @@ class TestDesktopCardHostStructure(unittest.TestCase):
 class TestTrayMenuScreenContract(unittest.TestCase):
 
     def test_tray_menu_does_not_shadow_the_window_screen(self):
-        source = (Path(__file__).resolve().parent.parent / "shell" / "modules" / "bar" / "tray"
+        source = (Path(__file__).resolve().parent.parent / "shell" / "units" / "bar" / "tray"
                   / "TrayMenu.qml").read_text(encoding="utf-8")
         self.assertNotIn("property var screen", source)
         self.assertIn("screen: root.screen", source)
@@ -1194,7 +1186,7 @@ class TestTrayMenuScreenContract(unittest.TestCase):
 class TestShellPageSingletonImports(unittest.TestCase):
 
     def _page(self):
-        return (Path(__file__).resolve().parents[1] / "shell" / "modules" / "settings"
+        return (Path(__file__).resolve().parents[1] / "shell" / "units" / "settings"
                 / "ShellPage.qml").read_text(encoding="utf-8")
 
     def test_the_control_page_imports_the_singletons_it_binds_to(self):
@@ -1204,7 +1196,7 @@ class TestShellPageSingletonImports(unittest.TestCase):
         self.assertIn("ColorPickerService.probeFinished", source)
         imports = [line.strip() for line in source.splitlines() if line.startswith("import ")]
         self.assertIn("import qs.app", imports)
-        self.assertIn("import qs.modules.keystone.tools", imports)
+        self.assertIn("import qs.units.keystone.tools", imports)
 
 
 class TestQmlSingletonImports(unittest.TestCase):
@@ -1316,7 +1308,7 @@ class TestPresentationTimeoutScale(unittest.TestCase):
     """Slow hardware must be able to run the presentation harness at all."""
 
     def _module(self):
-        from tests import test_shell_runtime
+        from tests.shell import test_shell_runtime
 
         return test_shell_runtime
 
@@ -1354,7 +1346,7 @@ class TestInstallBootstrapCacheCopy(unittest.TestCase):
     """
 
     def test_dangling_qmlls_link_does_not_abort_the_cache_copy(self):
-        from tests import test_install_bootstrap
+        from tests.deploy import test_install_bootstrap
 
         with TempEnv() as env, tempfile.TemporaryDirectory() as raw:
             repo = Path(raw) / "repo"
@@ -1367,15 +1359,15 @@ class TestInstallBootstrapCacheCopy(unittest.TestCase):
             self.assertFalse((cache / "shell" / ".qmlls.ini").exists())
 
     def test_other_dangling_links_are_skipped_rather_than_fatal(self):
-        from tests import test_install_bootstrap
+        from tests.deploy import test_install_bootstrap
 
         with TempEnv() as env, tempfile.TemporaryDirectory() as raw:
             repo = Path(raw) / "repo"
-            (repo / "configs").mkdir(parents=True)
-            (repo / "configs" / "effects.kdl").symlink_to("/tmp/gone-niri-config/effects.kdl")
+            (repo / "units").mkdir(parents=True)
+            (repo / "units" / "effects.kdl").symlink_to("/tmp/gone-niri-config/effects.kdl")
             with patch.object(test_install_bootstrap, "REPO_ROOT", repo):
                 cache = test_install_bootstrap.TestInstallBootstrap()._prepare_cache(env, Path(raw))
-            self.assertFalse((cache / "configs" / "effects.kdl").exists())
+            self.assertFalse((cache / "units" / "effects.kdl").exists())
 
 
 class TestConfigSectionHardening(unittest.TestCase):
@@ -1491,8 +1483,8 @@ class TestConfigStoreFailureHandling(unittest.TestCase):
 
     AUXILIARY_STORES = (
         "app/services/IdleService.qml",
-        "modules/bar/tray/TrayService.qml",
-        "modules/quicksettings/QuickToggleConfig.qml",
+        "units/bar/tray/TrayService.qml",
+        "units/sidebars/quicksettings/QuickToggleConfig.qml",
     )
 
     def _relative(self, relative):
@@ -1531,8 +1523,8 @@ class TestConfigStoreFailureHandling(unittest.TestCase):
             self.assertIn("onSaveFailed", source, relative)
 
     STATEFUL_STORES = (
-        "modules/sidebars/dashboard/infotools/InfoDrawerState.qml",
-        "modules/sidebars/dashboard/infotools/TodoService.qml",
+        "units/sidebars/dashboard/infotools/InfoDrawerState.qml",
+        "units/sidebars/dashboard/infotools/TodoService.qml",
     )
 
     def test_stateful_stores_only_seed_a_missing_file(self):
@@ -1548,7 +1540,7 @@ class TestConfigStoreFailureHandling(unittest.TestCase):
 
     def test_info_drawer_skips_the_rewrite_after_a_failed_parse(self):
         handler = self._handler(
-            self._relative("modules/sidebars/dashboard/infotools/InfoDrawerState.qml"),
+            self._relative("units/sidebars/dashboard/infotools/InfoDrawerState.qml"),
             "onLoaded:", "onLoadFailed:")
         self.assertIn("let loaded = false;", handler)
         self.assertIn("loaded = true;", handler)

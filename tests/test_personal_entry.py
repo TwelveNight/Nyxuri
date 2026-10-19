@@ -31,7 +31,7 @@ class PersonalEntryTests(unittest.TestCase):
             inir.mkdir()
             (inir / "config.kdl").write_text("// original iNiR\n")
             target = ctx.home / "sessions/nyxuri.desktop"
-            with patch.object(entry, "GDM_ENTRY", target), patch.object(entry.sys.stdin, "isatty", return_value=True), patch("builtins.input", return_value="y"), patch.object(entry.subprocess, "run", return_value=Mock(returncode=0)) as run, patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+            with patch.object(entry, "GDM_ENTRY", target), patch.object(entry.sys.stdin, "isatty", return_value=True), patch("builtins.input", return_value="y"), patch.object(entry.subprocess, "run", return_value=Mock(returncode=0)) as run, patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(entry.dispatch(["install"]), 0)
             self.assertEqual([call.args[0] for call in run.call_args_list], [
                 ["sudo", "-v"], ["systemctl", "--user", "daemon-reload"],
@@ -39,7 +39,7 @@ class PersonalEntryTests(unittest.TestCase):
             self.assertTrue(all(call.kwargs == {"check": True} for call in run.call_args_list))
             self.assertEqual((inir / "config.kdl").read_text(), "// original iNiR\n")
             self.assertTrue((ctx.home / ".config/desktop-profiles/nyxuri/installed").is_file())
-            self.assertEqual((ctx.home / ".local/bin/nyxuri").resolve(), install.ROOT / "install.sh")
+            self.assertEqual((ctx.home / ".local/bin/nyxuri").resolve(), install.ROOT / "nyxuri/launcher.sh")
 
     def test_existing_session_needs_no_sudo(self):
         with TempEnv() as ctx:
@@ -98,7 +98,7 @@ class PersonalEntryTests(unittest.TestCase):
             (inir / "config.kdl").write_text('// active iNiR sentinel\n')
             canonical = ctx.env.config_dir / "niri"
             canonical.symlink_to(inir)
-            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
                 profile = ctx.env.config_dir / "desktop-profiles/nyxuri/niri"
                 remote = profile / "remote-panel__custom__.kdl"
@@ -138,15 +138,38 @@ class PersonalEntryTests(unittest.TestCase):
             def assert_scope():
                 self.assertEqual(core.get_env().config_dir, expected)
                 self.assertEqual(core.get_env().nyx_dir, expected / "manager")
+                self.assertEqual({p.name for p in core.get_env().units_src.iterdir()}, set(install.CONFIGS))
                 self.assertEqual(core.get_env().state_dir, ctx.home / ".local/state/nyxuri-desktop/manager")
             previous = core._ENV
             with patch("nyxuri.cli.main", side_effect=assert_scope) as main, patch.object(entry.subprocess, "run") as guard:
                 for command in ("snapshot", "backup", "list", "preset", "rollback", "restore", "uninstall", "remove", "purge", "BACKUP"):
                     with self.subTest(command=command):
-                        self.assertEqual(entry.dispatch([command]), 0)
+                        arguments = [command, "niri", "list"] if command == "preset" else [command]
+                        self.assertEqual(entry.dispatch(arguments), 0)
                         self.assertIs(core._ENV, previous)
                         guard.assert_called_with([str(ctx.home / ".local/bin/desktop-profile"), "guard", "nyxuri"], check=True)
                 self.assertEqual(main.call_count, 10)
+
+    def test_unit_lifecycle_cannot_modify_global_units(self):
+        with TempEnv() as ctx:
+            registry = ctx.env.config_dir / "desktop-profiles/profiles.json"
+            registry.parent.mkdir()
+            registry.write_text('{}')
+            with patch("nyxuri.cli.main") as main:
+                for command in ("on", "off", "enable", "disable"):
+                    self.assertEqual(entry.dispatch([command, "theme"]), 2)
+            main.assert_not_called()
+
+    def test_managed_update_delegates_to_the_registered_pipeline(self):
+        with TempEnv() as ctx:
+            registry = ctx.env.config_dir / "desktop-profiles/profiles.json"
+            registry.parent.mkdir()
+            registry.write_text('{}')
+            helper = ctx.home / ".local/bin/desktop-update"
+            helper.write_text("#!/bin/sh\n")
+            with patch.object(update.subprocess, "run", return_value=Mock(returncode=0)) as run:
+                self.assertEqual(update.main(["--no-deploy"]), 0)
+            run.assert_called_once_with([str(helper), "sync", "nyxuri"], check=False)
 
     def test_state_command_restores_environment_after_failure(self):
         from nyxuri import core

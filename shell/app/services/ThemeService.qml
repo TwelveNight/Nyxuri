@@ -5,7 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs.shared.theme
 import qs.app.services
-import qs.modules.wallpaper
+import qs.units.wallpaper
 import qs.app
 import qs.shared.i18n
 
@@ -58,6 +58,8 @@ Singleton {
         }
         for (const update of updates)
             Appearance.m3colors[update[0]] = update[1];
+        LogService.info("theme", "palette applied: " + updates.length + " tokens (source: " + root.lastSource
+                        + ")");
     }
 
     function reloadColors() {
@@ -74,7 +76,7 @@ Singleton {
                 root.paletteError = "";
             } catch (error) {
                 root.paletteError = String(error);
-                console.warn("Unable to apply palette:", error);
+                LogService.error("theme", "palette apply failed: " + error);
             }
         }
         onFileChanged: root.reloadColors()
@@ -86,6 +88,8 @@ Singleton {
                 return;
             }
             root.paletteError = error === FileViewError.FileNotFound ? "" : FileViewError.toString(error);
+            if (root.paletteError !== "")
+                LogService.warn("theme", "colors.json unreadable: " + root.paletteError);
         }
     }
 
@@ -171,6 +175,12 @@ Singleton {
     }
 
     function setMatugenTemplateEnabled(id, enabled) {
+        if (id === "fcitx5") {
+            for (const subId of ["fcitx5_theme", "fcitx5_panel", "fcitx5_highlight"]) {
+                root.setMatugenTemplateEnabled(subId, enabled);
+            }
+            return;
+        }
         let changed = PersonalizationConfig.setMatugenTemplateEnabled(id, enabled);
         if (changed && enabled)
             TemplateService.renderTemplate(id);
@@ -329,6 +339,9 @@ Singleton {
         if (generateColorsProcess.running || !TemplateService.ready || !PersonalizationConfig.ready) {
             root.pendingGenerationTemplateId = templateId || "";
             root.pendingGeneration = command;
+            LogService.warn("theme", "generation deferred (" + (generateColorsProcess.running ? "busy" :
+                                                                                                "services not ready")
+                            + "), last request wins");
             return;
         }
         root.generationTemplateId = templateId || "";
@@ -338,6 +351,8 @@ Singleton {
         root.coreReloaded = false;
         generateColorsProcess.command = command;
         generateColorsProcess.running = true;
+        LogService.info("theme", "generation started: " + root.lastSource + " scheme="
+                        + PersonalizationConfig.matugenScheme + " mode=" + PersonalizationConfig.themeMode);
     }
 
     function resumeGeneration() {
@@ -510,9 +525,10 @@ Singleton {
                         root.reloadColors();
                     } else if (status.event === "core-error") {
                         root.generationError = status.error;
+                        LogService.error("theme", "matugen core error: " + status.error);
                     }
                 } catch (e) {
-                    console.warn("Invalid Matugen generation status:", data);
+                    LogService.warn("theme", "invalid generation status line: " + data);
                 }
             }
         }
@@ -521,9 +537,12 @@ Singleton {
             root.generationTemplateId = "";
             if (exitCode === 0 && !root.coreReloaded)
                 root.reloadColors();
-            if (exitCode !== 0)
+            if (exitCode !== 0) {
                 root.generationError = root.generationError || generationStderr.text.trim() || I18n.tr(
                             "Failed to generate Matugen colors");
+                LogService.error("theme", "generation failed (exit " + exitCode + "): "
+                                 + generationStderr.text.trim().substring(0, 300));
+            }
             if (root.pendingGeneration)
                 Qt.callLater(root.resumeGeneration);
         }

@@ -1,0 +1,9 @@
+# Fcitx5 Rime — 输入法 + NyxMellow 皮肤一体单元
+optional = true
+packages = ["fcitx5", "fcitx5-gtk", "fcitx5-qt", "fcitx5-configtool", "fcitx5-rime"]
+packages_aur = ["rime-ice-git"]
+label = "Fcitx5 Rime"
+category = "system"
+preserve = ["conf/classicui.conf", "profile"]
+post_install = "activate"
+post_remove = "deactivate"

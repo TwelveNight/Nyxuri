@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Wallpaper pack installer — clones the external collection into the unit's
+# shared living area (~/Pictures/Wallpapers). Existing files are never
+# overwritten; the pack is user-domain content, not ledger-tracked.
+#
+# Manual:  units/wallpapers/hooks/install-pack   (or via the deployed copy)
+# Requires: git
+set -euo pipefail
+
+DEST="${NYXURI_UNIT_DEST:-$HOME/Pictures/Wallpapers}"
+MIRRORS=(
+    "https://github.com/ech678/wallpaper-collection.git"
+    "https://gh-proxy.org/https://github.com/ech678/wallpaper-collection.git"
+)
+
+command -v git >/dev/null 2>&1 || { echo "install-pack: git not installed" >&2; exit 1; }
+mkdir -p "$DEST"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+cloned=""
+for url in "${MIRRORS[@]}"; do
+    echo "install-pack: cloning $url"
+    if GIT_TERMINAL_PROMPT=0 git clone --depth 1 "$url" "$tmp/pack"; then
+        if [ -d "$tmp/pack/video" ] && find "$tmp/pack/video" -type f \( -name '*.mp4' -o -name '*.webm' \) | grep -q .; then
+            cloned="$url"
+            break
+        fi
+        echo "install-pack: mirror returned an incomplete pack" >&2
+    fi
+    rm -rf "$tmp/pack"
+done
+
+[ -n "$cloned" ] || { echo "install-pack: all mirrors failed" >&2; exit 1; }
+
+rm -rf "$tmp/pack/.git"
+rm -f "$tmp/pack/preview.webp" "$tmp/pack/README.md"
+
+# No-clobber merge into the living area.
+find "$tmp/pack" -mindepth 1 | while read -r item; do
+    rel="${item#"$tmp/pack"/}"
+    target="$DEST/$rel"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        continue
+    fi
+    if [ -d "$item" ]; then
+        mkdir -p "$target"
+    else
+        mkdir -p "$(dirname "$target")"
+        cp -p "$item" "$target"
+    fi
+done
+
+echo "install-pack: pack installed to $DEST (existing files untouched)"

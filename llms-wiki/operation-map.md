@@ -1,54 +1,48 @@
 # Operation Map — 全部 CLI 命令
 
-> 命令分发在 `nyxuri/cli.py` 的 `COMMANDS` dict。退出码自动传播。aliases 并列。
+> 命令分发在 `nyxuri/cli.py` 的 `COMMANDS` dict。退出码自动传播。
+> KM3.5 起 `COMMANDS` 收敛为 20 键 = 17 活动词 + enable/disable 长动词 + help；
+> 旧命令别名 ×12 与倒计时表已处决——旧名就是普通 unknown command。
+> KM5：`install.sh` 退役为一次性引导（无参数透传，常驻入口 = `nyxuri/launcher.sh`）；
+> `migrations/` 与 nyxniri 兼容层（别名 / `NYXNIRI_*`）处决。
 
-## 管"配置内容"的
-
-| 命令 | 干啥 |
-|---|---|
-| `install [full|config]`（alias `deploy`） | 部署配置（full = + 壁纸 + 模块） |
-| `update [--force|--no-deploy] [--to <tag|commit>]` | 拉新版本 + 线性状态迁移 (`migrations`) + 重新部署；`--to` 锁到指定版本（system 模式 → 提示 pacman） |
-| `preset <app> [list|apply <name>|save <name>|edit <name>|delete <name>|parts|part <slot> <name>]` | 切/管理预设与零件插槽（状态接入 `state.json` 账本） |
-
-## 管"安装方式"的
+## 单元动词（4 动词接管）
 
 | 命令 | 干啥 |
 |---|---|
-| `deps [core|apps]` | 装软件包 |
-| `apps`（alias `recommended`） | 装可选软件 |
-| `pkg <install|upgrade|remove|search|info|installed>` | Fish 与安装器共用包管理；安装接收包名，搜索支持 `aur` / `pac` 前缀 |
-| `wallpapers`（alias `wp`） | 装壁纸包（维护 `.nyxuri-managed.json` 跟踪清单） |
-| `greeter` / `fcitx` / `gtk` / `fisher` `[install|status|uninstall]` | 扩展模块管理；fisher / greeter / gtk 走标准三件套；`fcitx` 支持细粒度解耦动词 `[install|deploy|activate|status|uninstall]` |
-| `theme [toggle|dark|light|sync|status]` | 原生切换/同步深浅主题（纯 Python 调度 gsettings、GTK settings.ini、Noctalia IPC 与 Kitty 信号，status 查询当前模式） |
+| `list [unit]` | 单元全景（开关状态 × 当前预设），或单个单元详情（manifest 声明 × 账本记录 × 对账态） |
+| `on <unit> [--preset <name>]`（等价 `enable`） | 启用单元：依赖闭包披露 → 缺失包披露确认（repo/AUR/Flatpak 按 manifest 三方分流）→ 事务落账 + `unit-changed` 事件 |
+| `off <unit> [--cascade]`（等价 `disable`） | 停用单元：反向依赖强阻断（显式 `--cascade` 才级联）→ 自定义入 Vault → 实机抹白；报告列明幸存外部文件与保留的包 |
+| `doctor [unit]` | 单元三态对账（`Synced` / `Drifted` / `Ghost`）；无参时在对账表后附加系统体检段（`sysdoctor`） |
 
-## 管"状态"的
+切换前披露、切换后交报告是产品定论：`plan_on` / `plan_off`（只读）供界面披露，
+写入只走 `transaction.unit_on` / `unit_off` 唯一事务路径。
+
+## 领域动词（过渡期，退役排期见 unit-model §7）
 
 | 命令 | 干啥 |
 |---|---|
-| `snapshot [note]`（alias `backup`） | 存档当前配置 |
-| `rollback [index]`（alias `restore`） | 从存档恢复 |
-| `list` | 看所有存档 |
-| `shell [get|set <noctalia|nyxuri-shell> [bin_path]|switch [<noctalia|nyxuri-shell> [bin_path]]|status]` | 查看或切换桌面外壳运行插槽（switch 无参在 noctalia 与 nyxuri-shell 间互切；兼容 custom/nyxuri 别名，记录于 state.json 账本）。**[EXPERIMENTAL]** nyxuri-shell 完全在开发中、暂不推荐日常使用，切换与状态输出会带实验性警告；已知问题见 [shell/KNOWN-ISSUES.md](../shell/KNOWN-ISSUES.md) |
-| `doctor` | 体检（_check_* 列表） |
+| `install [full\|config]` | 旧世界整装流水线（配置 + 壁纸单元 + 钩子重放）；市场化后由 `on <unit>` 接管 |
+| `update [--force\|--no-deploy] [--to <tag\|commit>]` | 拉新版本 + 重新部署（KM5：线性迁移机制已清算，账本即真相）；`--to` 锁到指定版本（system 模式 → 提示 pacman） |
+| `preset <app> [list\|apply <name>\|save <name>\|edit <name>\|delete <name>\|parts\|part <slot> <name>]` | 切/管理预设与零件插槽（状态接入 `state.json` 账本） |
+| `theme [toggle\|dark\|light\|sync\|status]` | 原生切换/同步深浅主题（纯 Python 调度 gsettings、GTK settings.ini、Noctalia IPC 与 Kitty 信号） |
+| `shell [get\|set <noctalia\|nyxuri-shell> [bin_path]\|switch [\|bin_path]\|status]` | 查看或切换桌面外壳运行插槽。**[EXPERIMENTAL]** nyxuri-shell 开发中，输出带实验性警告 |
+| `deps [core\|apps]` | 装软件包：core = 核心依赖勾选单，apps = catalog.toml + 可选单元同源菜单 |
+| `pkg <install\|upgrade\|remove\|search\|info\|installed>` | 包管理直通（Fish 与安装器共用）；搜索支持 `aur` / `pac` 前缀 |
 | `clean [-n] [--only <任务>]` | 缓存清理；`-n` 只预览，Fish 的 `clean` 指向此入口 |
-| `uninstall [--all|standard|restore|purge]`（alias `remove`）/ `purge` | 卸载（勾选式） |
-| `bug`（alias `report`） | 导出诊断报告 |
-| `test` | 开发者沙箱部署测试 |
+| `snapshot [note\|list\|delete [index]]` | 存档当前配置 / 列出 / 删除快照 |
+| `rollback [index]` | 从存档恢复 |
+| `uninstall [--all\|standard\|restore\|purge]` | 卸载（勾选式）；`--all` 等价三选一路径直达 |
+| `bug` | 导出诊断报告 |
+| `test` | 开发者沙箱部署测试（`HOME=$(mktemp -d) python3 -m nyxuri test` 的落点；install.sh 已不透传参数） |
 | `help` | 用法 |
 
-## 三层配置模型是内容侧的灵魂
+## 已处决（KM3.5 + KM5，调用即 unknown command）
 
-三层（configs < presets < customs）是内容侧，其他都是围绕它的操作。详见
-[overview](overview.md)、[preset-mechanism](preset-mechanism.md)。
-
-## 兼容别名
-
-在全局更名迁移期内，系统软链接与用户端别名 `nyxniri` 完全保留，执行任何命令均等价于 `nyxuri`，且自动兼容 `NYXNIRI_*` 环境变量。
-
-## 本机个人 profile 入口
-
-`personal/entry.py` 的安装入口部署到 `desktop-profiles/nyxuri`；
-`update --local [--yes]` 通过新进程重新部署当前工作树，不拉取或合并上游。
-默认 update 对 configs/ 到 units/ 的不兼容架构迁移仍在 merge 前停止。
-状态操作及 backup/restore/remove 别名使用同一个 profile 和独立 manager，
-活动配置链接由登录管理器选择，维护操作不原子替换该链接。
+KM3.5：`deploy` `backup` `restore` `remove` `purge` `recommended` `apps` `wp` `wallpapers`
+`report` `-h/--help`，以及幽灵指针 `greeter` `fcitx` `gtk` `fisher`。
+KM5：系统软链与用户端别名 `nyxniri`、`NYXNIRI_*` 环境变量回退（原「兼容别名」节随
+`migrations/` 清算一并处决——一个变量一个前缀 `NYXURI_*`）。
+替代能力：`on/off <unit>`（单元能力）、`snapshot`/`rollback`/`uninstall`（状态域）、
+`deps apps`（可选软件）、`bug`（诊断）；壁纸能力 = `on wallpapers`
+（外部大包走 `units/wallpapers/hooks/install-pack`）。

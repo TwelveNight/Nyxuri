@@ -59,7 +59,7 @@ class PersonalPreferencesTests(unittest.TestCase):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            upstream = (install.ROOT / "configs/niri/binds.kdl").read_bytes()
+            upstream = (install.ROOT / "units/niri/binds.kdl").read_bytes()
             for _ in range(2):
                 if (source / "niri").exists():
                     import shutil
@@ -83,7 +83,7 @@ class PersonalPreferencesTests(unittest.TestCase):
                 self.assertIn('Mod+Ctrl+9 { move-column-to-workspace 9; }', binds)
                 self.assertIn('Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session";', binds)
                 self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/niri/scripts/launcher.py";', binds)
-            self.assertEqual((install.ROOT / "configs/niri/binds.kdl").read_bytes(), upstream)
+            self.assertEqual((install.ROOT / "units/niri/binds.kdl").read_bytes(), upstream)
 
     def test_xdg_entries_keep_user_changes_and_disable_todesk(self):
         with TempEnv() as ctx:
@@ -98,7 +98,7 @@ class PersonalPreferencesTests(unittest.TestCase):
             password.write_text(original)
             todesk = apps / "todesk.desktop"
             todesk.write_text('[Desktop Entry]\nType=Application\nName=ToDesk\nExec=my-custom-todesk\nHidden=false\n')
-            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 self.assertEqual(install.main(["--yes"]), 0)
             self.assertEqual(password.read_text(), original)
             self.assertIn('Exec=my-custom-todesk\n', todesk.read_text())

@@ -6,7 +6,7 @@ import qs.shared.theme
 import "../../shared/utils/SidebarPolicy.js" as SidebarPolicy
 import "../../shared/utils/WallpaperSource.js" as WallpaperSource
 import qs.app.services
-import qs.modules.wallpaper
+import qs.units.wallpaper
 import qs.app
 import qs.shared.i18n
 
@@ -345,7 +345,9 @@ Singleton {
     property bool cursorHideWhenTyping: false
     property int cursorHideAfterInactiveMs: 0
     property string iconTheme: ""
-    property bool keystoneEnabled: true
+    // keystoneEnabled / barEnabled retired at KM4: unit existence is the
+    // ledger's alone (StateProjection); this file only owns the appearance
+    // axis (unit-model.md §3 orthogonal axes).
     property bool keystoneOverlay: false
     property string keystoneStyle: "bangs"
     readonly property var keystoneKeyholeCardIds: ["weather", "pomodoro"]
@@ -362,7 +364,6 @@ Singleton {
         }
     ]
     property string keystoneKeyholeCard: "weather"
-    property bool barEnabled: true
     property bool barOverlay: false
     property string barPosition: "top"
     readonly property var barComponentIds: ["workspaces", "information", "activeWindow", "media", "tray",
@@ -1315,6 +1316,13 @@ Singleton {
     }
 
     function isMatugenTemplateEnabled(id) {
+        if (id === "fcitx5") {
+            const t = TemplateService.templateById("fcitx5_theme");
+            if (!t || !t.valid)
+                return false;
+            return root.isMatugenTemplateEnabled("fcitx5_theme") && root.isMatugenTemplateEnabled(
+                        "fcitx5_panel") && root.isMatugenTemplateEnabled("fcitx5_highlight");
+        }
         const template = TemplateService.templateById(id);
         if (!template || !template.valid)
             return false;
@@ -1324,6 +1332,13 @@ Singleton {
     }
 
     function setMatugenTemplateEnabled(id, enabled) {
+        if (id === "fcitx5") {
+            let changed = false;
+            for (const subId of ["fcitx5_theme", "fcitx5_panel", "fcitx5_highlight"]) {
+                changed = root.setMatugenTemplateEnabled(subId, enabled) || changed;
+            }
+            return changed;
+        }
         const template = TemplateService.templateById(id);
         if (!root.ready || !template || !template.valid)
             return false;
@@ -1914,7 +1929,6 @@ Singleton {
                 "shellBlurXray": root.shellBlurXray
             },
             "keystone": {
-                "enabled": root.keystoneEnabled,
                 "overlay": root.keystoneOverlay,
                 "style": root.keystoneStyle,
                 "position": root.keystonePosition,
@@ -1946,7 +1960,6 @@ Singleton {
                 }
             },
             "bar": {
-                "enabled": root.barEnabled,
                 "overlay": root.barOverlay,
                 "position": root.barPosition,
                 "showValues": root.barShowValues,
@@ -1994,7 +2007,7 @@ Singleton {
         const keyhole = configSection(keystone.keyhole);
         root.bannerSource = typeof wallpaper.bannerSource === "string" ? wallpaper.bannerSource : "";
         root.wallpaperFolder = typeof wallpaper.folder === "string" && wallpaper.folder !== ""
-            ? wallpaper.folder : Paths.dataHome + "/wallpapers";
+                ? wallpaper.folder : Paths.dataHome + "/wallpapers";
         const wallpaperPath = typeof wallpaper.path === "string" ? wallpaper.path : "";
         root.wallpaperPath = wallpaperPath === Paths.currentWallpaper ? "" : wallpaperPath;
         root.wallpaperPathLight = typeof wallpaper.pathLight === "string" ? wallpaper.pathLight : "";
@@ -2070,7 +2083,6 @@ Singleton {
                                                         "rounded");
         root.keystoneMediaColorStyle = normalizedOption(root.keystoneMediaColorOptions, media.colorStyle,
                                                         "theme");
-        root.keystoneEnabled = typeof keystone.enabled === "boolean" ? keystone.enabled : true;
         root.keystoneOverlay = typeof keystone.overlay === "boolean" ? keystone.overlay : false;
         root.keystoneStyle = normalizedOption(root.keystoneStyles, keystone.style, "bangs");
         root.keystonePosition = normalizedEdgePosition(keystone.position);
@@ -2110,7 +2122,6 @@ Singleton {
                                                                    typeof bar.showMonitorValues === "boolean"
                                                                    ? bar.showMonitorValues : true;
         root.barShowNames = typeof bar.showNames === "boolean" ? bar.showNames : false;
-        root.barEnabled = typeof bar.enabled === "boolean" ? bar.enabled : true;
         root.barOverlay = typeof bar.overlay === "boolean" ? bar.overlay : false;
         root.barPosition = normalizedEdgePosition(bar.position);
         const hasBarLayout = Array.isArray(bar.barLeadingComponents) || Array.isArray(
@@ -2307,7 +2318,8 @@ Singleton {
                             root.toJson().keystone) || JSON.stringify(parsed.desktopCards || {})
                         !== JSON.stringify(root.toJson().desktopCards);
             } catch (error) {
-                console.warn("PersonalizationConfig failed to load; leaving the existing config untouched:", error);
+                console.warn("PersonalizationConfig failed to load; leaving the existing config untouched:",
+                             error);
                 shouldRepair = false;
             }
             root.loading = false;
@@ -2325,7 +2337,8 @@ Singleton {
             if (error === FileViewError.FileNotFound)
                 root.save();
             else
-                console.warn("PersonalizationConfig could not be read; leaving the existing config untouched:", error);
+                console.warn("PersonalizationConfig could not be read; leaving the existing config untouched:",
+                             error);
         }
         onSaveFailed: error => console.warn("PersonalizationConfig could not be saved:", error)
     }

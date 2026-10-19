@@ -249,3 +249,16 @@ Super+/ 打开社区 Keybind Cheatsheet 的可搜索快捷键面板，读取本�
 更新键位后可执行 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh` 刷新缓存。
 
 GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctalia 素材，输出共享 `~/.config/gtk-3.0/gtk.css` 与 `gtk-4.0/gtk.css`。壁纸变化渲染当前色板；`theme sync` 仍负责深浅模式。已打开的 GTK 应用可能需要重新打开才能加载新 CSS。
+
+
+## units 上游与更新
+
+2026-10-19 个人分支已完整合入上游 units 架构；继续运行现有 Noctalia，
+个人模板仍输出到该 profile。永久 CLI 入口为 `nyxuri/launcher.sh`，
+旧本地 `install.sh` 调用保持兼容。新增个人单元 `units/kitty-nyxuri`。
+普通 update 进入 desktop-update；--local 只部署，--no-deploy 只合并。
+源码、验证和 live 更新流程见 iNiR 的 scripts/personal/DESKTOP-UPDATES.md。
+
+个人 profile 的 snapshot/preset/rollback 只发现准备后的三个个人单元，
+不枚举上游其它全局生活区。个人配置整体通过 install/update 部署，
+不透传上游 on/off 的单元移除操作。

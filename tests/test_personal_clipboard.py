@@ -168,7 +168,7 @@ class PersonalClipboardTests(unittest.TestCase):
                 originals[target] = target.read_bytes()
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), \
                  patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
-                 patch("nyxuri.deploy.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
+                 patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
                 for _ in range(2):
                     self.assertEqual(install.main(["--yes"]), 0)
             private = ctx.home / ".config/desktop-profiles/nyxuri"

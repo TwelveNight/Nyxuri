@@ -52,18 +52,16 @@ class TempEnv:
         core._PICS_DIR_CACHE = None
         import nyxuri.deploy.deploy as _deploy_core
         import nyxuri.deploy.manifest as _deploy_manifest
-        import nyxuri.modules.greeter as _greeter
         _deploy_core._CONFIG_ITEMS_CACHE = []
         _deploy_manifest._MANIFEST_CACHE = None
-        _greeter._GREETER_STATUS_CACHE = None
 
         # Build the Environment with temp HOME, then force repo mode
         env = core.get_env()
         env.run_mode = "repo"
         env.mode_label = "Local Path"
         env.repo_dir = Path(__file__).resolve().parent.parent
-        env.configs_src = env.repo_dir / "configs"
-        env.assets_src = env.repo_dir / "assets"
+        env.units_src = env.repo_dir / "units"
+        env.shell_units_src = env.repo_dir / "shell" / "units"
         self.env = env
 
         return self

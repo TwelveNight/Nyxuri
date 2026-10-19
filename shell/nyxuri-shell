@@ -10,11 +10,26 @@ SOURCE_FILE="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_S
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "${SOURCE_FILE}")" && pwd)
 SHELL_DIR="${SCRIPT_DIR}"
 
-FALLBACK_QML_PATH="${SHELL_DIR}/fallback"
-if [ -d "${FALLBACK_QML_PATH}" ]; then
-    export QML_IMPORT_PATH="${QML_IMPORT_PATH:+${QML_IMPORT_PATH}:}${FALLBACK_QML_PATH}"
-    export QML2_IMPORT_PATH="${QML2_IMPORT_PATH:+${QML2_IMPORT_PATH}:}${FALLBACK_QML_PATH}"
+# Named-module shim home: M3Shapes (the pure-QML stand-in for the retired
+# external shapes plugin) lives next to the vendored shape math it will
+# eventually absorb. The engine looks for <import-path>/<Module>/qmldir here.
+SHAPES_QML_PATH="${SHELL_DIR}/shared/controls/shapes"
+if [ -d "${SHAPES_QML_PATH}" ]; then
+    export QML_IMPORT_PATH="${QML_IMPORT_PATH:+${QML_IMPORT_PATH}:}${SHAPES_QML_PATH}"
+    export QML2_IMPORT_PATH="${QML2_IMPORT_PATH:+${QML2_IMPORT_PATH}:}${SHAPES_QML_PATH}"
 fi
+
+# The Quickshell QML disk cache lives in a nyxuri-shell-private cache
+# namespace: 0.3.2 serves stale compilation units after source edits, and
+# multiple quickshell instances share (and stomp) the default cache dir.
+# It is cleared on every launch — a cold compile with the unit warm-up
+# imports is verified clean, and freshness beats cold-start milliseconds.
+# Do NOT set QML_DISABLE_DISK_CACHE instead: without the cache write, every
+# Loader load re-hits the 0.3.2 qs-import defect and units die at cold
+# compile.
+export NYXURI_ORIGINAL_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export XDG_CACHE_HOME="${NYXURI_ORIGINAL_CACHE_HOME}/nyxuri-shell"
+rm -rf "${XDG_CACHE_HOME}/quickshell/qmlcache"
 
 # The generated palette has to be written where the shell reads it. The two sides
 # defaulted to different places: scripts/lib/clavis-paths.sh resolves to

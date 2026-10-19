@@ -1,10 +1,10 @@
 import QtQuick
 import QtTest
-import "../../modules/launcher/SpotlightCurrency.js" as Currency
-import "../../modules/launcher/SpotlightTemplates.js" as Templates
-import "../../modules/launcher/SpotlightSession.js" as Session
-import "../../modules/launcher/SpotlightCommands.js" as Commands
-import "../../modules/launcher/SpotlightToolResponse.js" as ToolResponse
+import "../../units/launcher/SpotlightCurrency.js" as Currency
+import "../../units/launcher/SpotlightTemplates.js" as Templates
+import "../../units/launcher/SpotlightSession.js" as Session
+import "../../units/launcher/SpotlightCommands.js" as Commands
+import "../../units/launcher/SpotlightToolResponse.js" as ToolResponse
 
 TestCase {
     name: "SpotlightSession"

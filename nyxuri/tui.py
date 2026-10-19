@@ -15,9 +15,9 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from nyxuri.constants import Colors, get_compat_env
+from nyxuri.core import Colors, get_env_var
 from nyxuri.core import Environment, get_env
-from nyxuri.i18n import msg, text
+from nyxuri.core import msg, text
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
@@ -529,7 +529,7 @@ def prompt_confirm(prompt_key: str, default: str = "y", destructive: bool = Fals
     even under NYXURI_AUTO_YES: express mode speeds things up, it must not
     consent to data loss on the user's behalf.
     """
-    if get_compat_env("AUTO_YES", "0") == "1" and not destructive:
+    if get_env_var("AUTO_YES", "0") == "1" and not destructive:
         return True
 
     sys.stdout.write(msg(prompt_key))
@@ -643,6 +643,7 @@ class CheckboxEntry:
     label: str
     checked: bool = False
     is_separator: bool = False
+    radio_group: Optional[str] = None
 
 
 class CheckboxList:
@@ -658,7 +659,16 @@ class CheckboxList:
             return []
         if not sys.stdin.isatty():
             if accept_defaults:
-                return [e.key for e in self.entries if not e.is_separator and e.checked]
+                radio_seen = set()
+                res = []
+                for e in self.entries:
+                    if not e.is_separator and e.checked:
+                        if e.radio_group:
+                            if e.radio_group in radio_seen:
+                                continue
+                            radio_seen.add(e.radio_group)
+                        res.append(e.key)
+                return res
             return None
 
         selectable = [idx for idx, entry in enumerate(self.entries) if not entry.is_separator]
@@ -692,11 +702,18 @@ class CheckboxList:
                         write_cleared(f"{entry.label}\n")
                         continue
 
-                    check_str = (
-                        f"{Colors.BOLD_GREEN}[✓]{Colors.RESET}"
-                        if entry.checked
-                        else f"{Colors.DARK_GRAY}[ ]{Colors.RESET}"
-                    )
+                    if entry.radio_group:
+                        check_str = (
+                            f"{Colors.BOLD_GREEN}(●){Colors.RESET}"
+                            if entry.checked
+                            else f"{Colors.DARK_GRAY}( ){Colors.RESET}"
+                        )
+                    else:
+                        check_str = (
+                            f"{Colors.BOLD_GREEN}[✓]{Colors.RESET}"
+                            if entry.checked
+                            else f"{Colors.DARK_GRAY}[ ]{Colors.RESET}"
+                        )
                     render_check_row(idx == focus, check_str, entry.label, cols)
                 if end < len(self.entries):
                     write_cleared(f"    {Colors.DARK_GRAY}...{Colors.RESET}\n")
@@ -727,14 +744,21 @@ class CheckboxList:
                 elif key in ("END", "G"):
                     focus_pos = len(selectable) - 1
                 elif key == "SPACE":
-                    self.entries[focus].checked = not self.entries[focus].checked
+                    target = self.entries[focus]
+                    if target.radio_group:
+                        for e in self.entries:
+                            if e.radio_group == target.radio_group and e != target:
+                                e.checked = False
+                        target.checked = True
+                    else:
+                        target.checked = not target.checked
                 elif key in ("a", "A"):
                     for e in self.entries:
-                        if not e.is_separator:
+                        if not e.is_separator and not e.radio_group:
                             e.checked = True
                 elif key in ("n", "N"):
                     for e in self.entries:
-                        if not e.is_separator:
+                        if not e.is_separator and not e.radio_group:
                             e.checked = False
                 elif key in ("0", "q", "Q", "ESC", "EXIT", "EOF"):
                     return None
@@ -743,9 +767,25 @@ class CheckboxList:
                     if 0 <= num < len(selectable):
                         focus_pos = num
                         entry_idx = selectable[focus_pos]
-                        self.entries[entry_idx].checked = not self.entries[entry_idx].checked
+                        target = self.entries[entry_idx]
+                        if target.radio_group:
+                            for e in self.entries:
+                                if e.radio_group == target.radio_group and e != target:
+                                    e.checked = False
+                            target.checked = True
+                        else:
+                            target.checked = not target.checked
                 elif key == "ENTER":
-                    return [e.key for e in self.entries if not e.is_separator and e.checked]
+                    radio_seen = set()
+                    res = []
+                    for e in self.entries:
+                        if not e.is_separator and e.checked:
+                            if e.radio_group:
+                                if e.radio_group in radio_seen:
+                                    continue
+                                radio_seen.add(e.radio_group)
+                            res.append(e.key)
+                    return res
 
 # --- Component: Category Accordion Checklist ---
 @dataclass
@@ -1520,14 +1560,222 @@ class PresetSwitcher:
                 sys.stdout.write(k)
                 sys.stdout.flush()
 
+# --- Component: Unit Workshop (KM3 dual-pane parts bench) --------------------
+
+def format_steps(steps) -> List[str]:
+    """Transaction Steps → bilingual prose lines (shared by CLI and TUI)."""
+    out: List[str] = []
+    for step in steps:
+        head, *extra = step.detail.split("; ")
+        color, mark = Colors.BOLD_GREEN, "[✓]"
+        key = ""
+        arg = ""
+        if head == "enabled":
+            key = "cli_step_enabled"
+        elif head == "already-enabled":
+            key, color, mark = "cli_step_already_enabled", Colors.DIM, "[•]"
+        elif head == "disabled":
+            key = "cli_step_disabled"
+        elif head == "already-disabled":
+            key, color, mark = "cli_step_already_disabled", Colors.DIM, "[•]"
+        elif head == "deploy-failed":
+            key, color, mark = "cli_step_deploy_failed", Colors.BOLD_RED, "[✗]"
+        elif head.startswith("missing-packages: "):
+            key, arg = "cli_step_missing_packages", head.split(": ", 1)[1]
+        elif head.startswith("blocked-by-enabled-dependents: "):
+            key, arg = "cli_step_blocked", head.split(": ", 1)[1]
+        else:
+            key, color, mark = "cli_step_failed", Colors.BOLD_RED, "[✗]"
+        notes = []
+        for part in extra:
+            if part.startswith("archived: "):
+                notes.append(msg("cli_step_archived", part.split(": ", 1)[1]))
+            elif part.startswith("foreign-left: "):
+                notes.append(msg("cli_step_foreign", part.split(": ", 1)[1]))
+            elif part.startswith("packages-left: "):
+                notes.append(msg("cli_step_packages_left", part.split(": ", 1)[1]))
+        line = msg(key, step.unit, arg) if arg else msg(key, step.unit)
+        if notes:
+            line += " (" + "; ".join(notes) + ")"
+        out.append(f"{color}{mark}{Colors.RESET} {line}")
+    return out
+
+
+class UnitWorkshop:
+    """Dual-pane parts bench (KM3): left = the unit ledger, right = one unit's
+    declarations + reconciliation. Every switch routes through the same
+    transaction path as the CLI verbs — the bench is only a projection."""
+
+    def __init__(self):
+        self.focus = 0
+        self._audit: Dict[str, str] = {}
+        self._report: Optional[List[str]] = None
+
+    # -- data ---------------------------------------------------------
+
+    def _rows(self):
+        from nyxuri.kernel import ledger, registry
+
+        recs = ledger.all_units()
+        return sorted(set(registry.unit_ids()) | set(recs)), recs
+
+    def _audit_for(self, uid: str) -> str:
+        from nyxuri.kernel import transaction
+
+        if uid not in self._audit:
+            try:
+                self._audit.update(transaction.audit_units(uid))
+            except (KeyError, Exception):
+                self._audit[uid] = ""
+        return self._audit.get(uid, "")
+
+    def _detail_lines(self, uid: str, recs: dict, width: int):
+        from nyxuri.kernel import registry
+
+        lines = []
+        rec = recs.get(uid) or {}
+        state = rec.get("state") or "-"
+        state_color = (
+            Colors.BOLD_GREEN if state == "enabled"
+            else Colors.DIM if state in ("disabled", "-") else Colors.BOLD_YELLOW
+        )
+        lines.append((msg("cli_detail_state"), f"{state_color}{state}{Colors.RESET}"))
+        lines.append((msg("cli_detail_preset"), rec.get("preset") or "-"))
+        if uid in registry.unit_ids():
+            m = registry.load_unit(uid)
+            if m.label:
+                lines.append((msg("cli_detail_label"), truncate_display(m.label, width)))
+            if m.category:
+                lines.append((msg("cli_detail_category"), m.category))
+            pkgs = (*m.packages_repo, *m.packages_aur, *m.packages_flatpak)
+            if pkgs:
+                lines.append((msg("cli_detail_packages"), truncate_display(", ".join(pkgs), width)))
+            if m.dependencies:
+                lines.append((msg("cli_detail_dependencies"), truncate_display(", ".join(m.dependencies), width)))
+            if m.requires_root or m.system_paths:
+                lines.append((msg("cli_detail_privilege"), truncate_display(", ".join(m.system_paths), width)))
+        audit = self._audit_for(uid)
+        if audit:
+            audit_color = {
+                "Synced": Colors.BOLD_GREEN, "Drifted": Colors.BOLD_YELLOW,
+                "Ghost": Colors.BOLD_RED,
+            }.get(audit, Colors.DIM)
+            lines.append((msg("cli_detail_audit"), f"{audit_color}{audit}{Colors.RESET}"))
+        if rec.get("vault"):
+            lines.append((msg("cli_detail_vault"), truncate_display(rec["vault"], width)))
+        return lines
+
+    # -- actions ------------------------------------------------------
+
+    def _switch(self, uid: str, on: bool) -> None:
+        from nyxuri.kernel import transaction
+        from nyxuri.pkg.deps import unit_package_installer
+
+        self._audit.clear()
+        if on:
+            steps = transaction.unit_on(uid, install_packages=unit_package_installer)
+        else:
+            steps = transaction.unit_off(uid, cascade=False)
+        self._report = format_steps(steps)
+
+    # -- rendering ------------------------------------------------------
+
+    def run(self) -> None:
+        if not sys.stdin.isatty():
+            return
+        env = get_env()
+        with interactive_screen():
+            while True:
+                ids, recs = self._rows()
+                if self.focus >= len(ids):
+                    self.focus = max(0, len(ids) - 1)
+                cols, term_lines = shutil.get_terminal_size((80, 24))
+                sys.stdout.write("\033[?25l\033[H")
+                show_header(msg("workshop_title").strip("\n"), env)
+
+                if self._report:
+                    body = "\n".join(self._report)
+                    write_cleared(f"\n{body}\n\n  {Colors.DARK_GRAY}{msg('workshop_back_hint')}{Colors.RESET}\n")
+                    sys.stdout.write("\033[J")
+                    sys.stdout.flush()
+                    key = read_key()
+                    self._report = None
+                    if key in ("ESC", "EXIT", "EOF"):
+                        return
+                    continue
+
+                rows_height = max(4, term_lines - 7)
+                left_w = min(36, max(22, cols // 3))
+                right_w = max(16, cols - left_w - 5)
+                right_lines: List[str] = []
+                if ids:
+                    uid = ids[self.focus]
+                    right_lines.append(f"{Colors.BOLD}{uid}{Colors.RESET}")
+                    for k, v in self._detail_lines(uid, recs, right_w - 24):
+                        right_lines.append(f"{Colors.DIM}{k:<18}{Colors.RESET} {v}")
+
+                header = f"{Colors.BOLD}{msg('workshop_left_header').ljust(left_w - 1)}{Colors.RESET}  {msg('workshop_right_header')}{Colors.RESET}"
+                write_cleared(f"  {header}\n")
+                start = max(0, min(self.focus - rows_height // 2, max(0, len(ids) - rows_height)))
+                for i in range(rows_height):
+                    idx = start + i
+                    if idx < len(ids):
+                        unit_id = ids[idx]
+                        state = (recs.get(unit_id) or {}).get("state") or "-"
+                        mark = f"{Colors.BOLD_CYAN}▸{Colors.RESET} " if idx == self.focus else "  "
+                        cell = f"{mark}{truncate_display(unit_id, left_w - 10)}{Colors.DIM}{state:<10}{Colors.RESET}"
+                        if idx == self.focus:
+                            left = f"{Colors.BOLD_CYAN}{cell}\033[K{Colors.RESET}"
+                        else:
+                            left = f"{cell}\033[K"
+                    else:
+                        left = " " * (left_w - 1) + " "
+                    right = right_lines[i] if i < len(right_lines) else ""
+                    write_cleared(f"  {left}  {right}\n")
+                if start + rows_height < len(ids):
+                    write_cleared(f"  {Colors.DARK_GRAY}...{Colors.RESET}\n")
+
+                hint = responsive_hint("workshop_hint").strip("\n")
+                write_cleared(f"\n  {Colors.DARK_GRAY}{hint}{Colors.RESET}\n")
+                sys.stdout.write("\033[J")
+                sys.stdout.flush()
+
+                key = read_key()
+                if isinstance(key, MouseEvent):
+                    if key.kind == "WHEEL_UP":
+                        self.focus = max(0, self.focus - 1)
+                    elif key.kind == "WHEEL_DOWN":
+                        self.focus = min(max(0, len(ids) - 1), self.focus + 1)
+                    continue
+                max_idx = max(0, len(ids) - 1)
+                if key in ("UP", "k", "K"):
+                    self.focus = max(0, self.focus - 1)
+                elif key in ("DOWN", "j", "J"):
+                    self.focus = min(max_idx, self.focus + 1)
+                elif key in ("HOME", "g"):
+                    self.focus = 0
+                elif key in ("END", "G"):
+                    self.focus = max_idx
+                elif key in ("o", "O") and ids:
+                    self._switch(ids[self.focus], True)
+                elif key in ("f", "F") and ids:
+                    uid = ids[self.focus]
+                    if prompt_confirm("workshop_confirm_off", "n"):
+                        self._switch(uid, False)
+                elif key in ("r", "R"):
+                    self._audit.clear()
+                elif key in ("q", "Q", "ESC", "EXIT", "EOF"):
+                    return
+
+
 # --- Component: Language Selection ---
 def select_language() -> str:
     """Prompt user to select language mode with smooth arrow keys."""
     if not sys.stdin.isatty():
-        from nyxuri.i18n import get_lang
+        from nyxuri.core import get_lang
         return get_lang()
 
-    from nyxuri.i18n import set_lang
+    from nyxuri.core import set_lang
     env = get_env()
     focus = 1  # Default to Simplified Chinese
 

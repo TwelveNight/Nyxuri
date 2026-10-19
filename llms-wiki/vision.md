@@ -39,7 +39,7 @@ Nyxuri = 内核（registry · resolver · transaction · ledger）
 状态 = off ↔ on 原子切换：切换前快照 + 准确披露，切换后交报告
 ```
 
-- **空间对偶**：仓库源码（`configs/`）是只读蓝图，用户系统（`~/.config/`）是生活
+- **空间对偶**：仓库源码（`units/`）是只读蓝图，用户系统（`~/.config/`）是生活
   空间，中轴（`deploy.atomic`）以哈希比对与原子替换连接，互不侵犯。
 - **四象限对齐**：外部供给（`pkg`）、内部渲染（`deploy`）、外部诊断（`doctor`）、
   内部回溯（`state`）各司其职，消除缝合怪与特判特例。

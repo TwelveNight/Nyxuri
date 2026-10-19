@@ -7,7 +7,7 @@ import qs.shared.i18n
 // boundary.
 //
 // The ids listed here are exactly the components BarComponentLoader dispatches
-// (shell/modules/bar/BarComponentLoader.qml). Upstream end4-pC exposes a larger
+// (shell/units/bar/BarComponentLoader.qml). Upstream end4-pC exposes a larger
 // set, but ids this project does not implement are intentionally excluded: a
 // user could otherwise drag a non-existent widget into a lane, store it, and see
 // nothing happen. Confirmed supported ids:
