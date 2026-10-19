@@ -262,3 +262,15 @@ GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctali
 个人 profile 的 snapshot/preset/rollback 只发现准备后的三个个人单元，
 不枚举上游其它全局生活区。个人配置整体通过 install/update 部署，
 不透传上游 on/off 的单元移除操作。
+
+## 2026-10-20：统一上游检查与冲突通知
+
+`nyxuri update --check` / `desktop-update check nyxuri` 会 fetch 官方 main，
+只报告上游新提交，允许保留未提交工作。普通 `nyxuri update` 通过共享
+工具合并到 night/personal-overlay，通过验证后备份并部署个人 profile。
+冲突时保留 Git 现场、停止 live 更新，并在终端和桌面通知中提示打开 AI
+修复并 git commit；之后再次 `nyxuri update`。不会自动解决或提交冲突。
+`--no-deploy` 只合并验证，`--local` 沿用本地部署语义；不会选择或重启别的桌面。
+共享工具安装：在 iNiR 源码运行 `bash scripts/personal/install-desktop-update.sh`。
+共享的 `desktop-update-check.timer` 每六小时 fetch/check 已注册桌面，
+发现新的上游提交时通知；不调用配置安装器，不重启 Noctalia/Niri。

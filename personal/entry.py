@@ -94,7 +94,7 @@ def dispatch(arguments):
         print("Nyxuri personal overlay (nyxuri)\n"
               "  nyxuri                         Open the management menu\n"
               "  nyxuri [install|deploy] [full|config] [--plan] [--yes]\n"
-              "  ./install.sh update [--local | --no-deploy] [--yes]\n"
+              "  ./install.sh update [--check | --local | --no-deploy] [--yes]\n"
               "  ./install.sh doctor | test | pkg ...\n\n"
               "Install and deploy use the same private desktop scope.\n"
               "Other explicit commands use the upstream CLI.")

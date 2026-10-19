@@ -46,3 +46,12 @@ KM5：系统软链与用户端别名 `nyxniri`、`NYXNIRI_*` 环境变量回退�
 替代能力：`on/off <unit>`（单元能力）、`snapshot`/`rollback`/`uninstall`（状态域）、
 `deps apps`（可选软件）、`bug`（诊断）；壁纸能力 = `on wallpapers`
 （外部大包走 `units/wallpapers/hooks/install-pack`）。
+
+## 个人 profile 更新入口
+
+个人分支的 `personal/entry.py` 将 `nyxuri update` 路由到
+`personal/update.py`：默认调用 `desktop-update update nyxuri`，
+`--check` 调用 `desktop-update check nyxuri`（只 fetch main 并报告），
+`--no-deploy` 调用 sync，`--local` 直接部署已审阅源码。冲突保留现场，
+停止部署并提示打开 AI 修复后提交；共享入口负责验证、备份、profile 隔离。
+未安装共享入口时保留官方 origin/源布局检查与同样的冲突提示。

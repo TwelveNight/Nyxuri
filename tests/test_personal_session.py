@@ -239,7 +239,7 @@ class TestPersonalUpdate(unittest.TestCase):
         with TempEnv(), patch("personal.update.subprocess.run", return_value=Mock(stdout=" M local.py")) as run:
             self.assertEqual(update.main([]), 1)
             self.assertEqual(run.call_count, 1)
-        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", subprocess.CalledProcessError(1, ["merge"])]), patch("personal.update.subprocess.run") as deploy:
+        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", subprocess.CalledProcessError(1, ["merge"]), ""]), patch("personal.update.subprocess.run") as deploy:
             with self.assertRaises(subprocess.CalledProcessError):
                 update.main([])
             deploy.assert_not_called()
