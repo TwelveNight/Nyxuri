@@ -1,15 +1,15 @@
 # Preset Mechanism — active 状态、src 四分支、写时序、原子写、同步语义
 
 > 预设机制的核心：活动选择存 state 文件（不占配置槽），deploy 时读它决定 src 是哪个目录。
-> 写时序铁律 + 原子写堵死所有"半途崩溃留下错乱态"的故障路径。源码：`nyxuri/deploy/preset.py`。
+> 活动状态文件遵循先部署后记录与原子写；预设目录保存的恢复边界见下文。源码：`nyxuri/deploy/preset.py`。
 
 ## active 状态文件
 
 `~/.config/nyxuri/presets/<app>.active`——一行，内容是预设名或 `default`。不占配置槽
 （这是扔掉 include 间接层、扔掉 `__preset__` 保留名的关键简化：一个概念减两份复杂度）。
-同时同步记录至 `~/.local/state/nyxuri/state.json` 账本（`presets` 字典），`read_active_preset` 优先读账本并双向自愈。
+同时同步记录至 `~/.local/state/nyxuri/state.json` 账本（`presets` 字典）。活动文件存在时为准，读后同步账本；缺失时回读账本，二者均缺失才用 `default`。
 
-- `read_active_preset(app)` → 文件不存在时返回 `"default"`，空白、读失败或非法内容会抛出 `InvalidActivePresetError` 并冻结部署
+- `read_active_preset(app)` → 文件不存在时回读账本；空白、读失败或非法内容会抛出 `InvalidActivePresetError` 并冻结部署
 - `write_active_preset(app, name)` → **原子写**（temp + `os.replace`）并同步更新 `state.json`。半写空文件会被
   拒绝并冻结部署——原子写堵死这条故障路径
 
@@ -48,6 +48,17 @@ deploy 时根据 active 选源目录，四条分支 + 一条冻结：
 `apply_preset` 只跑该 app 的 `atomic_replace` + 模板渲染，**不走**全流水线——不触发
 `_phase_post_install_services`（fisher update /
 theme-sync / gtk 重渲染）。切个 kitty 预设不该顺带跑 fisher，无关副作用违反"无熵"。
+该路径也应用 manifest 的 chmod 与已记录零件。chmod 和全量部署共用边界检查，
+跳过空模式、绝对路径、`..` 与越界链接，不修改应用目录之外的目标。
+
+## 保存用户预设的恢复边界
+
+`save_preset` 先复制到同目录的随机暂存名，复制成功后才替换已存预设。
+旧目录先改名为固定长度的 `.previous-<随机值>`，新目录提升失败时尝试改回旧名；
+恢复也失败则保留旧副本并记录日志，不先删除旧内容。保存成功后清理旧副本，清理失败只告警。
+这不是跨两次 rename 的 crash-atomic 交换：强杀或断电可能留下暂存目录和旧备份，
+需按日志及实际文件手动恢复，不能承诺自动回滚。
+验收见 `tests/test_selective_upstream_safety.py` 与 `tests/test_bugfix_regressions.py` 的预设持久性测试。
 
 ## update 同步语义（关键）
 

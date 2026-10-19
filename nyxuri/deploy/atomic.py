@@ -86,6 +86,26 @@ def _apply_toml_scalars(path: Path, values: Dict[Tuple[str, str], str]) -> int:
     return applied
 
 
+def apply_executable_permissions(dest: Path, patterns: List[str]) -> None:
+    """Apply manifest executable bits without following paths out of the app."""
+    if dest.is_symlink() or not dest.is_dir():
+        return
+    root = dest.resolve()
+    for pattern in patterns:
+        if not pattern or os.path.isabs(pattern) or ".." in Path(pattern).parts:
+            continue
+        try:
+            for path in dest.glob(pattern):
+                try:
+                    path.resolve().relative_to(root)
+                    if not path.is_symlink() and path.is_file():
+                        path.chmod(0o755)
+                except (OSError, RuntimeError, ValueError):
+                    continue
+        except (OSError, ValueError, NotImplementedError):
+            continue
+
+
 def _matches_pattern(rel_str: str, is_dir: bool, patterns: List[str]) -> bool:
     for pat in patterns:
         pat = pat.strip()

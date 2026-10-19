@@ -200,7 +200,7 @@ def _edit_flat_config(content, changes):
 
 
 def _write_config(path, content):
-    target = path.resolve()
+    target = path
     with tempfile.TemporaryDirectory() as directory:
         source = Path(directory) / target.name
         source.write_text(content, encoding="utf-8")
@@ -343,7 +343,6 @@ def fcitx_install(set_default: bool = True) -> bool:
     return True
 
 
-@module_action
 def _rime_owned_marker() -> Path:
     return get_env().state_dir / f"fcitx-{FCITX_THEME}-rime.owned"
 
@@ -357,6 +356,7 @@ def _read_rime_owned() -> set:
     return {name for name in names if name}
 
 
+@module_action
 def setup_rime_ice() -> bool:
     """Mount rime_ice schema into user rime dir, precompile, and ensure rime in fcitx5 profile."""
     env = get_env()

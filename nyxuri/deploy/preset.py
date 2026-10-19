@@ -570,7 +570,7 @@ def apply_preset(app: str, name: str) -> bool:
     runtime-managed files the new variant doesn't ship.
     """
     from nyxuri.deploy.templates import _phase_render_templates
-    from nyxuri.deploy.atomic import atomic_replace_item
+    from nyxuri.deploy.atomic import apply_executable_permissions, atomic_replace_item
     from nyxuri.deploy.manifest import load_manifest_for
 
     env = get_env()
@@ -616,13 +616,7 @@ def apply_preset(app: str, name: str) -> bool:
     except Exception:
         manifest = None
     if manifest is not None:
-        for pattern in manifest.chmod:
-            for path in dest.glob(pattern):
-                if path.is_file():
-                    try:
-                        path.chmod(0o755)
-                    except OSError:
-                        pass
+        apply_executable_permissions(dest, manifest.chmod)
         try:
             from nyxuri.deploy.deploy import _reconcile_active_parts
             for failure in _reconcile_active_parts(app, manifest):
@@ -694,6 +688,7 @@ def save_preset(app: str, name: str) -> bool:
         return False
 
     staging = f".{name}.{secrets.token_hex(8)}"
+    previous = f".previous-{secrets.token_hex(8)}"
     try:
         with ExitStack() as stack:
             src_fd = os.open(dest, _DIR_FLAGS)
@@ -721,10 +716,27 @@ def save_preset(app: str, name: str) -> bool:
             if (current.st_dev, current.st_ino) != (bound.st_dev, bound.st_ino):
                 raise OSError("preset target changed while saving")
             try:
-                _remove_tree_at(user_fd, name)
+                existing = os.stat(name, dir_fd=user_fd, follow_symlinks=False)
             except FileNotFoundError:
-                pass
-            os.rename(staging, name, src_dir_fd=user_fd, dst_dir_fd=user_fd)
+                existing = None
+            if existing is not None:
+                if not stat.S_ISDIR(existing.st_mode):
+                    raise OSError("unsafe preset target")
+                os.rename(name, previous, src_dir_fd=user_fd, dst_dir_fd=user_fd)
+            try:
+                os.rename(staging, name, src_dir_fd=user_fd, dst_dir_fd=user_fd)
+            except BaseException:
+                if existing is not None:
+                    try:
+                        os.rename(previous, name, src_dir_fd=user_fd, dst_dir_fd=user_fd)
+                    except OSError as error:
+                        log_msg("ERROR", f"Previous preset retained at {env.presets_dir / app / previous}: {error}")
+                raise
+            if existing is not None:
+                try:
+                    _remove_tree_at(user_fd, previous)
+                except OSError as error:
+                    log_msg("WARN", f"Saved preset; previous copy retained at {env.presets_dir / app / previous}: {error}")
     except OSError as e:
         _discard_staging_preset(app, staging)
         print(msg("preset_save_failed", app, name))

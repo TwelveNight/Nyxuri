@@ -13,7 +13,7 @@
 | `aur` | `[]` | AUR 包名 |
 | `preserve` | `[]` | 跨部署保留的文件（按名声明，如 `monitor.kdl`；与 Dunder 不同机制） |
 | `preserve_values` | `{}` | 跨部署保留指定文本配置里的个别键，形如 `{ "noctalia-config.toml" = ["enable_ddcutil"] }`。旧文件里存在的键按原样带入新文件，缺失的键不携带，沿用新模板的值 |
-| `chmod` | `[]` | 部署后设 +x 的 glob（相对 app 目录，如 `scripts/*.sh`） |
+| `chmod` | `[]` | 部署及切预设后设 +x 的 glob（相对 app 目录，如 `scripts/*.sh`）；空模式、绝对路径、`..` 与越界链接跳过 |
 | `label` | `<目录名>` | 菜单显示名 |
 | `detect` | `<目录名>` | 检测是否安装的命令名（纯名字，无 `binary:` 前缀 DSL） |
 
@@ -49,7 +49,7 @@
 ```toml
 # configs/niri/.module.toml — monitor.kdl 被 include 引用；effects.kdl 为运行时护眼模式符号链接
 [packages]
-preserve = ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl"]
+preserve = ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "eyecare_temp"]
 chmod = ["scripts/*.sh", "scripts/*.py"]
 
 [parts.effects]
@@ -65,14 +65,16 @@ default = "default"
 # configs/kitty/.module.toml — 切换预设后发送 SIGUSR1 热重载
 [packages]
 repo = ["kitty"]
+preserve = ["current-theme.conf", "themes/noctalia.conf"]
 
 [presets]
 reload = ["pkill", "-SIGUSR1", "-x", "kitty"]
 
-# configs/noctalia/.module.toml — 三个主题脚本
+# configs/noctalia/.module.toml — 保留用户 DDC 开关并设置工具执行权限
 [packages]
-repo = ["noctalia", "python-gobject", "gtk-layer-shell"]
-chmod = ["theme-sync.sh", "wallpaper-hook.sh", "mpvpaper-sync.sh"]
+repo = ["noctalia", "python-gobject", "gtk-layer-shell", "wl-clipboard"]
+preserve_values = { "noctalia-config.toml" = ["enable_ddcutil"] }
+chmod = ["wallpaper-hook.sh", "mpvpaper-sync.sh", "tools/*.sh", "tools/*.py"]
 
 # configs/xdg-desktop-portal/.module.toml — 只改菜单名
 [packages]

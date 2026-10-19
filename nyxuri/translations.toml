@@ -1643,8 +1643,8 @@ zh = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} 已保存 {0} 用户预设: {1}"
 en = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} Saved {0} user preset: {1}"
 
 [preset_save_failed]
-zh = "  {Colors.BOLD_RED}[✗]{Colors.RESET} 保存 {0} 预设 '{1}' 失败（原有预设未被改动）"
-en = "  {Colors.BOLD_RED}[✗]{Colors.RESET} Failed to save preset '{1}' for {0} (existing preset left untouched)"
+zh = "  {Colors.BOLD_RED}[✗]{Colors.RESET} 保存 {0} 预设 '{1}' 失败，详情见日志"
+en = "  {Colors.BOLD_RED}[✗]{Colors.RESET} Failed to save preset '{1}' for {0}; see the log for details"
 
 [log_part_reconcile_failed]
 zh = "  {Colors.BOLD_RED}[✗]{Colors.RESET} {0}: 已记录的部件变体未能落盘（{1}）"

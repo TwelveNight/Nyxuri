@@ -46,3 +46,8 @@ def module_action(action):
 - `fcitx_deploy_assets()` / `nyxuri fcitx deploy`：仅释放皮肤素材并注册模板，不静默改写当前主题；
 - `fcitx_activate()` / `nyxuri fcitx activate`：显式将已部署的主题设为活动主题；
 - `setup_rime_ice()`：由 `.optional-apps.toml` 的 `post_install` 钩子自动触发，挂载雾凇拼音方案、预编译 schema 并写入 profile。
+
+`setup_rime_ice` 的预期文件错误同样经过 `@module_action` 返回 `False`；路径辅助函数不承载该错误边界。
+Fcitx 配置写入保留原有原子替换语义，不追随最终配置文件的软链接去写其目标。
+重复键兼容不代表允许格式损坏的配置被静默重置。验收见 `tests/test_fcitx.py` 与
+`tests/test_selective_upstream_safety.py`。

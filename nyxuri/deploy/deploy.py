@@ -6,7 +6,6 @@ assets (wallpapers), manifest (app discovery), preset
 (active variant). Modules/state/deps are lazy-imported to avoid cycles.
 """
 
-import os
 import shutil
 import sys
 import time
@@ -19,6 +18,7 @@ from nyxuri.i18n import msg
 from nyxuri.tui import read_key, responsive_hint, show_logo, raw_input_mode, _drain_pending
 
 from nyxuri.deploy.atomic import (
+    apply_executable_permissions,
     atomic_replace_item,
 )
 from nyxuri.deploy.assets import WallpaperDeployResult, deploy_wallpapers, wallpapers_pack_present
@@ -118,15 +118,7 @@ def _phase_atomic_deployment(
             continue
 
         # Executable permissions — manifest chmod globs, relative to app dir
-        for pattern in manifest.chmod:
-            if not pattern or os.path.isabs(pattern):
-                continue
-            for p in dest.glob(pattern):
-                if p.is_file():
-                    try:
-                        p.chmod(0o755)
-                    except OSError:
-                        pass
+        apply_executable_permissions(dest, manifest.chmod)
 
         reconcile_failures = _reconcile_active_parts(item, manifest)
         if reconcile_failures:
