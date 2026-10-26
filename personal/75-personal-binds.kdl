@@ -60,6 +60,7 @@ binds {
     Mod+Shift+M { spawn "noctalia" "msg" "volume-mute"; }
     Mod+Shift+R repeat=false hotkey-overlay-title="Toggle screen recording" { spawn "noctalia" "msg" "plugin" "noctalia/screen_recorder:service" "all" "toggle"; }
     Mod+Shift+X repeat=false hotkey-overlay-title="Recognize screen text" { spawn "~/.config/niri/scripts/screen_ocr.py"; }
+    Mod+Shift+S repeat=false hotkey-overlay-title="Search screenshot with Google Lens" { spawn "~/.config/niri/scripts/screen_search.py"; }
     Mod+Shift+A { spawn "noctalia" "msg" "screenshot-annotate"; }
     Ctrl+Shift+S { spawn "noctalia" "msg" "screenshot-region"; }
 }

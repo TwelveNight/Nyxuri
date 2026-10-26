@@ -208,6 +208,19 @@ Tesseract 以 `chi_sim+eng` 识别中英文，结果作为 UTF-8 纯文字写入
 验证用 `tests/test_personal_screen_ocr.py` 的 TempEnv 隔离测试检查部署、参数、取消、
 空结果与失败分支；实际会话还需触发快捷键、框选文字并核对剪贴板。
 
+## Google Lens 截图搜索
+
+`Mod+Shift+S` 在个人层覆盖上游截图动作，调用 `screen_search.py`：slurp 框选，
+grim 将选区 PNG 通过内存交给 curl，采用 SekaiPop 的 `files[]` 表单上传
+`https://uguu.se/upload`，再由默认浏览器访问 Google Lens 的 `uploadbyurl` 导入图片。
+不再使用 curl 直传 Google 后返回的临时搜索会话链接；HTTP 303 不代表图片可在浏览器中搜索。
+截图不在本地保存，不改剪贴板；Esc 取消不上传，上传失败或返回非 Uguu HTTPS 图片地址时
+提示失败，不打开任意地址。
+依赖 `slurp`、`grim`、`curl`、`xdg-open`；可选 `notify-send` 提供失败提示。
+用户已接受与 SekaiPop 相同的临时图床边界：选区发送给 Uguu 与 Google，图片可通过
+临时链接访问，不适合私密内容；本地不保存图片不等于远端立即删除。
+它与本地、不上传的 OCR `Mod+Shift+X` 独立。
+
 ## 个人屏幕与显卡
 
 个人部署副本加入 `personal-gpu.kdl`，沿用 iNiR 的稳定 NVIDIA PCI render 路径

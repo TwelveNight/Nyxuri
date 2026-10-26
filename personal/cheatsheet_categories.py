@@ -32,7 +32,7 @@ def category(action):
         return "概览与快捷键"
     if "noctalia/screen_recorder:" in value:
         return "录屏"
-    if "screenshot" in value or "screen_ocr.py" in value:
+    if "screenshot" in value or "screen_ocr.py" in value or "screen_search.py" in value:
         return "截图"
     if "brightness" in value or "eyecare" in value or "zoomctl" in value:
         return "屏幕显示"

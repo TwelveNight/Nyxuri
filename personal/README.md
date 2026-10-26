@@ -187,6 +187,7 @@ journalctl --user -b -u skwd-walld.service
 - Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
 - Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动；Alt+W：浮动/平铺切换。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；Super+Shift+X：[框选识别文字](../llms-wiki/dual-session.md#屏幕文字识别)；Super+Shift+A：截图标注。
+- Mod+Shift+S：沿用 SekaiPop 的 Google Lens 搜图流程，选区先上传 uguu.se 临时图床，再交给 Google；图片可通过链接访问，不适合敏感内容。不改剪贴板。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。
 
