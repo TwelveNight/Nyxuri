@@ -186,11 +186,11 @@ journalctl --user -b -u skwd-walld.service
 - Mod+Tab：Nyxuri Orbit；Mod+S：控制中心首页；Mod+A：音频设置；Mod+B：蓝牙；Mod+D：网络／Wi-Fi。Orbit 中直接输入或按 Tab 进入多引擎／AI 搜索。
 - Super+X：留给应用；Super+Alt+Delete / Ctrl+Alt+Delete：电源菜单；Mod+BackSpace：锁屏；Mod+I：设置。
 - Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动；Alt+W：浮动/平铺切换。
-- Ctrl+1 / Ctrl+Alt+左键：区域截图；原 OCR 菜单键打开截图编辑，不提供 OCR。
+- Ctrl+1 / Ctrl+Alt+左键：区域截图；Super+Shift+X：[框选识别文字](../llms-wiki/dual-session.md#屏幕文字识别)；Super+Shift+A：截图标注。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。
 
-Noctalia 没有对应的 iNiR 十字准星、面板家族切换和 OCR／搜索截图；
+Noctalia 没有对应的 iNiR 十字准星、面板家族切换和搜索截图；OCR 使用个人脚本，
 截图菜单键映射截图编辑，录屏插件未启用，Super+Shift+R 暂保留重新加载配置。
 屏幕键盘键暂为空操作；Super+V 使用三套桌面共用的 cliphist 历史，详见下节。
 `personal/startup.kdl` 启动现有的可选 `niri-zoomd`，缺失时跳过。

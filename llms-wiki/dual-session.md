@@ -177,6 +177,25 @@ Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选�
 让当前 Nyxuri 启动事务中的应用等托盘就绪；没有 Wants/Requires，不会在其他桌面
 拉起 Nyxuri。它们同时沿用既有 iNiR 的 compositor ready ExecStartPre。
 
+## 屏幕文字识别
+
+`Super+Shift+X` 调用个人 `screen_ocr.py`，用 slurp 框选屏幕区域，grim 捕获，
+Tesseract 以 `chi_sim+eng` 识别中英文，结果作为 UTF-8 纯文字写入 Wayland 剪贴板。
+移除相邻汉字间 OCR 插入的空格，保留英文词间空格与原有换行。
+按 Esc 取消或识别结果为空时不改剪贴板；失败只显示通用提示，不展示识别内容。
+截图与文字在内存中传递，不上传、不另存图片／文字；既有剪贴板历史仍按原策略记录结果。
+`Super+Shift+A` 继续打开截图标注，不改变其他截图键位或 Orbit 菜单。
+
+依赖 `slurp`、`grim`、`tesseract`、`wl-clipboard`，以及
+`tesseract-data-chi_sim`、`tesseract-data-eng`；通知使用 `libnotify` 的 `notify-send`。
+这些是可选 OCR 依赖，不为使用其他桌面功能强制安装；缺少工具时快捷键提示，
+语言包缺失或屏幕捕获失败时不覆盖剪贴板。个人安装器将脚本复制到
+`niri/scripts/screen_ocr.py`，经现有原子部署和 manifest chmod 规则生效，
+不修改上游 `units/`，不添加守护进程。
+
+验证用 `tests/test_personal_screen_ocr.py` 的 TempEnv 隔离测试检查部署、参数、取消、
+空结果与失败分支；实际会话还需触发快捷键、框选文字并核对剪贴板。
+
 ## 个人屏幕与显卡
 
 个人部署副本加入 `personal-gpu.kdl`，沿用 iNiR 的稳定 NVIDIA PCI render 路径

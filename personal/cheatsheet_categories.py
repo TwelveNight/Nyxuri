@@ -30,7 +30,7 @@ def category(action):
         return "全屏"
     if "toggle-overview" in value or "show-hotkey-overlay" in value or "keybind-cheatsheet" in value:
         return "概览与快捷键"
-    if "screenshot" in value:
+    if "screenshot" in value or "screen_ocr.py" in value:
         return "截图"
     if "brightness" in value or "eyecare" in value or "zoomctl" in value:
         return "屏幕显示"
