@@ -12,6 +12,7 @@ import shutil
 import sys
 import time
 from contextlib import ExitStack
+from pathlib import Path
 from typing import List, Optional
 
 from nyxuri.core import Colors, REPO_URL, THEME_ENGINE
