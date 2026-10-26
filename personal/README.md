@@ -246,6 +246,7 @@ Super+Q 与 Alt+Q 沿用 iNiR 的 Folia 行为：隐藏主窗口到自身托盘�
 临时个人覆盖仍可写入最后加载的 `__custom__.kdl`，安装更新会保留它。
 
 Super+/ 打开社区 Keybind Cheatsheet 的可搜索快捷键面板，读取本桌面的私有 Niri 配置。
+插件中的 SUPER／MOD 修饰键标签统一显示为 Mod；仅调整显示名称，不改按键语义。
 新安装首次需在 Noctalia 插件设置中启用 `kenn/keybind-cheatsheet`；
 更新键位后可执行 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh` 刷新缓存。
 

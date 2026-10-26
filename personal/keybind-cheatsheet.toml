@@ -1,3 +1,4 @@
 [plugin_settings."kenn/keybind-cheatsheet"]
 compositor = "niri"
 niri_config = "~/.config/niri/config.kdl"
+modifier_labels = { SUPER = "Mod", MOD = "Mod" }

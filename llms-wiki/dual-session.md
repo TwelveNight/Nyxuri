@@ -277,6 +277,8 @@ Super+/ 在个人 binds 中覆盖上游 show-hotkey-overlay，打开社区插件
 当前实例已通过 `noctalia msg plugins enable kenn/keybind-cheatsheet` 安装启用，
 启用状态由私有 GUI 状态保存。首次新安装需同样启用一次；个人安装只部署键位和
 插件设置，不在部署循环里下载插件。Ctrl+Super+/ 编辑配置的键位不变。
+个人设置使用插件原生 `modifier_labels = { SUPER = "Mod", MOD = "Mod" }`，
+统一 Niri 及输入法快捷键里的修饰键显示；不修改插件源码或实际键位含义。
 
 部署时 `personal/cheatsheet_categories.py` 只为私有副本的 config、binds 和两份
 个人 binds 添加插件支持的 `// #"分类"` 注释，不改快捷键动作或第三方插件源码。

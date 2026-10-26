@@ -21,6 +21,7 @@ class PersonalCheatsheetTests(unittest.TestCase):
             settings = config["plugin_settings"]["kenn/keybind-cheatsheet"]
             self.assertEqual(settings["compositor"], "niri")
             self.assertEqual(settings["niri_config"], "~/.config/niri/config.kdl")
+            self.assertEqual(settings.get("modifier_labels"), {"SUPER": "Mod", "MOD": "Mod"})
             # Deploy the generated settings as the installer does. The plugin
             # expands '~' itself, so the root must resolve in the target HOME.
             target = ctx.home / ".config/desktop-profiles/nyxuri"
