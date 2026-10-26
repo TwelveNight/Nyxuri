@@ -1,3 +1,8 @@
+# Systemd-started Noctalia may not have ~/.local/bin in PATH.
+# Keep the upstream theme writer, but resolve its permanent launcher explicitly.
+[hooks]
+theme_mode_changed = '"/home/user/.local/bin/nyxuri" theme sync'
+
 # Do not enable the builtin niri template: its hooks modify the legacy Niri tree.
 # This user template has no apply/undo hooks and only writes the private session.
 [theme.templates.user.nyxuri_niri_colors]

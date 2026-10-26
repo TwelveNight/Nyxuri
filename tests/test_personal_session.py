@@ -116,7 +116,7 @@ class TestPersonalSession(unittest.TestCase):
             config = tomllib.loads(result.stdout)
             self.assertFalse(config["wallpaper"]["enabled"])
             self.assertFalse(config["shell"]["clipboard_enabled"])
-            self.assertEqual(config["hooks"]["theme_mode_changed"], "nyxuri theme sync")
+            self.assertEqual(config["hooks"]["theme_mode_changed"], f'"{ctx.home}/.local/bin/nyxuri" theme sync')
             self.assertEqual(config["hooks"]["wallpaper_changed"],
                              ["python3 ~/.config/niri/scripts/wallpaper.py hook"])
             self.assertIn("bar", config["bar"])

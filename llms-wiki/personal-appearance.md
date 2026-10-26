@@ -27,6 +27,13 @@
 或改其他桌面的自启动。若锁持有者退出而 compositor 留下纯色保护画面，先恢复稳定
 Shell 并重新请求原生锁屏，让用户正常认证，不绕过安全锁或重启 compositor 丢失窗口。
 
+## 系统深浅同步
+
+Noctalia 的 `theme_mode_changed` 继续调用上游 `nyxuri theme sync`，
+但个人外观配置显式使用永久入口 `"/home/user/.local/bin/nyxuri" theme sync`；
+部署时由现有模板渲染替换 HOME。systemd 启动的 Shell 不保证 PATH 包含
+`~/.local/bin`，不能只靠交互终端里能找到命令来证明 hook 可执行。
+
 ## 光标
 
 保留已有 `Bibata-Modern-Classic`，不为匹配 GTK 而替换成 Ice，
@@ -46,7 +53,8 @@ GTK3／GTK4 的生成 CSS 仍沿用已经接受的共享应用输出路径，由
 ## 验证
 
 `tests/test_personal_appearance.py` 验证私有路径、HOME 渲染、include 优先级、
-颜色模板不改变几何和旧桌面哨兵不变。`tests/test_personal_cursor.py` 检查光标与
+颜色模板不改变几何、旧桌面哨兵不变，以及不含用户 bin 的 PATH 下已部署主题
+hook 的 HOME 展开、执行和 `theme sync` 参数。`tests/test_personal_cursor.py` 检查光标与
 单元一致及共享设置不变。`tests/test_personal_gtk.py` 使用隔离子进程的 GTK3
 CssProvider 解析已替换 fixture 色值的私有模板；缺少 GTK3 introspection 时跳过。
 

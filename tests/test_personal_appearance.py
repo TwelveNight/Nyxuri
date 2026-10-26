@@ -1,6 +1,9 @@
 """Wallpaper colors belong to the private Nyxuri compositor, not legacy Niri."""
 import contextlib
 import io
+import os
+import shlex
+import subprocess
 import unittest
 import tomllib
 from unittest.mock import patch
@@ -10,6 +13,32 @@ from tests.utils import TempEnv
 
 
 class PersonalAppearanceTests(unittest.TestCase):
+    def test_theme_hook_runs_without_user_bin_in_path(self):
+        with TempEnv() as ctx:
+            kitty = ctx.home / ".config/kitty/kitty.conf"
+            kitty.parent.mkdir()
+            kitty.write_text("shell zsh\n")
+            with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), \
+                 patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
+                 patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(install.main(["--yes"]), 0)
+            config = ctx.home / ".config/desktop-profiles/nyxuri/noctalia"
+            data = tomllib.loads((config / "noctalia-config.toml").read_text())
+            personal = tomllib.loads((config / "zz-personal-appearance.toml").read_text())
+            hook = personal.get("hooks", {}).get("theme_mode_changed", data["hooks"]["theme_mode_changed"])
+            launcher = ctx.home / ".local/bin/nyxuri"
+            self.assertEqual(shlex.split(hook), [str(launcher), "theme", "sync"])
+            # Record argv without invoking the real theme writer or session IPC.
+            launcher.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$HOME/hook-argv"\n')
+            launcher.chmod(0o755)
+            env = {**os.environ, "PATH": "/usr/bin:/bin"}
+            result = subprocess.run(["/bin/sh", "-c", hook], env=env,
+                                    capture_output=True, text=True, timeout=5, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((ctx.home / "hook-argv").read_text(), "theme\nsync\n")
+
+
     def test_installed_palette_paths_expand_home_without_touching_legacy_niri(self):
         with TempEnv() as ctx:
             config = ctx.home / ".config"

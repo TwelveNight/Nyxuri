@@ -77,8 +77,9 @@ runtime 必须在调用交接子进程和启动 Noctalia 前设置自身环境�
 
 ## 壁纸和颜色
 
-按用户选择保留上游 theme_mode_changed = "nyxuri theme sync"，切换深浅主题时
-同步共享应用主题；三套桌面共用 skwd 壁纸，此处允许全局配色同步。
+切换深浅主题时调用上游 `nyxuri theme sync` 同步共享应用主题；
+个人 hook 的永久入口寻址与验收见[个人配色](personal-appearance.md#系统深浅同步)。
+三套桌面共用 skwd 壁纸，此处允许全局配色同步。
 `zz-personal.toml` 再次关闭 builtin/community 配色模板，禁用输出到私有目录和
 `~/.cache/nyxuri-desktop/` 缓存之外的用户模板，防止更新上游默认值重新写入公共配置。
 部署副本关闭 Noctalia 桌面绘制、mpvpaper 插件；wallpaper_changed 调用个人 wallpaper.py hook。
