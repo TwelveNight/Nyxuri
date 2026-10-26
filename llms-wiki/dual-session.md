@@ -177,6 +177,18 @@ Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选�
 让当前 Nyxuri 启动事务中的应用等托盘就绪；没有 Wants/Requires，不会在其他桌面
 拉起 Nyxuri。它们同时沿用既有 iNiR 的 compositor ready ExecStartPre。
 
+## 录屏快捷键
+
+`Super+Shift+R` 在个人键位层覆盖上游的配置重载，调用
+`noctalia msg plugin noctalia/screen_recorder:service all toggle`。
+空闲时开始录制，再按一次停止；按键不连发。录制和待选屏幕的状态由插件处理，
+不添加独立脚本、守护进程或第二套进程管理。
+
+需要已安装并启用官方 `noctalia/screen_recorder` 及其依赖；个人部署只添加键位，
+不下载安装插件，也不改录制设置。默认 `video_source=portal`，开始时由原生选择器
+询问录制目标；目录未自定义时保存到 `~/Videos/Recordings`。快捷键速查归入“录屏”。
+需要手动重载 Niri 时仍可用 `niri msg action load-config-file`。
+
 ## 屏幕文字识别
 
 `Super+Shift+X` 调用个人 `screen_ocr.py`，用 slurp 框选屏幕区域，grim 捕获，

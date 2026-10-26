@@ -191,7 +191,7 @@ journalctl --user -b -u skwd-walld.service
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。
 
 Noctalia 没有对应的 iNiR 十字准星、面板家族切换和搜索截图；OCR 使用个人脚本，
-截图菜单键映射截图编辑，录屏插件未启用，Super+Shift+R 暂保留重新加载配置。
+截图菜单键映射截图编辑；Super+Shift+R 开始／停止已安装的官方录屏插件，沿用其屏幕选择、编码与保存设置。
 屏幕键盘键暂为空操作；Super+V 使用三套桌面共用的 cliphist 历史，详见下节。
 `personal/startup.kdl` 启动现有的可选 `niri-zoomd`，缺失时跳过。
 

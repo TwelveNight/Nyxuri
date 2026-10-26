@@ -11,6 +11,18 @@ from personal import install, niri_actions, autostart, runtime
 
 
 class PersonalPreferencesTests(unittest.TestCase):
+    def test_super_shift_r_toggles_the_existing_recorder_plugin(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            binds = (source / "niri/75-personal-binds.kdl").read_text()
+            self.assertIn('Mod+Shift+R repeat=false hotkey-overlay-title="Toggle screen recording" { spawn "noctalia" "msg" "plugin" "noctalia/screen_recorder:service" "all" "toggle"; }', binds)
+            self.assertIn('// #"录屏"\n    Mod+Shift+R ', binds)
+            config = (source / "niri/config.kdl").read_text()
+            self.assertLess(config.index('include "binds.kdl"'), config.index('include "75-personal-binds.kdl"'))
+            self.assertIn('Mod+Shift+X repeat=false hotkey-overlay-title="Recognize screen text"', binds)
+
     def test_shortcut_toggle_is_nonrepeating_and_always_reachable(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"
