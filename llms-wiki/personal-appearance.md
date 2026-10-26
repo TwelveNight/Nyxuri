@@ -34,6 +34,12 @@ Noctalia 的 `theme_mode_changed` 继续调用上游 `nyxuri theme sync`，
 部署时由现有模板渲染替换 HOME。systemd 启动的 Shell 不保证 PATH 包含
 `~/.local/bin`，不能只靠交互终端里能找到命令来证明 hook 可执行。
 
+深浅切换由原有 theme writer 同步 GSettings 的 color-scheme、GTK 主题名和
+GTK3／GTK4 的 settings.ini；个人命令入口仅为它提供已生成的 GTK3 主题名，
+退出或异常时恢复这些进程环境变量。不新增监听器、不改变 Portal 路由。
+验收需从 Noctalia 双向切换，核对这些信号与跟随系统的实际应用画面，
+不能以某一个 Portal 值或手动固定浅色作为自动跟随成功。
+
 ## 光标
 
 保留已有 `Bibata-Modern-Classic`，不为匹配 GTK 而替换成 Ice，
@@ -45,10 +51,29 @@ Noctalia 的 `theme_mode_changed` 继续调用上游 `nyxuri theme sync`，
 `color-mix()` 声明，保留紧邻的纯色 fallback。仓库上游模板、GTK4 模板和
 其他桌面的源文件不变。
 
-GTK3／GTK4 的生成 CSS 仍沿用已经接受的共享应用输出路径，由当前桌面持有配色；
-本修复不新建共享输出、不改 Portal 路由、GSettings 强调色或共享深浅设置，
-不将其他桌面的固定应用主题改成 Nyxuri 模板。同一用户共享应用配置不是同时运行
-多套桌面的并发隔离；切换登录的真实往返行为仍需实机验收。
+GTK 的共享应用配色仍由当前桌面持有；
+GTK4 保留原有 `gtk.css` 双 `@media` 输出。GTK3 改为下面的命名主题输出，
+不改 Portal 路由、GSettings 强调色或其他桌面的主题源文件。
+同一用户共享应用配置不是同时运行多套桌面的并发隔离；切换登录仍需实机验收。
+
+### GTK3 命名主题与热重载
+
+GTK3 在启动时缓存用户 `gtk.css` 和 prefer-dark 属性。Chromium 148 的系统
+明暗判断取自 GTK 背景色；只改 Portal 或磁盘 CSS，旧进程可能始终停在启动色。
+个人部署从同一份上游模板生成 light／dark 两份输入，分别引用显式模式的色板，
+由 Noctalia 写入 `~/.local/share/themes/Nyxuri-M3-{Light,Dark}/gtk-3.0/gtk.css`。
+`base.css` 引用已安装的对应 adw-gtk3 主题，不复制系统主题或替换应用运行库。
+
+`personal/gtk3.py` 仅在两份色板都存在且基底可用时启用适配。旧用户 CSS 必须
+完整匹配上一份受管模板的渲染结构才可迁移；先备份至
+`~/.local/state/nyxuri-desktop/gtk3/gtk.css.before-named-themes`，再换成归属说明。
+未知改动、符号链接或同名非受管 wrapper 都拒绝覆盖。
+
+dark 模板渲染完成后同步调用同一 `nyxuri theme sync`，通过
+`NYXURI_GTK3_REFRESH=1` 在当前模式的主主题名与 `-Alt` 导入别名间轮换，
+让同模式下的壁纸色板更新也触发 GTK 重新加载；不生成第二套配色算法或常驻监听。
+从旧全局 CSS 迁移后，已缓存它的应用需完整退出再打开一次；此后验证需覆盖
+深浅双向、同模式重渲染与新进程启动，不能只看配置值。
 
 ## 验证
 
@@ -57,6 +82,9 @@ GTK3／GTK4 的生成 CSS 仍沿用已经接受的共享应用输出路径，由
 hook 的 HOME 展开、执行和 `theme sync` 参数。`tests/test_personal_cursor.py` 检查光标与
 单元一致及共享设置不变。`tests/test_personal_gtk.py` 使用隔离子进程的 GTK3
 CssProvider 解析已替换 fixture 色值的私有模板；缺少 GTK3 introspection 时跳过。
+`tests/test_personal_gtk3_theme.py` 检查命名主题选择、轮换、迁移备份、未知内容
+保护、缺失色板的降级及命令异常后的环境恢复。跨进程探针用隔离 keyfile 后端；
+仅改 XDG 路径而复用登录会话的 dconf 服务，仍可能写到真实用户设置。
 
 定点部署后验证私有 Niri／Noctalia 配置、生成颜色与当前调色板一致，并比对
 公共 Niri、Hyprland、共享设置的受保护文件。配置加载与真实窗口重绘分别报告。

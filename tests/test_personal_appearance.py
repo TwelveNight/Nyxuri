@@ -13,6 +13,28 @@ from tests.utils import TempEnv
 
 
 class PersonalAppearanceTests(unittest.TestCase):
+    def test_gtk3_uses_named_dual_mode_themes_instead_of_cached_user_css(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            policy = tomllib.loads((source / "noctalia/zz-personal.toml").read_text())
+            templates = policy["theme"]["templates"]["user"]
+            self.assertFalse(templates["nyxuri_gtk3"]["enabled"])
+            for mode in ("light", "dark"):
+                entry = templates[f"nyxuri_gtk3_{mode}"]
+                self.assertTrue(entry["enabled"])
+                self.assertEqual(entry["input_path"], f"/home/user/.config/noctalia/templates/gtk-3.0-{mode}.css")
+                self.assertEqual(entry["output_path"], f"/home/user/.local/share/themes/Nyxuri-M3-{mode.title()}/gtk-3.0/gtk.css")
+                text = (source / f"noctalia/templates/gtk-3.0-{mode}.css").read_text()
+                self.assertTrue(text.startswith('@import url("base.css");\n'))
+                self.assertIn(f"colors.background.{mode}.hex", text)
+                self.assertNotIn(".default.", text)
+                self.assertNotIn("color-mix(", text)
+            self.assertEqual(templates["nyxuri_gtk3_dark"]["post_hook"],
+                             'NYXURI_GTK3_REFRESH=1 "/home/user/.local/bin/nyxuri" theme sync')
+            self.assertFalse(templates["nyxuri_gtk3_dark"]["hook_async"])
+
     def test_theme_hook_runs_without_user_bin_in_path(self):
         with TempEnv() as ctx:
             kitty = ctx.home / ".config/kitty/kitty.conf"
@@ -37,7 +59,6 @@ class PersonalAppearanceTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=5, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual((ctx.home / "hook-argv").read_text(), "theme\nsync\n")
-
 
     def test_installed_palette_paths_expand_home_without_touching_legacy_niri(self):
         with TempEnv() as ctx:

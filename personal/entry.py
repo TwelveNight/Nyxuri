@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 from nyxuri import core
-from personal import install, update
+from personal import gtk3, install, update
 
 GDM_ENTRY = Path("/usr/share/wayland-sessions/nyxuri.desktop")
 
@@ -124,6 +124,9 @@ def dispatch(arguments):
                 scoped.units_src = Path(temporary)
                 scoped.shell_units_src = Path(temporary) / "unused-shell-units"
                 install.prepare_sources(scoped.units_src)
+                upstream_main()
+        elif command == "theme" and (not rest or len(rest) == 1 and rest[0] in ("toggle", "dark", "light", "sync")):
+            with gtk3.environment():
                 upstream_main()
         else:
             upstream_main()

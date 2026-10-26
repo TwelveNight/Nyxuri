@@ -248,7 +248,8 @@ Super+/ 打开社区 Keybind Cheatsheet 的可搜索快捷键面板，读取本�
 新安装首次需在 Noctalia 插件设置中启用 `kenn/keybind-cheatsheet`；
 更新键位后可执行 `noctalia msg plugin kenn/keybind-cheatsheet:data all refresh` 刷新缓存。
 
-GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctalia 素材，输出共享 `~/.config/gtk-3.0/gtk.css` 与 `gtk-4.0/gtk.css`。壁纸变化渲染当前色板；`theme sync` 仍负责深浅模式。已打开的 GTK 应用可能需要重新打开才能加载新 CSS。
+GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctalia 素材。
+命名 GTK3 主题、GTK4 共享 CSS 和首次迁移后的应用重开要求见[个人配色契约](../llms-wiki/personal-appearance.md#gtk3-命名主题与热重载)。
 
 
 ## units 上游与更新

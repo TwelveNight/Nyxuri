@@ -147,7 +147,7 @@ def prepare_sources(destination: Path) -> None:
     # Reassert the personal output boundary against fresh upstream defaults.
     data = tomllib.loads(text)
     fcitx_names = {f"nyxmellow_{suffix}" for suffix in ("theme", "panel", "highlight")}
-    shared_templates = fcitx_names | {"nyxuri_gtk3", "nyxuri_gtk4"}
+    shared_templates = fcitx_names | {"nyxuri_gtk4"}
     policy = ['[shell]', 'clipboard_enabled = false', '[theme.templates]', 'builtin_ids = []', 'community_ids = []',
               '[theme.templates.user.nyxuri_kitty]', 'index = 7',
               'input_path = "/home/user/.config/noctalia/templates/kitty-nyxuri.conf"',
@@ -166,8 +166,17 @@ def prepare_sources(destination: Path) -> None:
                    f'output_path = "/home/user/.local/share/fcitx5/themes/nyxmellow/{filename}"']
         if suffix == "highlight":
             policy += [f"post_hook = '{FCITX_CLASSICUI_RELOAD_HOOK}'"]
-    # Shared GTK apps follow the current wallpaper, alongside the shared input method.
-    for index, version in enumerate((3, 4), 11):
+    # GTK3 user CSS is cached by Chromium. Load both palettes as named themes
+    # instead, so gtk-theme-name changes reload the actual colors in-process.
+    for index, mode in enumerate(("light", "dark"), 11):
+        policy += [f"[theme.templates.user.nyxuri_gtk3_{mode}]", "enabled = true", f"index = {index}",
+                   f'input_path = "/home/user/.config/noctalia/templates/gtk-3.0-{mode}.css"',
+                   f'output_path = "/home/user/.local/share/themes/Nyxuri-M3-{mode.title()}/gtk-3.0/gtk.css"']
+        if mode == "dark":
+            policy += ["hook_async = false",
+                       'post_hook = \'NYXURI_GTK3_REFRESH=1 "/home/user/.local/bin/nyxuri" theme sync\'']
+    # GTK4 keeps its existing dual-@media stylesheet and Portal signaling.
+    for index, version in enumerate((4,), 13):
         policy += [f"[theme.templates.user.nyxuri_gtk{version}]", "enabled = true", f"index = {index}",
                    f'input_path = "/home/user/.config/noctalia/templates/gtk-{version}.0.css"',
                    f'output_path = "/home/user/.config/gtk-{version}.0/gtk.css"']
@@ -177,6 +186,10 @@ def prepare_sources(destination: Path) -> None:
     gtk3 = destination / "noctalia/templates/gtk-3.0.css"
     gtk3.write_text("".join(line for line in gtk3.read_text().splitlines(keepends=True)
                             if "color-mix(" not in line))
+    for mode in ("light", "dark"):
+        template = destination / f"noctalia/templates/gtk-3.0-{mode}.css"
+        content = gtk3.read_text().replace(".default.", f".{mode}.")
+        template.write_text('@import url("base.css");\n' + content)
     for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):
         target = destination / "niri" / name
         target.write_text(annotate(target.read_text()))

@@ -131,7 +131,13 @@ class TestPersonalSession(unittest.TestCase):
                 self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "units/fcitx5-rime/hooks/skin/templates" / filename).read_bytes())
             self.assertIn("ReloadAddonConfig s classicui", templates["nyxmellow_highlight"]["post_hook"])
             self.assertNotIn("pkill", templates["nyxmellow_highlight"]["post_hook"])
-            for version in (3, 4):
+            self.assertFalse(templates["nyxuri_gtk3"]["enabled"])
+            for mode in ("light", "dark"):
+                entry = templates[f"nyxuri_gtk3_{mode}"]
+                self.assertTrue(entry["enabled"])
+                self.assertEqual(entry["input_path"], str(ctx.home / f".config/noctalia/templates/gtk-3.0-{mode}.css"))
+                self.assertEqual(entry["output_path"], str(ctx.home / f".local/share/themes/Nyxuri-M3-{mode.title()}/gtk-3.0/gtk.css"))
+            for version in (4,):
                 entry = templates[f"nyxuri_gtk{version}"]
                 self.assertTrue(entry["enabled"])
                 self.assertEqual(entry["input_path"], str(ctx.home / f".config/noctalia/templates/gtk-{version}.0.css"))

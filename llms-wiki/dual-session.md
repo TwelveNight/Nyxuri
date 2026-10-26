@@ -240,4 +240,5 @@ Super+/ 在个人 binds 中覆盖上游 show-hotkey-overlay，打开社区插件
 截图、壁纸、电源、终端及设置等用途。插件未知动作才落入“其他”；用户自定义文件
 仍原样保留，可用同样注释指定分类。
 
-GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctalia 素材，输出共享 `~/.config/gtk-3.0/gtk.css` 与 `gtk-4.0/gtk.css`。壁纸变化渲染当前色板；`theme sync` 仍负责深浅模式。已打开的 GTK 应用可能需要重新打开才能加载新 CSS。
+GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctalia 素材；
+命名 GTK3 主题、GTK4 共享 CSS 及首次迁移的重开要求见[个人配色](personal-appearance.md#gtk3-命名主题与热重载)。
