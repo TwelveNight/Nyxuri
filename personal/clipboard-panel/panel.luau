@@ -92,7 +92,7 @@ render = function()
     local active = index == selected
     table.insert(rows, ui.row({
       key = entry.id, gap = 10, align = "center", paddingH = 12, paddingV = 10,
-      radius = 12, fill = active and "primary/0.18" or "surface_variant/0.12",
+      radius = 12, fill = active and "primary/0.18" or "surface_container/0.12",
       minHeight = 54,
       onClick = function()
         selected = index
@@ -157,7 +157,7 @@ render = function()
                       onClick = function() selected = math.min(#matches, first + pageSize); refreshPreview(); render() end }),
         }),
       }),
-      ui.separator({ orientation = "vertical", color = "outline/0.3" }),
+      ui.separator({ orientation = "vertical", color = "outline_variant/0.3" }),
       ui.column({ width = 280, gap = 12 }, details),
     }),
     ui.label({ text = errorText ~= "" and errorText or "↑ ↓ 选择  ·  Enter 复制  ·  Ctrl+V 粘贴  ·  Super+V / Esc 关闭",

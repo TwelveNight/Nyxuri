@@ -1,7 +1,7 @@
 id = "night/shared-clipboard"
 name = "共享剪贴板"
 version = "1.0.0"
-plugin_api = 24
+plugin_api = 43
 author = "TwelveNight"
 license = "MIT"
 description = "与 iNiR、ii 共用 cliphist 文字和图片历史。"

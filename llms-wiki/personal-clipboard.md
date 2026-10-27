@@ -34,8 +34,9 @@ watch 的运行锁在 XDG_RUNTIME_DIR，不删除锁 inode。
 
 ## 原生共享历史面板
 
-个人 plugin_api=24 插件使用 Noctalia ui.* 原生组件，主框、输入框、字体、圆角、透明度
+个人 plugin_api=43 插件使用 Noctalia 5.4 的 ui.* 原生组件，主框、输入框、字体、圆角、透明度
 及颜色角色均由当前 shell 绘制；不声称替换了内置面板的存储后端。
+未选中行使用 `surface_container`，分隔线使用 `outline_variant`，不再引用旧调色板别名。
 Super+V 再按一次关闭，Esc 或点击外部也关闭；Down／Up 和 Ctrl+J／K 选择，Enter／
 点击条目／复制按钮执行 cliphist decode ID → wl-copy，失败时保留当前内容。
 选择后用 Ctrl+V 粘贴，不自动模拟按键。私有 backend 的 list 只经进程管道传 JSON，

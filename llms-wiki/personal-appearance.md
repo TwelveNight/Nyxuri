@@ -40,6 +40,12 @@ GTK3／GTK4 的 settings.ini；个人命令入口仅为它提供已生成的 GTK
 验收需从 Noctalia 双向切换，核对这些信号与跟随系统的实际应用画面，
 不能以某一个 Portal 值或手动固定浅色作为自动跟随成功。
 
+## Noctalia 5.4 调色板角色
+
+状态栏底版的描边使用 `outline_variant`，胶囊组填充使用 `surface_container`；
+个人共享剪贴板采用同一套角色，插件契约见[个人共享剪贴板](personal-clipboard.md)。
+这是颜色角色名迁移，不改变布局、透明度或键盘导航；已有用户覆盖仍按原保留规则处理。
+
 ## 光标
 
 保留已有 `Bibata-Modern-Classic`，不为匹配 GTK 而替换成 Ice，
