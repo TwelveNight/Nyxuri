@@ -102,7 +102,7 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/games.kdl", destination / "niri/personal-games.kdl")
     shutil.copy2(ROOT / "personal/monitor.kdl", destination / "niri/monitor.kdl")
     scripts = destination / "niri/scripts"
-    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "launcher.py", "bongocat_input.py", "screen_ocr.py", "screen_search.py"):
+    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "launcher.py", "bongocat_input.py", "screen_ocr.py", "screen_search.py", "screenshot_edit.py"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)
     plugin = destination / "noctalia/personal-plugins/shared-clipboard"
     shutil.copytree(ROOT / "personal/clipboard-panel", plugin)

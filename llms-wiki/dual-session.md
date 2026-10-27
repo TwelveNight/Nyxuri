@@ -195,6 +195,31 @@ Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选�
 询问录制目标；目录未自定义时保存到 `~/Videos/Recordings`。快捷键速查归入“录屏”。
 需要手动重载 Niri 时仍可用 `niri msg action load-config-file`。
 
+## 原生框选截图与编辑
+
+`Ctrl+2` 调用 `personal/screenshot_edit.py`，部署为 `niri/scripts/screenshot_edit.py`。
+由 Niri 内置截图界面框选，优先于 Noctalia／skwd 的独占输入图层：
+Ctrl+C 只复制选区，Space 或 Enter 打开 Swappy，Esc 取消。Ctrl+1 仍走 Noctalia。
+需要 Niri 的 `ScreenshotCaptured` 事件、Noctalia 和可选编辑器 `swappy`；
+个人安装器只部署脚本与键位，不自动安装软件，也不改共享 Swappy 配置。
+
+先订阅当前 Niri 的事件，再请求保存到运行目录中的私有随机路径；
+只把该路径的完成事件交给编辑器，忽略其他截图。复制时不另存文件、不打开编辑器、
+不收起面板。进入编辑时先保留截图，再收起原有且 ID 未变的 Noctalia 面板及
+原本打开的 skwd 选择器，让独立编辑器获得键盘焦点；这不影响截到的面板内容。
+等待独占图层退出后，只按本次 Swappy 进程的 PID 聚焦其窗口，不操作其他应用。
+临时图片在编辑器退出时清理，不添加常驻服务。
+
+Niri 不发送取消事件；取消后的单次监听最迟三分钟退出，再次截图不用等待它。
+同样需在三分钟内确认选区，否则此次 Space／Enter 不再自动打开编辑器。
+Swappy 内 Ctrl+C 复制、Ctrl+S 保存、Esc 退出；保存目录与文件名沿用用户自己的配置。
+不要使用固定文件名反复覆盖旧图；当前实机采用 `swappy-%Y%m%d-%H%M%S.png`。
+首次实机版本保留在 `niri/__custom__/screenshot-edit.py`，现有 Dunder 覆盖不会被安装器改写。
+
+`tests/test_personal_screenshots.py` 用 TempEnv 隔离模拟 compositor／外部工具边界，
+检查部署、复制、编辑、取消、不误开其他截图以及临时文件清理。
+真实会话另检查两个面板打开时的按键、编辑器焦点、画线及保存结果。
+
 ## 屏幕文字识别
 
 `Super+Shift+X` 调用个人 `screen_ocr.py`，用 slurp 框选屏幕区域，grim 捕获，
