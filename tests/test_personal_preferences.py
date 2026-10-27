@@ -11,6 +11,46 @@ from personal import install, niri_actions, autostart, runtime
 
 
 class PersonalPreferencesTests(unittest.TestCase):
+    def test_tmux_and_scratchpad_shortcuts_are_swapped(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            binds = (source / "niri/personal-binds.kdl").read_text()
+            self.assertIn('Ctrl+Shift+A repeat=false hotkey-overlay-title="Toggle tmux scratchpad" { spawn "~/.config/niri/scripts/niri-scratch-toggle.sh" "kitty"; }', binds)
+            self.assertIn('Mod+Grave repeat=false hotkey-overlay-title="Toggle tiled tmux" { spawn "~/.config/niri/scripts/niri-actions.py" "tmux"; }', binds)
+            upstream = (source / "niri/binds.kdl").read_text()
+            self.assertIn('Mod+Grave { spawn "~/.config/niri/scripts/niri-scratch-toggle.sh" "kitty"; }', upstream)
+
+    def test_scratchpad_uses_zsh_with_its_status_bar_hidden(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            tools = ctx.home / "bin"
+            tools.mkdir()
+            calls = ctx.home / "calls.json"
+            niri = tools / "niri"
+            niri.write_text('#!/usr/bin/env python3\nimport json, sys\nfrom pathlib import Path\n'
+                            'if sys.argv[1:] == ["msg", "-j", "workspaces"]:\n'
+                            '    print(\'[ {"id": 1, "is_focused": true} ]\')\n'
+                            'elif sys.argv[1:] == ["msg", "-j", "windows"]:\n'
+                            '    print("[]")\nelse:\n'
+                            f'    Path({str(calls)!r}).write_text(json.dumps(sys.argv[1:]))\n')
+            niri.chmod(0o755)
+            tmux = tools / "tmux"
+            tmux.write_text('#!/bin/sh\nexit 0\n')
+            tmux.chmod(0o755)
+            with patch.dict(os.environ, PATH=f"{tools}:{os.environ['PATH']}", XDG_RUNTIME_DIR=str(ctx.home)):
+                subprocess.run(["bash", str(source / "niri/scripts/niri-scratch-toggle.sh"), "kitty"], check=True)
+            self.assertEqual(json.loads(calls.read_text()), [
+                "msg", "action", "spawn", "--", "kitty", "--app-id", "scratchpad", "--title", "Scratchpad",
+                "tmux", "new-session", "-A", "-D", "-s", "scratch",
+                "zsh",
+                ";", "set-option", "status", "off",
+                ";", "set-option", "mouse", "on", ";", "set-option", "history-limit", "50000",
+            ])
+
     def test_super_shift_r_toggles_the_existing_recorder_plugin(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"
@@ -229,10 +269,30 @@ class PersonalNiriActionsTests(unittest.TestCase):
                 niri_actions.request_action(request)
 
     def test_tmux_attaches_without_inir_runtime(self):
-        with TempEnv(), patch.object(niri_actions.subprocess, "run", return_value=Mock(returncode=0)) as run, patch.object(niri_actions.os, "execvp") as execute:
+        with TempEnv(), patch.object(niri_actions, "query", return_value=[]) as query, patch.object(niri_actions.subprocess, "run", return_value=Mock(returncode=0, stdout="$0\twork\t10\n$1\tscratch\t20\n$2\tdev\t15\n")) as run, patch.object(niri_actions.os, "execvp") as execute:
             niri_actions.main("tmux")
-            self.assertEqual(run.call_args.args[0], ["tmux", "has-session"])
-            execute.assert_called_once_with("kitty", ["kitty", "tmux", "attach-session"])
+            query.assert_called_once_with("windows")
+            self.assertEqual(run.call_args.args[0], ["tmux", "list-sessions", "-F", "#{session_id}\t#{session_name}\t#{session_activity}"])
+            execute.assert_called_once_with("kitty", ["kitty", "--app-id", "nyxuri-tmux", "tmux", "attach-session", "-t", "$2"])
+
+    def test_tmux_creates_normal_session_when_only_scratch_exists(self):
+        with TempEnv(), patch.object(niri_actions, "query", return_value=[]), patch.object(niri_actions.subprocess, "run", return_value=Mock(returncode=0, stdout="$1\tscratch\t20\n")), patch.object(niri_actions.os, "execvp") as execute:
+            niri_actions.main("tmux")
+            execute.assert_called_once_with("kitty", ["kitty", "--app-id", "nyxuri-tmux", "tmux", "new-session"])
+
+    def test_tmux_creates_normal_session_without_a_server(self):
+        with TempEnv(), patch.object(niri_actions, "query", return_value=[]), patch.object(niri_actions.subprocess, "run", return_value=Mock(returncode=1, stdout="")), patch.object(niri_actions.os, "execvp") as execute:
+            niri_actions.main("tmux")
+            execute.assert_called_once_with("kitty", ["kitty", "--app-id", "nyxuri-tmux", "tmux", "new-session"])
+
+    def test_tmux_toggle_closes_only_its_terminal_frontend(self):
+        windows = [{"id": 7, "app_id": "kitty"}, {"id": 8, "app_id": "scratchpad"},
+                   {"id": 9, "app_id": "nyxuri-tmux"}]
+        with TempEnv(), patch.object(niri_actions, "query", return_value=windows), patch.object(niri_actions, "action") as action, patch.object(niri_actions.subprocess, "run") as run, patch.object(niri_actions.os, "execvp") as execute:
+            niri_actions.main("tmux")
+            action.assert_called_once_with("close-window", "--id", 9)
+            run.assert_not_called()
+            execute.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -112,8 +112,11 @@ binds {
     // System monitor (btop).
     Ctrl+Shift+Escape repeat=false hotkey-overlay-title="System monitor (btop)" { spawn "/usr/bin/kitty" "--title" "btop" "/usr/bin/btop"; }
 
-    // Open or attach tmux session.
-    Ctrl+Shift+A repeat=false hotkey-overlay-title="Open or attach tmux session" { spawn "~/.config/niri/scripts/niri-actions.py" "tmux"; }
+    // Toggle the floating tmux scratchpad.
+    Ctrl+Shift+A repeat=false hotkey-overlay-title="Toggle tmux scratchpad" { spawn "~/.config/niri/scripts/niri-scratch-toggle.sh" "kitty"; }
+
+    // Toggle tmux in a regular tiled terminal; keep the session when hidden.
+    Mod+Grave repeat=false hotkey-overlay-title="Toggle tiled tmux" { spawn "~/.config/niri/scripts/niri-actions.py" "tmux"; }
 
     // File manager.
     Mod+E repeat=false hotkey-overlay-title="File manager" { spawn "~/.config/niri/scripts/niri-actions.py" "files"; }

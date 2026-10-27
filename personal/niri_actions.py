@@ -154,9 +154,19 @@ def main(command, *args):
     elif command == "hud-focus":
         toggle_hud_focus()
     elif command == "tmux":
-        # Uses the shared Kitty config and the most recently used tmux session.
-        exists = subprocess.run(["tmux", "has-session"], capture_output=True).returncode == 0
-        os.execvp("kitty", ["kitty", "tmux", "attach-session" if exists else "new-session"])
+        window = next((w for w in query("windows") if w.get("app_id") == "nyxuri-tmux"), None)
+        if window is not None:
+            action("close-window", "--id", window["id"])
+            return
+        # The scratch session deliberately hides its bar and is not a regular terminal.
+        result = subprocess.run([
+            "tmux", "list-sessions", "-F", "#{session_id}\t#{session_name}\t#{session_activity}",
+        ], capture_output=True, text=True)
+        sessions = [line.split("\t") for line in result.stdout.splitlines()] if result.returncode == 0 else []
+        regular = [session for session in sessions if session[1] != "scratch"]
+        target = max(regular, key=lambda session: int(session[2]), default=None)
+        command = ["attach-session", "-t", target[0]] if target else ["new-session"]
+        os.execvp("kitty", ["kitty", "--app-id", "nyxuri-tmux", "tmux", *command])
     elif command == "files":
         for app in ["dolphin", "nautilus", "nemo", "thunar"]:
             if shutil.which(app):

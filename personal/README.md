@@ -181,6 +181,8 @@ journalctl --user -b -u skwd-walld.service
 空工作区与 tmux 使用携带的 Niri helper，不调用 iNiR 或 ii。
 
 - Super+C / Alt+C：居中当前列；Alt+Space：Noctalia 搜索；Super+Space：Niri overview。
+- Ctrl+Shift+A：切换使用 zsh 的 tmux 浮动 scratchpad，默认隐藏状态栏；Mod+Grave（反引号）：切换带状态栏的普通平铺 tmux，再按一次收起窗口并保留会话。
+  普通入口不附加 `scratch`；只有 scratchpad 时新建普通会话，保留普通 tmux 状态栏。
 - Super+Esc：Windows 快捷键归属切换；需另行部署个人 win 辅助层，契约见 [个人键位](../llms-wiki/dual-session.md#个人键位与自启动)。
 - 搜索列表中 Ctrl+J 选择下一项，Ctrl+K 选择上一项，方向键仍可用；同样适用于 Noctalia 的其他内置列表。
 - Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。

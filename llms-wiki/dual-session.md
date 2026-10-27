@@ -149,6 +149,12 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 部署副本移除默认 Super+X，使其可供应用使用；电源菜单改用 Super+Alt+Delete，
 Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署更新，
 实机覆盖写入最后加载且受 Dunder 保留的 __custom__.kdl。
+Ctrl+Shift+A 调用 `niri-scratch-toggle.sh kitty`，切换 `scratch` 会话的浮动终端，
+个人部署副本将上游 fish 启动命令替换为 zsh，保持默认隐藏状态栏。Mod+Grave 在个人键位层覆盖上游绑定，
+改为调用 `niri-actions.py tmux`，切换普通平铺 tmux 终端。窗口用独立 app-id
+`nyxuri-tmux` 标识，再次触发只关闭这个前端并保留会话，不影响其他 Kitty 或 scratchpad。
+普通入口排除 `scratch`，优先附加最近使用的其他会话；没有普通会话时新建，
+避免把 scratchpad 的隐藏状态栏带进平铺终端。
 `personal/niri_actions.py` 部署为 scripts/niri-actions.py，提供当前个人键位的稳定 ID
 工作区操作、居中浮动、Hermes HUD 聚焦、tmux 和文件管理器，不依赖 INIR_* 环境。
 Super+Q 与 Alt+Q 通过个人 niri-actions 的 close 动作捕获窗口 ID；Folia 主窗口调用同进程

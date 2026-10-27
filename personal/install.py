@@ -108,6 +108,9 @@ def prepare_sources(destination: Path) -> None:
     shutil.copytree(ROOT / "personal/clipboard-panel", plugin)
     shutil.copy2(ROOT / "personal/clipboard.py", plugin / "backend.py")
     shutil.copy2(ROOT / "personal/niri_actions.py", scripts / "niri-actions.py")
+    scratch = scripts / "niri-scratch-toggle.sh"
+    scratch.write_text(scratch.read_text().replace(
+        "fish -C 'function fish_greeting; end' -C 'set -g fish_history scratchpad'", "zsh"))
     (scripts / "session-shell.sh").write_text(
         '#!/bin/sh\nexec python3 "$(dirname "$0")/runtime.py"\n', encoding="utf-8")
     action = scripts / "shell-action.sh"
