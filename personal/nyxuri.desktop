@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=Nyxuri (niri + Noctalia)
+Name=Nyxuri · Niri
 Comment=Personal niri desktop session
 Exec=/home/user/.local/bin/desktop-profile run nyxuri
 Type=Application

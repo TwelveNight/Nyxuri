@@ -10,6 +10,17 @@ from tests.utils import TempEnv
 
 
 class PersonalEntryTests(unittest.TestCase):
+    def test_login_name_and_profile_route_remain_consistent(self):
+        with TempEnv() as ctx:
+            template = (install.ROOT / "personal/nyxuri.desktop").read_text()
+            fields = dict(line.split("=", 1) for line in template.splitlines() if "=" in line)
+            self.assertEqual(fields["Name"], "Nyxuri · Niri")
+            self.assertEqual(fields["Exec"], "/home/user/.local/bin/desktop-profile run nyxuri")
+            target = ctx.home / "nyxuri.desktop"
+            target.write_text(template.replace("/home/user", str(ctx.home)))
+            with patch.object(entry, "GDM_ENTRY", target):
+                self.assertFalse(entry.needs_session_entry(ctx.env))
+
     def test_bootstrap_plans_private_install_without_installed_marker(self):
         with TempEnv() as ctx:
             for arguments in ([], ["install", "full"], ["deploy", "config"]):

@@ -1,5 +1,10 @@
 # 本地桌面适配
 
+当前登录界面的显示名为 **Nyxuri · Niri**，内部 ID 仍为 `nyxuri`；
+Shell 仍是 Noctalia，不因显示名整理而更换。完整的八套 profile 清单、
+隔离边界与维护入口见 `~/.local/lib/desktop-profiles/README.md`。
+下方早期适配记录中的旧登录名不再作为当前菜单名称。
+
 ## 2026-10-19：会话入口选择配置
 
 配置实体统一位于 `~/.config/desktop-profiles/nyxuri/{niri,noctalia,kitty-nyxuri}`。

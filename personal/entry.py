@@ -32,7 +32,7 @@ def register_session(env):
         source = env.config_dir / "desktop-profiles/nyxuri/nyxuri.desktop"
         subprocess.run(["sudo", "install", "-Dm644", str(source), str(GDM_ENTRY)], check=True)
     core.ensure_nyxuri_symlink()
-    print("Nyxuri installed. Log out and choose Nyxuri (niri + Noctalia).")
+    print("Nyxuri installed. Log out and choose Nyxuri · Niri.")
 
 
 def install_desktop(arguments):

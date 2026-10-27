@@ -1,5 +1,9 @@
 # 三套桌面的隔离检查
 
+本文保留三套桌面的历史检查范围，不代表当前全部已注册 profile。
+当前登录名为 **Nyxuri · Niri**；八套 profile 的现行清单与隔离边界见
+`~/.local/lib/desktop-profiles/README.md`。
+
 2026-10-19 补充：配置实体已统一到 desktop-profiles，标准目录由登录入口选择软链接。
 新路径、维护保护与保留边界见 [个人适配说明](README.md#2026-10-19会话入口选择配置)。
 下面保留早期检查记录，原 nyxuri-desktop 配置目录路径不再适用。
