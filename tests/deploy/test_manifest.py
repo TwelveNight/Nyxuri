@@ -13,6 +13,10 @@ import tomllib
 
 import nyxuri.deploy.manifest as manifest
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import contextlib
+import io
+
 
 
 class TestManifestDefaults(unittest.TestCase):
@@ -191,7 +195,7 @@ class TestRealRepoManifests(unittest.TestCase):
 
     def test_niri_manifest(self):
         m = manifest.load_manifest(self.env.units_src / "niri")
-        self.assertEqual(m.preserve, ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "eyecare_temp"])
+        self.assertEqual(m.preserve, ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "noctalia.kdl", "eyecare_temp"])
         self.assertEqual(m.chmod, ["scripts/*.sh", "scripts/*.py"])
         self.assertTrue(m.is_deployable)
         self.assertIn("effects", m.parts)
@@ -420,3 +424,67 @@ target = "theme.kdl"
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestManifestCoercion(unittest.TestCase):
+
+    def _sandbox(self, ctx):
+        ctx.env.units_src = Path(tempfile.mkdtemp())
+        return ctx.env.units_src
+
+    def test_scalar_package_fields_become_single_element_lists(self):
+        from nyxuri.deploy.manifest import load_manifest
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx) / "demo"
+            src.mkdir(parents=True)
+            (src / "config.conf").write_text("# conf\n", encoding="utf-8")
+            (src / "manifest.toml").write_text(
+                'packages = "kitty"\npackages_aur = "foo-bar"\npreserve = "single.conf"\n',
+                encoding="utf-8",
+            )
+            m = _quiet(load_manifest, src)
+            self.assertEqual(m.packages_repo, ["kitty"])
+            self.assertEqual(m.packages_aur, ["foo-bar"])
+            self.assertEqual(m.preserve, ["single.conf"])
+
+    def test_scalar_parts_entry_is_dropped(self):
+        from nyxuri.deploy.manifest import load_manifest
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx) / "demo2"
+            src.mkdir(parents=True)
+            (src / "config.conf").write_text("# conf\n", encoding="utf-8")
+            (src / "manifest.toml").write_text(
+                '[parts]\ngood = { target = "a.conf" }\nbad = "oops"\n', encoding="utf-8"
+            )
+            m = _quiet(load_manifest, src)
+            self.assertEqual(sorted(m.parts), ["good"])
+
+    def test_empty_packages_list_stays_empty(self):
+        from nyxuri.deploy.manifest import load_manifest
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx) / "flatpak-only"
+            src.mkdir(parents=True)
+            (src / "manifest.toml").write_text(
+                'packages = []\npackages_flatpak = ["com.example.App"]\n', encoding="utf-8"
+            )
+            m = _quiet(load_manifest, src)
+            self.assertEqual(m.packages_repo, [])
+
+    def test_malformed_manifest_does_not_break_discovery(self):
+        from nyxuri.deploy.manifest import discover_manifest_apps
+        with TempEnv() as ctx:
+            sandbox = self._sandbox(ctx)
+            bad = sandbox / "bad-unit"
+            bad.mkdir()
+            (bad / "manifest.toml").write_text("not = = toml\n", encoding="utf-8")
+            good = sandbox / "good-unit"
+            good.mkdir()
+            (good / "config.conf").write_text("# conf\n", encoding="utf-8")
+            apps = _quiet(discover_manifest_apps)
+            self.assertIsInstance(apps, list)
+            self.assertEqual([n for n, _ in apps], ["good-unit"])

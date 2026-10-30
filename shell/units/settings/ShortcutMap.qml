@@ -24,7 +24,7 @@ PanelWindow {
         bottom: true
     }
     color: "transparent"
-    WlrLayershell.namespace: "clavis-shell-shortcut-map"
+    WlrLayershell.namespace: "nyxuri-shell-shortcut-map"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive

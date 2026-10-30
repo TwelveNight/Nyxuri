@@ -511,3 +511,340 @@ state/logs/shell.log）后，日志点失踪暴露出第三个根因（缓存陈
    双 Shell 主题渲染正常，旧 `~/.config/noctalia/templates/` 随 noctalia 重部署
    自然消失；
 6. Noctalia + Wallpaper Picker 双轨互不干扰、各自纯白（P5 平移验收项）。
+
+## T3 实施记录（追加式，2026-10-24）
+
+### M0 配置轴 3 ➔ 2 收敛与路由元数据（已完成）
+
+**实现**：
+- `PersonalizationConfig.settingsPanelStyles` 收敛为 `default` + `dashboard` 两值；
+  历史配置中的 `"minimal"` 经既有 `normalizedOption(..., "default")` 在 load 与
+  setValue 两条通路上自动折叠为 `default`，无特判分支，不主动写回文件。
+- 消费面收缩：`ControlCenterWindow` 剥离 `isMinimal`/`styleScale` 及 7 处三元
+  分支（尺寸全落 default 档）；`SettingsPanelStyleCard` 删硬编码 minimal 选项；
+  `DashboardStyleCard` 删 `decoration.minimal`；`DashboardSettingsCatalog` 关键词
+  去 minimal；`zh_CN.toml` 清 3 个死键（Minimal / Compact rail / Compact overlay）。
+- 路由元数据：`settings-routes.json` 全部 20 条路由补顶层 `description`（英文
+  源串，M2 NavPane 双行导航副标消费；数据随 catalog 透传，`render()` 不改）。
+  compiler `required` 增补 `description` 必填——缺描述在生成时即失败。
+- 基线测试：新增 `tests/shell/test_settings_shell.py`（轴恰两值、折叠通路保持、
+  `"minimal"` 零存活消费者、路由描述非空）；
+  `shell/tests/test_search_catalog.py` fixtures 同步并新增缺描述拒绝用例。
+
+**验证**：`tests/shell` 130 绿（11 跳过 = 基线）；`shell.tests.test_search_catalog`
++ `test_i18n_catalog` 10 绿；`check.sh` changed scope 全绿（104 advisory 为既有
+基线）；lifecycle-audit clean。`SearchCatalog.js` 已重新生成（+40 行，纯数据）。
+
+**验收（2026-10-25）**：作者实机复核通过，M0 转已完成。
+
+### M1 偏好原子套件纯 QML 拷入与重构（已完成，2026-10-24）
+
+**实现**（11 原件全落 `shell/units/settings/controls/`，100% 纯 QML/JS，
+零 Caelestia/Quickshell-native 依赖）：
+- `ConnectedRect`：first/last 大圆角、中间 extraSmall 平接的连通基座，
+  驱动全部行卡分组形态（`m3surfaceContainer`）。
+- `PreferenceToggle`：ConnectedRect 行 + 双行文本 + `StyledSwitch` 药丸；
+  整行 MouseArea 互补命中区（开关保有自己的 hit area，点文本同样切换），
+  全行 StateLayer 按压反馈。
+- `PreferenceSlider`：图标 + 主标 + 当前值 + 全宽纤细滑块。滑块按
+  Caelestia StyledSlider 原件重构为无样式 `QtQuick.Templates` Slider
+  （视觉全在 contentItem：渐隐剩余轨、端点圆点、按压生长细柄、拖拽
+  Binding 覆写 pos 实现指跟手）；外包滚轮条带以 `wheelStep` 微调，
+  滚轮不再滚动页面。
+- `PreferenceInput`：双行标签 + 内嵌圆角输入框（焦点呼吸边框 1→2px
+  primary、错误态翻转 error 色）+ 清除按钮 + validate（RegExp/函数）/
+  errorText/`Component.onDestruction` 未提交编辑 flush——关页不丢输入。
+- `PreferenceSelect`：`SplitMenuButton` 药丸桥接（model/currentValue/
+  selected），合成器 input region 由页面注入（默认 null，原子不读
+  app 服务）。
+- `PreferenceStepper`：`MaterialStepper` 桥接（- 数值 +，按住重复），
+  moved(int) 语义与底层 valueModified 一致。
+- `PreferenceAction`：图标 + 双行文本 + 默认 chevron_right 尾箭头；
+  副标 `animateChange` 滚动换值；禁用态 0.5 透明度动画。
+- `PreferenceInfo`：纯只读属性行（图标 + 属性名 + 右对齐值），
+  契约测试钉死无 MouseArea/StateLayer/clicked。
+- `PreferenceHeader`：卡片组上方小节标（labelMedium 辅助色，
+  `first` 免顶距并按父列 spacing 补偿）。
+- `NexusSearchBar`：全圆角胶囊搜索框（search/clear 图标、聚焦呼吸
+  边框、清除按钮随文本淡入）；root 即 TextField，消费方直绑
+  text/accepted。
+- `NexusPageBase`：详情页脚手架——大标题（titleLarge）+ isSubPage
+  返回箭头（`backRequested` 信号，导航状态留在宿主，M2 接线）+
+  maxContentWidth 封顶的滚动列（`StyledFlickable`，default property
+  contentChild 注入 contentItem）。
+- 桥接真相：全部走 `Appearance.m3colors/rounding/spacing`、
+  `Typography`、`Metrics`、`Fonts`、`I18n`；零硬编码色值/字体。
+  行节奏：panelPadding(20) 横距、spacing.medium(16) 纵距、
+  spacing.small(8) 内距（对位 Caelestia 20/16/12 节奏，Nyxuri 值域）。
+- KM4.6 预热规则落实：新合成池 `qs.units.settings.controls` 进
+  SlotHost 预热名单（无顶层消费者的 qs.* 池首次解析不得落在
+  Loader 内）。
+- i18n：新增 `"Go back" = "返回"`；清除/搜索复用既有键。
+
+**验证**：新增 `tests/shell/test_preference_atoms.py` 17 测试（池形状
+恰 11 文件、无上游/副作用导入、零硬编码色、连通圆角契约、各原子 API
+面钉死、搜索胶囊/页面脚手架契约、SlotHost 预热与 i18n 键）；
+`tests/shell` 全量 147 绿（11 跳过 = 基线）；`test_i18n_catalog` +
+`test_search_catalog` 10 绿；`check.sh` changed scope 全绿
+（qml-lint 161 advisory 全为既有 missing-property 类——动态 QtObject
+token 的已知限制，全库 --all 同类 3902 条为基线；unqualified 与
+id-shadows（MouseArea.drag 遮蔽）已修零）；lifecycle-audit clean；
+qmlformat 全量格式化通过。
+
+**验收（2026-10-25）**：作者实机复核通过（比例、动画手感、StateLayer
+反馈；页面消费者随 M3 接入），M1 转已完成。
+
+### M2 视窗外壳与 NavPane 双行导航骨架（已完成，2026-10-24）
+
+**实现**（chrome-only 重塑，业务面零改动）：
+- `ControlCenterWindow` 重写外壳：退役 titlebar 框与 `navExpanded` 展开
+  轨道；无边框 `rounding.extraLarge(28)` 视窗 + 既有 `CompositorBlurRegion`；
+  顶部仅留极简拖拽带（DragHandler → `startSystemMove`）与右上角内嵌
+  关闭按钮；外部 API 面（`openPage`/`openPageSection`/`prepareSearchTarget`/
+  `advanceSearchTarget`/`currentRouteId`/`popoutClosed`/child-window 清理）
+  与 `title: "nyxuri-settings"`（`focusWindow` 按名匹配）原样钉死。
+- `NexusNavPane.qml`（units/settings 根，不开新 qs.* 池、预热零变更）：
+  顶部 `NexusSearchBar` → 分组连通列表（Flickable）→ 底部两条
+  `PreferenceAction` 配置快捷动作（编辑/复制路径，复制走既有 1400ms
+  toast 键）。分组为 QML 侧呈现表（个性化/桌面/网络与设备/搜索与输入/
+  系统，5 组 × 16 条顶层路由），表外 id 落尾部无标组兜底，改名不孤儿。
+- `NexusNavRow.qml`：双行导航行——圆形强调色徽章（激活 primary /
+  常态 secondaryContainer）+ DemiBold 主标 + 副标描述；激活整行
+  secondaryContainer 胶囊、按压圆角收缩形变（对位参考树 NavLocations
+  的 RadiusBehavior）；激活行自动滚入视野（`ensureRowVisible`）。
+- 药丸搜索双通路：输入实时过滤导航行（title/description/sourceTitle/
+  aliases 归一匹配）；同时弹层列出匹配的**深层**条目（`path.length > 1`
+  且 `available()`，上限 8），点选/回车兜底走既有
+  `SettingsBackend.openSearch` 深链（唯一业务 owner 保持在窗口）；
+  Enter 优先首个可见路由，Esc 清空。
+- `ConnectedRect` 增 `uniformRadius`（默认 -1 不生效；≥0 四角统一），
+  承载激活/按压形变；四角加 radius Behavior，分组重排时组形平滑过渡。
+- 路由描述翻译通路补全：`generate-search-catalog.py` 的 `description(id)`
+  增设 settings 条目（路由）cases，`SpotlightCatalog.description(id)` 桥
+  接；20 条路由描述 + 分组标签 + 快捷动作文案共 24 键补入 zh_CN。
+- 处决 4 文件：`NavigationRailButton.qml`、`NavigationRailTabArray.qml`、
+  `NavigationRailExpandButton.qml`、`FloatingActionButton.qml`（均唯一
+  消费者旧 chrome，死刑断言进测试；`references/` 参考树不计）。
+
+**验证**：新增 `tests/shell/test_settings_navpane.py` 17 测试（死刑断言、
+窗口 API 面钉死、title 稳定性、chrome 事实、NavPane 组合原子、分组
+全覆盖、零硬编码色、i18n 键）；`test_preference_atoms` 同步
+uniformRadius 契约（断言空白不敏感化，钉语义不钉 qmlformat 换行）；
+`tests/shell` 164 绿（11 跳过 = 基线）；`shell/tests` 81 绿（含
+search-catalog 契约与 i18n 完整性）；check.sh changed scope 全绿
+（104 advisory 全为既有 missing-property 基线）；lifecycle-audit clean；
+qmlformat 全量格式化通过。
+
+**验收（2026-10-25）**：作者实机复核通过（连通组形态、激活胶囊形变、拖拽、
+路由标题 switchAnim；后续 fidelity 修订见下），M2 转已完成。
+
+### M2-fidelity 修订：逐项对齐 Caelestia 实测值 + About 页（已完成，2026-10-25）
+
+> 起因：作者对照实机截图指出与原版差距大（搜索框大小/窗口圆角/胶囊
+> 形变/搜索结果真实性四项）。逐行比对参考树与 C++ 侧 tokens.hpp 后
+> 全量修订；值全部以原版 token 实测为准。
+
+**实现**：
+- **token 扩充**：`Appearance.rounding` 增 `medium: 16`（窗口圆角 =
+  Caelestia `rounding.large`）与 `extraLargeIncreased: 32`（激活胶囊），
+  填自家梯子空位、零改名零冲突；按压收缩用既有 `small`(12)。
+- **搜索框对齐原版**：无边框（原版 StyledRect border.width=0，NavPane
+  只绑不可见的 border.color）、背景 surfaceContainerLowest、高度=内容
+  +32 节奏、图标 `clear`（原为 `close`，杜撰）、未聚焦按压 StateLayer、
+  图标边距 20/12；**杜撰的 1px 边框与聚焦呼吸边框处决**。
+- **搜索框回归原版占位**：查明原版 `searchOpen` 全树零消费者、无任何
+  结果 UI——M2 的过滤+建议弹层属 Nyxuri 原创，按拍板处决（routeMatches/
+  suggestions/弹层/Enter-Esc 全灭），设置内搜索转后续独立立项（深链
+  机器保留给 Spotlight）。占位钉死进测试（相关函数名死刑断言）。
+- **NavRow 对值修正**：激活 `extraLargeIncreased(32)`、按压 `small(12)`、
+  组边 28/中间 4 不变；**行距 4px**（原为 0 紧贴）+ 组间 +12px；未激活
+  底色 `colSurfaceContainerHigh`（原 m3surfaceContainer 错值）；标题
+  bodyMedium **恒定 Normal 恒定色**（原 bodyLarge+激活 DemiBold+变色，
+  双杜撰）；描述 labelSmall；行内距 16、图标距 12；徽章 fillHeight
+  ±1 出血、图标 grade 25（MaterialSymbol 增 GRAD 变量轴支持）。
+- **分类纯几何**：原版 NavLocations **无分组标题**（杜撰的 PreferenceHeader
+  导航标签移除）；单列扁平 + groupStart 驱动组间间隙与连通首尾；死键
+  "Network & devices"/"Search & input" 清除。
+- **窗口对齐**：圆角 28→`medium(16)`、去 1px 描边（原版无边框）；尺寸
+  = 屏高×0.7、宽=高×16:9、min 800×500（原固定 980×665）；关闭钮对齐
+  windowBtn（12px 圆角衬底 surfaceContainerLow、hover 变 m3error、按压
+  scale 0.8、无 StateLayer）。
+- **切页动画对齐 Pages.qml**：容器级淡出 200ms → 方向感知垂直 28px 滑入
+  300ms（导航序向决定进出轴向）；`SettingsPageHost` 增
+  `animationsEnabled` 开关（窗口侧关内部层动画，宿主仍管异步加载与
+  搜索重试）；路由标题对齐 `title.large` 22px Medium。
+- **渐隐列表**：`VerticalFadeFlickable` 纯 QML 移植（Mask+Gradient 渐隐
+  遮罩 + 内容不足时渐隐收起）入 `shared/controls`；导航列表去滚动条。
+- **About 页（新增需求）**：路由 `about`（icon `info`，导航底部独立分组）
+  + `AboutPage.qml`——hero 连通卡（夜弧记号 + Nyxuri Shell + Quickshell
+  版本）+ System 段（Hostname/Device/Distro/Kernel/Firmware）+ Software
+  段（Quickshell/Qt/合成器）；数据全取 `SystemIdentityService`，版本探针
+  （`quickshell --version` 定参）按需归服务层单次缓存（LIFE002/008 审计
+  纠偏：视图零进程）；首个纯 M1 原子页面，M3 打样。引擎无版本通道，
+  hero 版本行用 Shell 运行时（Quickshell）版本，如实映射。
+- i18n：+8 键（About/Software/Hostname/Device/Distro/Firmware/Compositor/
+  路由描述），-2 死键；路由描述经 catalog `description(id)` 翻译桥（生成
+  器 settings 条目补 cases）。
+
+**验证**：`tests/shell` 170 绿（11 跳过 = 基线；navpane 契约重写：搜索
+占位钉死、原版比例/圆角/形变值钉死、About 路由与命令形状钉死）；
+`shell/tests` 81 绿（catalog 路由集合补 about、死键清零）；check.sh
+changed scope 全绿（249 advisory = missing-property 基线类 + 2 既有
+singleton 提示；SettingsPageHost `id: layer` 遮蔽顺手正名
+`pageLayer`）；qmlformat 全量通过。
+
+**验收（2026-10-25）**：作者实机复核通过（搜索框比例、胶囊 32/12 形变、
+渐隐列表、方向感知切页、About 页；后续像素级修订见第二轮）。
+
+**事故修复（2026-10-25，mod+i 失灵）**：`FloatingWindow.minimumWidth/
+Height` 并非 Quickshell 属性（正名 `minimumSize`），误赋值使 settings
+单元 compiled empty、IPC 目标消失——已改 `minimumSize: Qt.size(800, 500)`
++ 尺寸下限并入 implicit 计算；同场修 `TapHandler.hovered` 运行时
+undefined（hover 态改 `HoverHandler`）。两条陷阱钉进测试与
+shell/AGENTS Quickshell 运行时约束 ④；`lint-qml.sh` import 集补 Quickshell
+插件路径（注：qs.* VFS 混合导入下 qmllint 仍不做成员校验，Quickshell
+API 面改动以实机为准）。IPC 实测 `--action settings` 返回 OPENING。
+
+### M2-fidelity 第二轮：像素级对齐 + 双色分区 chrome（已完成，2026-10-25）
+
+> 起因：作者实机复核提出三项（导航行过宽且右侧页面无法显示／全部
+> 字体控件尺寸／关闭钮不对），要求逐细节对准原版。
+
+**诊断（实测证据）**：
+- `niri msg` 实测窗口 **800×1016**：`minimumSize` 赋值在 Quickshell
+  0.3.2 把宽度钉死在下限（高度未受影响）——窗口半宽导致详情区仅
+  ~430px，老页面挤爆；"导航过宽 + 右侧无法显示"同根因。
+- 全局 0.85 缩放 vs 原版原生值的系统性差距（搜索框 48 vs 53px、图标
+  20.4 vs 24、行高 56 vs 66、字号全线 -15%）。
+- 关闭钮位置/尺寸/按压三处不符；且查明原版窗口为**双色分区**
+  （BlobGroup 单色实证：左区面板 + 12px 框带 + 关闭钮同用
+  surfaceContainerLow，中部 m3surface 承载页面）。
+
+**实现**：
+- **`NexusStyle.qml`**（units/settings 单例）：tokens.hpp + 字号权重 +
+  Nexus 比例常量 1:1 移植，设置界面（chrome + 11 原子 + About）整体
+  **脱离 0.85 缩放**；全部 `small+xSmall=12` 式组合算术消灭；原子池
+  新契约禁 `Typography.*`/`Metrics.*`（颜色/动画仍归 Appearance）。
+- **窗口 chrome 重构**：双色分区纯 QML 复刻——左区矩形（导航宽+32、
+  左角 16）+ 关闭钮与框带同色融合；详情区按 Pages.qml 锚位（框带 12 +
+  内距 16 = 窗边 28、距左区 28）；**size minimums 全面禁止赋值**
+  （Quickshell 0.3.2 陷阱，下限由 Math.max 承担，测试钉死）。
+- **关闭钮**：贴角零边距、36×32、r12、24px 图标、仅图标缩压 0.8、
+  hover error 红、无 StateLayer、Accessible 保留。
+- **NavPane 宽度 bug**：三边锚接漏设 width 退化成内容隐式宽——补
+  `width: navPaneWidth`（实机坐实修复）。
+- **搜索框/行/原子/About 全值归位**：53px 节奏、24/20 图标、14/11 字
+  号、行内距 16-12、按压 12/激活 32 圆角、hero 28px 记号 48px。
+- 拖拽：左区面板 + 详情标题带双 DragHandler。
+
+**验证**：`tests/shell` 175 绿（11 跳过 = 基线；新增 NexusStyle 逐值
+对照 tokens.hpp 的 parity 测试 + 双区 chrome/关闭钮/禁 minimums 契约）；
+`shell/tests` 81 绿；check.sh changed scope 全绿；qmlformat 22 文件通过；
+实机 IPC OPENING/CLOSING 双向、窗口宽度恢复（niri 按应用记忆用户拖动
+尺寸 1664×1047 为用户偏好保留）。
+
+**验收（2026-10-25）**：作者实机复核通过（分区、搜索框 53px、行高 66、
+窗口宽度恢复）。
+
+### M2-fidelity 第三轮：作者三项裁决 + About 页静默死亡修复（已完成，2026-10-25）
+
+**作者裁决的刻意偏离原版**（钉死防未来对照回改）：
+- 导航宽度：原版 `min(600, 窗宽/3)`（33%）观感偏宽——改 **`min(480, 窗宽/4)`**
+  （稳定 25%），`NexusStyle.maxNavWidth` 600→480，测试钉死公式。
+- 配置快捷动作：原版本无 footer，我们的扩展在导航底部观感突兀——从
+  `NexusNavPane` 处决（信号/属性全清），**迁入 About 页「配置」段**（两条
+  `PreferenceAction` 直调 `ApplicationService`/剪贴板，ShellPage 先例；
+  复制反馈 = 行内副标 "Path copied" + 页面内 Timer）。
+- 关闭按钮：原版有 windowBtn，作者裁决**完全不要**——贴角芯片处决，
+  chrome 只剩左区面板；关窗走 mod+i toggle / 合成器；`"Close"` 键其余
+  5 处消费者不受影响。
+
+**About 页静默死亡修复（运行时日志实锤）**：
+- `NexusPageBase` 的 default property 是单 `Item`（contentChild）——页面根
+  直接挂 `Timer` 触发 "Cannot assign Timer to QQuickItem*" 类型错误 →
+  整页实例化失败 → 宿主保留旧页、标题仍随路由更新（作者现象：动画重放、
+  内容停在上页、标题已是"关于"）。修复：Timer 移入内容列（ColumnLayout
+  data 接受非可视子项）；陷阱注释钉在代码位。
+- 同场修 `Qt.version`（Quickshell QML 全局无此属性，undefined 静默击穿
+  QString 绑定）→ 正名 **`Qt.qmlVersion`**，日志归零。
+
+**验证**：`tests/shell` 177 绿（11 跳过 = 基线；导航宽 /4+480、关闭钮死刑、
+NavPane 无 footer、About 配置段四组新契约）；`shell/tests` 81 绿；check.sh
+changed scope 全绿；qmlformat 通过；实机 `--ipc settings open about`
+日志零警告（Timer/Qt.version 两类错误前后对照）。
+
+**追修（同日）**：About 页"双关于"——窗口路由标题垫片与 NexusPageBase
+自带标题叠加。定则**标题归页面**：`NexusPageBase` 暴露
+`rendersPageTitle`，窗口垫片对自绘标题页自动退位（隐藏 + 高度塌缩，
+旧页面继续用垫片）；此即 M3 全页面化后的通用机制。另：Quickshell 的
+QML 全局无任何 Qt 版本属性（`Qt.version`/`qtVersion`/`qmlVersion` 三者
+皆 undefined，首次"干净"系旧实例未重载假象）——Software 段删 Qt 行
+（Quickshell + 合成器），注释钉因。实机两轮开合日志零警告。
+
+### M3 核心页面首批积木化翻新（待验收，2026-10-25）
+
+> 范围拍板（作者裁决）：Gamma 全量 + DisplayConfiguration 行级归原子
+> （画布/事务流/高级区/缩放对话框保留，深度重设计留 M4）；M0–M2 同日
+> 作者实机过目转已完成。
+
+**实现**（四页一页一 commit，About 页模式推广）：
+- **通用模式**：`NexusPageBase` 脚手架（自绘大标题 → 窗口垫片退位）+
+  `PreferenceHeader` 小节标 + 连通组原子行（接缝 `extraSmall/2`=2px，
+  无组容器）；`searchLeaf`/`parentModal`/`presentationActive`/
+  `navigateRequested`/`closeChildWindows` 窗口契约面逐页保命；
+  `SettingsSearchAnchor` 声明字节级不变（catalog 零重生成）；非视觉
+  子项（Timer/弹窗/Binding/Connections）一律挂内容列（About 事故定则）；
+  几何只用 `NexusStyle`，颜色只用 m3 系。
+- **AccountPage**（618→837 行重构）：hero 保留 `AccountProfileHeader`；
+  语言/蓝牙/快捷键/个性化四组归原子（select×2 注入 PopupInputRegion、
+  toggle、action）；设备行（图标+双行+连接钮+溢出菜单）与壁纸 6 格
+  快选为原子无形状的 sanctioned 自定义行；MaterialCard 双列布局退役
+  （Nexus 单列）。
+- **ThemePage**（1007→约 900 行）：透明度/模糊/锁屏/光标（主题选择器
+  包 ConnectedRect、尺寸滑杆、双隐藏）/图标主题/四字体归原子（滑杆
+  值显示含 Off/毫秒语义）；页内私有 Section/ToggleSettingRow/
+  SliderSettingRow/SearchSelectSettingRow 四件套处决；预览卡对、
+  面板样式卡、matugen 色板按钮组、Super 键键帽、模板列表（SettingsRow
+  平行清单入单卡）保留；requestTemplateDeletion 对外 API 不动。
+- **WallpaperPage**（1010→约 950 行）：预览 hero×2、循环/填充/转场
+  按钮组、Bézier 编辑器+坐标对话框、文件浏览器/取色器×2 保留；
+  Per-monitor/Overview 开关、输出选择×2、视差四开关、缩放/行程、
+  图像效果四滑杆归原子；chartSide 下限 360→240 适配 800 封顶列宽。
+- **Displays**：壳声明 `rendersPageTitle: true` 令窗口垫片退位，子页
+  各自渲染大标题（SpotlightCatalog title 桥）；GammaControlPage 全量
+  原子化（`SidebarFlickable`/gapFor/pullExpansion 机制随页退役；时间
+  输入正则校验、经纬度范围函数校验、只读状态行归 `PreferenceInfo`；
+  first/last 随可见性动态绑定保连通几何）；DisplayConfigurationPage
+  行级归原子（DisplayChoice×5→PreferenceSelect、Enabled 行→Toggle、
+  逻辑坐标→Input(smallField)、高级展开→Action；画布+事务栏+高级/
+  热角区块+缩放对话框保留，对话框 token 换 NexusStyle；滚轮让位 Binding
+  `flickable.interactive`）。
+- i18n：新增 Color scheme 键；死键三批清除（Choose language/Choose
+  color mode/Choose icon theme/Select * font×4/Hide the cursor after
+  inactivity…/Select output/Desktop|Overview wallpaper output/Enable
+  vertical parallax first/The current transition does not use */过渡
+  tooltip 等 16 键）。
+- 旧组件生态核查：SidebarFlickable（sidebars 仍在用）、
+  GeneralSliderSetting（Dock/Keystone 仍在用）、DisplayChoice（高级/
+  热角区块仍在用）、SettingsSection（未翻新页面仍在用）全部保留，
+  零消费者文件为零——M4 全页面化时再清算。
+
+**验证**：新增 `tests/shell/test_settings_pages.py` 28 测试（四页+壳：
+脚手架/标题、窗口契约面、锚 id 钉死、原子在场、业务 owner 钉死、
+sanctioned 自定义件在场、页内私有行组件与旧词汇死刑、壳路由保命）；
+`tests/shell` 206 绿（11 跳过 = 基线）；`shell.tests` 10 绿；
+check.sh changed scope 全绿（27 advisory = 既有 missing-property 基线）；
+qmlformat 全量通过；lifecycle-audit clean。
+
+**待验收**：实机视觉/交互（四页连通组形态、select 药丸菜单越界输入
+区域、滑杆拖拽/滚轮、Gamma 动态分组几何、DisplayConfig 事务流与新行
+的交互、深链搜索锚滚动定位）；深链回归（Spotlight→displays.gamma
+深两级路径）。M4（全页面覆盖与废弃代码清算）待开始。
+
+**修订（2026-10-25，作者 M3 验收反馈）**：Account 壁纸快选格子仍按旧
+~450px MaterialCard 调参（152px 上限），进 800px Nexus 列后被
+GridLayout 拉伸、比例失真且两侧空洞。改自适应满宽条：列数 ≥640px 取
+6 否则 3（6 项恒整除铺满，无尾格无死区），格宽=(行宽-缝)/列数、5:4
+恒定，`wallpaperPreviewMaximumWidth` 处决；当前壁纸叠 2px primary 内缩
+描边选中态；空态占位 `columnSpan` 跨全列。列数公式与 152 上限死刑钉
+进 test_settings_pages（207 绿）。

@@ -6,13 +6,12 @@ import sys
 from typing import List, Optional
 
 from nyxuri.core import (
-    CLI_CMD,
     PENDING_UPGRADE_ENV,
     PENDING_UPGRADE_MENU_ENV,
     SUPPORTED_WMS,
     detect_preferred_wm,
 )
-from nyxuri.core import get_env, log_msg
+from nyxuri.core import exec_cli, get_env
 from nyxuri.deploy import (
     discover_config_items,
     discover_manifest_apps,
@@ -263,13 +262,8 @@ def main_menu_loop() -> None:
                 press_any_key()
                 # Re-exec first: the deploy offer must run on the freshly
                 # pulled code, not on modules loaded before the pull.
-                try:
-                    os.execve(sys.executable, [sys.executable, "-m", CLI_CMD],
-                              {**os.environ, PENDING_UPGRADE_ENV: "",
-                               PENDING_UPGRADE_MENU_ENV: "1"})
-                except Exception as e:
-                    log_msg("ERROR", f"Re-exec failed: {e}")
-                    print(msg("update_restart_needed"), file=sys.stderr)
+                exec_cli(env, **{PENDING_UPGRADE_ENV: "",
+                                 PENDING_UPGRADE_MENU_ENV: "1"})
             elif update_result is False:
                 print(msg("updating_failed"), file=sys.stderr)
             press_any_key()

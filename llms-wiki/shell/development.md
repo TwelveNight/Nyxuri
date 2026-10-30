@@ -81,8 +81,9 @@ nyxuri shell switch noctalia
 Nyxuri Shell 采用纯净 TOML 字典组织多语言文案，免去臃肿 XML 困扰：
 
 ```bash
-# 扫描源码并生成/编译二进制语言包
-python3 shell/scripts/dev/compile-i18n.py
+# 扫描源码并生成语言包（TS 输出仅作审阅，运行时只读 TOML 词典）
+python3 shell/scripts/dev/compile-i18n.py \
+  --input-dir shell/app/i18n --output-dir /tmp/nyxuri-i18n
 ```
 
 ## 调试层次与检查

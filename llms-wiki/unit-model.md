@@ -122,13 +122,26 @@ transaction（编排：唯一可触碰副作用的模块）
 单元记录统一挂在 `state.json` 顶层的 `units` 键下，以单元 ID 为键；`updated` 为带时区的
 ISO 8601 时间戳。单元记录的读写只经 `nyxuri.ledger`，任何内核模块不得绕过。
 
-`files` 快照口径（KM2 落地，KM3 扩展）：只记受管文件——`__custom__` 与 manifest
-`preserve` 文件属用户心血，不入快照、不参与 `Drifted` 判定；`preserve_values` 目标文件计入；
-symlink 记 `link:<目标>`；`post_install` 钩子在快照**之前**运行，钩子落进单元自身生活区
-的产物自动入快照、`off` 走正常抹白（钩子落生活区外的产物由 `post_remove` 自清，
-见 [manifest-schema](manifest-schema.md) 钩子契约）。停用时无受管快照（`files` 空：从未经事务开关，或停用后
-再现内容）的单元按蓝图所有权整域抹白；单文件单元（`target=`）无 Vault 进出，
-其唯一实机文件即全部生活区。
+`files` 快照口径（KM2 落地，KM3 扩展，#139 收敛）：只记**引擎铺设的模板产物**——
+`__custom__` 与 manifest `preserve` 文件属用户心血，不入快照、不参与 `Drifted` 判定；
+`preserve_values` 目标文件计入；symlink 记 `link:<目标>`；`post_install` 钩子在快照**之前**
+运行，钩子落进单元自身生活区的产物自动入快照、`off` 走正常抹白（钩子落生活区外的产物由
+`post_remove` 自清，见 [manifest-schema](manifest-schema.md) 钩子契约）。
+
+**carry 不变式（#139）**：部署时按基线判定搬入的用户文件（改动文件与自放文件）**永不入账**
+——若入账，下次部署会把它当作"引擎铺设过且未被动过"的文件用新模板覆盖，账本自吞用户数据。
+推论：所有权只经 `on`（收编）增长，`update` 永不把新路径登记为受管。`update`/install 在
+部署 + 钩子重放之后经 `resnapshot_units` 重登记受启用单元（搬入文件剔除），使账本始终
+等于"引擎上次铺设的内容"；`on` 的快照同样剔除搬入文件。doctor 对账按账本条目逐文件
+比对（缺文件、内容漂移各自成立），搬入的用户文件不构成 Drifted 噪音。
+领地按账本划：基线里有、用户没动过、这次 payload 不再含的路径（钩子产物）随 swap
+退场、由钩子重放重铺、resnapshot 重新入账——KM3「产物受管、off 抹白」在 carry 下
+依然成立，且不进搬运报告。`__pycache__`/`*.pyc` 两侧 walk 剪除，永不搬入或报告。
+
+停用时无受管快照（`files` 空：从未经事务开关，或停用后再现内容）的单元按**蓝图具名**
+撤回——引擎 payload 文件回收，其余内容原地幸存并报 `foreign-left`（#139：v3 时代
+未登记的实机目录不得被 `off` 整域吞掉）；单文件单元（`target=`）无 Vault 进出，
+其唯一实机文件若不在受管快照内同样幸存并上报。
 
 **merge 单元（KM3.5，共享生活区）**：manifest 声明 `merge = true` + `~/` 前缀
 `target`（如壁纸落 `~/Pictures/Wallpapers`）即声明「生活区是共享空间」——

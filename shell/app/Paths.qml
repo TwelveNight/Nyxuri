@@ -33,42 +33,32 @@ Singleton {
             return raw.substring(0, raw.length - "/nyxuri-shell".length);
         return raw || (homeDir + "/.cache");
     }
-    readonly property string binHome: root.absoluteEnvironment("NYXURI_BIN_HOME") || root.absoluteEnvironment(
-                                          "CLAVIS_BIN_HOME") || homeDir + "/.local/bin"
-    readonly property string stableKey: root.absoluteEnvironment("NYXURI_KEY") || root.absoluteEnvironment(
-                                            "CLAVIS_KEY") || "key"
+    readonly property string binHome: root.absoluteEnvironment("NYXURI_BIN_HOME") || homeDir + "/.local/bin"
+    readonly property string stableKey: root.absoluteEnvironment("NYXURI_KEY") || "key"
     readonly property string fallbackConfigHome: xdgConfigHome + "/nyxuri"
     readonly property string configHome: root.absoluteEnvironment("NYXURI_SHELL_CONFIG_HOME")
-                                         || root.absoluteEnvironment("CLAVIS_CONFIG_HOME")
-                                         || fallbackConfigHome
-    readonly property string dataHome: root.absoluteEnvironment("NYXURI_SHELL_DATA_HOME")
-                                       || root.absoluteEnvironment("CLAVIS_DATA_HOME") || xdgDataHome
-                                       + "/nyxuri"
-    readonly property string stateHome: root.absoluteEnvironment("NYXURI_SHELL_STATE_HOME")
-                                        || root.absoluteEnvironment("CLAVIS_STATE_HOME") || (
+                                          || fallbackConfigHome
+    readonly property string dataHome: root.absoluteEnvironment("NYXURI_SHELL_DATA_HOME") || xdgDataHome
+                                        + "/nyxuri"
+    readonly property string stateHome: root.absoluteEnvironment("NYXURI_SHELL_STATE_HOME") || (
                                             root.absoluteEnvironment("XDG_STATE_HOME") || homeDir
                                             + "/.local/state") + "/nyxuri"
-    readonly property string cacheHome: root.absoluteEnvironment("NYXURI_SHELL_CACHE_HOME")
-                                        || root.absoluteEnvironment("CLAVIS_CACHE_HOME") || (
+    readonly property string cacheHome: root.absoluteEnvironment("NYXURI_SHELL_CACHE_HOME") || (
                                             root.absoluteEnvironment("XDG_CACHE_HOME") || homeDir
                                             + "/.cache") + "/nyxuri"
     readonly property string runtimeHome: root.absoluteEnvironment("NYXURI_SHELL_RUNTIME_HOME")
-                                          || root.absoluteEnvironment("CLAVIS_RUNTIME_HOME") || (
-                                              root.absoluteEnvironment("XDG_RUNTIME_DIR") || cacheHome
-                                              + "/runtime") + "/nyxuri"
-    readonly property string requestedProfileName: Quickshell.env("NYXURI_SHELL_PROFILE") || Quickshell.env(
-                                                       "CLAVIS_PROFILE") || "default"
+                                           || (
+                                               root.absoluteEnvironment("XDG_RUNTIME_DIR") || cacheHome
+                                               + "/runtime") + "/nyxuri"
+    readonly property string requestedProfileName: Quickshell.env("NYXURI_SHELL_PROFILE") || "default"
     readonly property string profileName: root.validProfileName(requestedProfileName)
                                           ? requestedProfileName.trim() : "default"
     readonly property string profileConfigHome: root.absoluteEnvironment("NYXURI_SHELL_PROFILE_CONFIG_HOME")
-                                                || root.absoluteEnvironment("CLAVIS_PROFILE_CONFIG_HOME")
-                                                || configHome + "/profiles/" + profileName
-    readonly property string profileHome: root.absoluteEnvironment("NYXURI_SHELL_PROFILE_HOME")
-                                          || root.absoluteEnvironment("CLAVIS_PROFILE_HOME") || dataHome
-                                          + "/profiles/" + profileName
+                                                 || configHome + "/profiles/" + profileName
+    readonly property string profileHome: root.absoluteEnvironment("NYXURI_SHELL_PROFILE_HOME") || dataHome
+                                           + "/profiles/" + profileName
     readonly property string generatedHome: root.absoluteEnvironment("NYXURI_SHELL_GENERATED_HOME")
-                                            || root.absoluteEnvironment("CLAVIS_GENERATED_HOME")
-                                            || profileHome + "/generated"
+                                             || profileHome + "/generated"
     readonly property string currentWallpaper: stateHome + "/wallpaper/current"
     readonly property string profileAvatar: homeDir + "/.face"
     readonly property string defaultAvatar: ""

@@ -16,6 +16,8 @@ TOOLS = Path(__file__).resolve().parents[3] / "units" / "noctalia" / "tools"
 ENTRY = TOOLS / "orbit-translate.py"
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
+# Blueprint modules imported from units/ must never drop __pycache__ into the read-only source tree (unit-model §1).
+sys.dont_write_bytecode = True
 
 _env = None
 

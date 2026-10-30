@@ -7,6 +7,11 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import contextlib
+import subprocess
+import sys
+
 
 
 class TestSafeGitCheckoutRef(unittest.TestCase):
@@ -106,6 +111,115 @@ class TestSafeGitCheckoutRef(unittest.TestCase):
                 result = safe_git_checkout_ref(self.fake_repo, "v9.9.9")
 
         self.assertIsNone(result, "System mode should skip (None), pointing at pacman")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestIssue139UpdateNeverClobbersUserFiles(unittest.TestCase):
+    """Issue #139: `nyxuri update` silently overwrote user-edited managed
+    files (binds.kdl / config.kdl) and silently deleted user-placed files
+    (fish conf.d/zz-tools.fish). The ownership carry makes both impossible:
+    the swap judges every dest entry against the ledger baseline and carries
+    what the engine cannot explain. --force stays the explicit adopt verb."""
+
+    def _stage_unit(self, ctx):
+        configs = ctx.home / "configs-src"
+        unit = configs / "app"
+        unit.mkdir(parents=True, exist_ok=True)
+        (unit / "manifest.toml").write_text("packages = []\n", encoding="utf-8")
+        (unit / "a.conf").write_text("v1\n", encoding="utf-8")
+        ctx.env.units_src = configs
+        import nyxuri.deploy.deploy as _deploy_core
+        import nyxuri.deploy.manifest as _deploy_manifest
+        _deploy_core._CONFIG_ITEMS_CACHE = []
+        _deploy_manifest._MANIFEST_CACHE = None
+        return unit
+
+    def _run_update(self, flag=""):
+        from nyxuri.installer.workflows import offer_overwrite_upgrade
+
+        captured = {}
+        with patch("sys.stdin.isatty", return_value=False), \
+             patch("nyxuri.installer.workflows._enable_wallpapers", return_value=True), \
+             patch("nyxuri.installer.workflows._enable_theme", return_value=True), \
+             patch("nyxuri.installer.workflows.run_user_hooks", return_value=[]), \
+             patch("nyxuri.installer.workflows.render_completion_screen") as screen:
+            ok = offer_overwrite_upgrade(flag)
+        if screen.call_args:
+            captured["preserved"] = screen.call_args.kwargs.get("preserved_lines") or []
+            captured["notices"] = screen.call_args.kwargs.get("notice_lines") or []
+            captured["groups"] = screen.call_args.kwargs.get("carried_groups") or {}
+        return ok, captured
+
+    def test_update_carries_edits_and_extra_files_then_force_adopts(self):
+        from nyxuri.kernel import ledger, transaction
+
+        with TempEnv() as ctx:
+            unit = self._stage_unit(ctx)
+            self.assertTrue(transaction.unit_on("app")[0].ok)
+            dest = ctx.home / ".config/app"
+            # The user's two fatal moves from the issue: editing a managed
+            # file and dropping a personal file next to it.
+            (dest / "a.conf").write_text("my binds\n", encoding="utf-8")
+            (dest / "zz-tools.fish").write_text("atuin init\n", encoding="utf-8")
+            # The repo moves on.
+            unit.joinpath("a.conf").write_text("v2\n", encoding="utf-8")
+
+            ok, captured = _quiet(self._run_update, "")
+            self.assertTrue(ok)
+            self.assertEqual((dest / "a.conf").read_text(), "my binds\n",
+                             "user edits must never be clobbered by an update")
+            self.assertEqual((dest / "zz-tools.fish").read_text(), "atuin init\n",
+                             "user-placed files must never be deleted by an update")
+            self.assertEqual(captured["groups"].get("modified"), ["~/.config/app/a.conf"])
+            self.assertTrue(any("zz-tools.fish" in line for line in captured["preserved"]))
+            rec = ledger.get_unit("app")
+            self.assertNotIn("a.conf", rec["files"],
+                             "a carried file must never read as engine-laid")
+            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+
+            # --force is the adopt verb: template side wins, baseline clears.
+            ok, _ = _quiet(self._run_update, "--force")
+            self.assertTrue(ok)
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+            self.assertEqual((dest / "zz-tools.fish").read_text(), "atuin init\n",
+                             "force adopts the template, it is not a purge")
+            self.assertEqual(
+                ledger.get_unit("app")["files"]["a.conf"],
+                __import__("hashlib").sha256((dest / "a.conf").read_bytes()).hexdigest(),
+            )
+            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+
+    def test_ghost_unit_update_freezes_and_hints_adoption(self):
+        from nyxuri.kernel import ledger, transaction
+
+        with TempEnv() as ctx:
+            unit = self._stage_unit(ctx)
+            dest = ctx.home / ".config/app"
+            dest.mkdir(parents=True)
+            (dest / "a.conf").write_text("v3-era\n", encoding="utf-8")
+            self.assertIsNone(ledger.get_unit("app"), "precondition: Ghost")
+
+            ok, captured = _quiet(self._run_update, "")
+            self.assertTrue(ok)
+            self.assertEqual((dest / "a.conf").read_text(), "v3-era\n",
+                             "an unregistered unit's content is never overwritten")
+            self.assertTrue(any("app" in line for line in captured["notices"]),
+                             "the update must point at `nyxuri on` adoption")
+            self.assertIsNone(ledger.get_unit("app"),
+                              "the installer never invents switch state")
+
+            # Adoption is the explicit way out: template claims its names.
+            self.assertTrue(transaction.unit_on("app")[0].ok)
+            self.assertEqual((dest / "a.conf").read_text(), "v1\n")
+            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ Item {
     Drag.supportedActions: Qt.CopyAction
     Drag.proposedAction: Qt.CopyAction
     Drag.mimeData: ({
-                        "application/x-clavis-dock": JSON.stringify({
+                        "application/x-nyxuri-dock": JSON.stringify({
                                                                         schemaVersion: 1,
                                                                         kind: root.dockKind,
                                                                         desktopId: root.desktopId

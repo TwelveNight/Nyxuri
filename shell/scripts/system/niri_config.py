@@ -184,7 +184,7 @@ class Graph:
     def validate(self, command='niri'):
         # Mirror only the effective include graph. Absolute includes must point at
         # staged candidates too; flattening would change duplicate/merge semantics.
-        with tempfile.TemporaryDirectory(prefix='clavis-niri-validate-') as directory:
+        with tempfile.TemporaryDirectory(prefix='nyxuri-niri-validate-') as directory:
             paths = {p: Path(directory) / (str(i) + '.kdl') for i, p in enumerate(self.files)}
             for path, text in self.files.items():
                 if text is None:
@@ -224,8 +224,29 @@ def safe_target(path, missing=False):
         raise ValueError('Configuration directory is not writable: ' + str(parent))
 
 
+def _managed(main):
+    """Resolve the managed fragment directory, migrating the legacy clavis/ name once."""
+    modern = main.parent / 'nyxuri'
+    legacy = main.parent / 'clavis'
+    if legacy.is_dir():
+        modern.mkdir(exist_ok=True)
+        for fragment in legacy.iterdir():
+            if fragment.is_file():
+                fragment.replace(modern / fragment.name)
+        try:
+            legacy.rmdir()
+        except OSError:
+            pass
+        if main.is_file():
+            text = read_text(main)
+            updated = re.sub(r'(include\s+"?)clavis/', r'\1nyxuri/', text)
+            if updated != text:
+                replace_file(main, updated)
+    return modern
+
+
 def replace_file(path, text):
-    fd, name = tempfile.mkstemp(prefix='.clavis-', dir=path.parent)
+    fd, name = tempfile.mkstemp(prefix='.nyxuri-', dir=path.parent)
     try:
         if path.exists():
             os.fchmod(fd, stat.S_IMODE(path.stat().st_mode))
@@ -240,7 +261,7 @@ def replace_file(path, text):
 
 
 def initial(feature, request):
-    header = '// Managed by Clavis.\n'
+    header = '// Managed by Nyxuri.\n'
     if feature == 'hot-corners':
         return edit_hot_corners(header)
     if feature == 'minimize-animation':
@@ -251,14 +272,14 @@ def initial(feature, request):
         section = kdl.Node('binds')
         for key, *command in DEFAULT_BINDINGS:
             section.nodes.append(kdl.Node(key, props={'repeat': False}, nodes=[
-                kdl.Node('spawn', args=['qs', '-c', 'clavis', 'ipc', 'call', *command])]))
+                kdl.Node('spawn', args=['nyxuri-shell', '--ipc', *command])]))
         return header + render(section)
     if feature == 'layer-rules':
-        return header + 'layer-rule {\n    match namespace="^clavis-overview-wallpaper$";\n    place-within-backdrop true;\n}\nlayout {\n    background-color "transparent";\n}\n'
+        return header + 'layer-rule {\n    match namespace="^nyxuri-overview-wallpaper$";\n    place-within-backdrop true;\n}\nlayout {\n    background-color "transparent";\n}\n'
     if feature == 'effects':
         if request.get('xray', True):
             return header + "// X-Ray is niri's default for client-requested effects.\n"
-        return header + 'layer-rule {\n    match namespace="^clavis-shell-";\n    background-effect { xray false; };\n}\nwindow-rule {\n    match title="^(clavis-control-center(-[a-z-]+)?|clavis-file-picker)$";\n    background-effect { xray false; };\n}\n'
+        return header + 'layer-rule {\n    match namespace="^nyxuri-shell-";\n    background-effect { xray false; };\n}\nwindow-rule {\n    match title="^(nyxuri-control-center(-[a-z-]+)?|nyxuri-file-picker)$";\n    background-effect { xray false; };\n}\n'
     size = int(request.get('size', 24))
     hide = int(request.get('hideAfter', 0))
     if not 12 <= size <= 128 or not 0 <= hide <= 5000:
@@ -306,11 +327,15 @@ def action_identity(action):
     if action.name == 'spawn' and action.args[:3] == ['key', 'ipc', 'call']:
         entries = json.loads((Path(__file__).parent / 'niri-actions.json').read_text())
         if any(e.get('target') == action.args[3] and e.get('method') == action.args[4] for e in entries) if len(action.args) >= 5 else False:
-            action.args = ['qs', '-c', 'clavis', 'ipc', 'call'] + action.args[3:]
-    if (action.name == 'spawn' and len(action.args) == 8
-            and action.args[:6] == ['qs', '-c', 'clavis', 'ipc', 'call', 'sidebar']
-            and action.args[6] in ('open', 'close', 'toggle')):
-        action.args[7] = {'left': 'dashboard', 'right': 'quicksettings'}.get(action.args[7], action.args[7])
+            action.args = ['nyxuri-shell', '--ipc'] + action.args[3:]
+    if (action.name == 'spawn' and len(action.args) >= 7
+            and action.args[:5] == ['qs', '-c', 'clavis', 'ipc', 'call']
+            and action.args[5] in ('sidebar', 'spotlight', 'control-center', 'keystone', 'lock', 'power-menu', 'shortcut-map', 'wallpaper')):
+        action.args = ['nyxuri-shell', '--ipc'] + action.args[5:]
+    if (action.name == 'spawn' and len(action.args) == 5
+            and action.args[:3] == ['nyxuri-shell', '--ipc', 'sidebar']
+            and action.args[3] in ('open', 'close', 'toggle')):
+        action.args[4] = {'left': 'dashboard', 'right': 'quicksettings'}.get(action.args[4], action.args[4])
     return canonical(action)
 
 
@@ -450,8 +475,8 @@ def hot_corners_conflict_message(state):
     if state['outputConflicts']:
         outputs = ', '.join(row['identifier'] + ' (' + row['source'] + ')'
                             for row in state['outputConflicts'])
-        return 'Disable native hot corners in these output blocks before setting up Clavis: ' + outputs
-    return ('Another configuration enables native hot corners; move the Clavis hot-corners include after it: '
+        return 'Disable native hot corners in these output blocks before setting up Nyxuri: ' + outputs
+    return ('Another configuration enables native hot corners; move the Nyxuri hot-corners include after it: '
             + state['globalSource'])
 
 
@@ -472,7 +497,7 @@ def edit_hot_corners(previous):
 
 def status(request):
     main = main_path(request)
-    managed_dir = main.parent / 'clavis'
+    managed_dir = _managed(main)
     state = dict(schemaVersion=1, main=str(main), fragments={}, files=[str(main)], bindings=[], revision='', error='', diagnostics=dict(conflicts=False, invalid=False, writable=True, details=''))
     # Inspect missing managed fragments without initializing them.
     try:
@@ -517,7 +542,7 @@ def status(request):
                         transparent = child.args == ['transparent'] or child.args == ['#00000000']
             if node.name == 'layer-rule':
                 matches = [c for c in node.nodes if c.name == 'match']
-                if any(c.props == {'namespace': '^clavis-overview-wallpaper$'} for c in matches) and not any(c.name == 'exclude' for c in node.nodes):
+                if any(c.props == {'namespace': '^nyxuri-overview-wallpaper$'} for c in matches) and not any(c.name == 'exclude' for c in node.nodes):
                     for child in node.nodes:
                         if child.name == 'place-within-backdrop':
                             backdrop = child.args == [True]
@@ -567,7 +592,7 @@ def edit_bindings(graph, path, request):
     if request['operation'] == 'delete-group':
         owned = [row for row in rows if row['managed'] and row['group'] == request.get('group')]
         if not owned:
-            raise ValueError('This action has no Clavis bindings to delete')
+            raise ValueError('This action has no Nyxuri bindings to delete')
         for row in sorted(owned, key=lambda row: row['start'], reverse=True):
             text = text[:row['start']] + text[row['end']:]
         return text
@@ -617,7 +642,7 @@ def edit_bindings(graph, path, request):
 def configuration_lock(main, nonblocking=False):
     # Share the same lock across the editor and the ephemeral preview guardian.
     lock_dir = Path(os.environ.get('XDG_RUNTIME_DIR', tempfile.gettempdir()))
-    lock_path = lock_dir / ('clavis-niri-' + str(os.getuid()) + '-' + hashlib.sha256(str(main).encode()).hexdigest()[:20] + '.lock')
+    lock_path = lock_dir / ('nyxuri-niri-' + str(os.getuid()) + '-' + hashlib.sha256(str(main).encode()).hexdigest()[:20] + '.lock')
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     info = os.fstat(fd)
     if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
@@ -629,7 +654,7 @@ def configuration_lock(main, nonblocking=False):
 
 
 def restore_output_publication(main, candidate, previous):
-    path = main.parent / 'clavis/outputs.kdl'
+    path = _managed(main) / 'outputs.kdl'
     with configuration_lock(main, nonblocking=True):
         safe_target(path)
         if read_text(path) != candidate:
@@ -644,7 +669,7 @@ def mutate(request):
     if feature not in FRAGMENTS:
         raise ValueError('Unknown managed fragment')
     main = main_path(request)
-    path = main.parent / 'clavis' / (feature + '.kdl')
+    path = _managed(main) / (feature + '.kdl')
     safe_target(main)
     safe_target(path, missing=request['operation'] == 'setup')
     with configuration_lock(main, nonblocking=feature == 'outputs' and request['operation'] != 'setup'):
@@ -675,7 +700,7 @@ def mutate(request):
         main_text = graph.files[path_key(main)]
         main_candidate = main_text
         if request['operation'] == 'setup' and not included:
-            main_candidate += '\n' + render(kdl.Node('include', args=['clavis/' + feature + '.kdl']))
+            main_candidate += '\n' + render(kdl.Node('include', args=['nyxuri/' + feature + '.kdl']))
         replacements = {path_key(main): main_candidate, path_key(path): candidate}
         candidate_graph = Graph(main, replacements=replacements)
         if feature == 'hot-corners':
@@ -684,7 +709,7 @@ def mutate(request):
                 raise ValueError(hot_corners_conflict_message(hot_corners))
         if feature == 'minimize-animation' and request['operation'] != 'setup':
             if minimize_animation_state(candidate_graph)['effect'] != request.get('effect'):
-                raise ValueError('Another configuration overrides the animation effect; move the Clavis animation include after it')
+                raise ValueError('Another configuration overrides the animation effect; move the Nyxuri animation include after it')
         try:
             candidate_graph.validate(request.get('niri', 'niri'))
         except ValueError:
@@ -699,7 +724,7 @@ def mutate(request):
         safe_target(main)
         safe_target(path, missing=not exists)
         if main_candidate != main_text:
-            backup_fd, backup_name = tempfile.mkstemp(prefix=main.name + '.clavis-backup-', dir=main.parent)
+            backup_fd, backup_name = tempfile.mkstemp(prefix=main.name + '.nyxuri-backup-', dir=main.parent)
             with os.fdopen(backup_fd, 'w') as backup:
                 backup.write(main_text)
                 backup.flush()
@@ -728,10 +753,10 @@ def mutate(request):
 
 def catalog(request):
     entries = json.loads((Path(__file__).parent / 'niri-actions.json').read_text())
-    with tempfile.TemporaryDirectory(prefix='clavis-actions-') as directory:
+    with tempfile.TemporaryDirectory(prefix='nyxuri-actions-') as directory:
         path = Path(directory) / 'config.kdl'
         for entry in entries:
-            if entry['category'] == 'clavis':
+            if entry['category'] == 'nyxuri':
                 entry['supported'] = True
                 continue
             path.write_text('binds { F24 { ' + entry['expression'] + '; }; }\n')
@@ -766,8 +791,8 @@ def legacy(args):
         if mode != 'configure':
             raise ValueError('Expected configure')
         request = dict(operation='setup', feature=Path(fragment).stem, main=main, niri=rest[0] if rest else 'niri')
-    if Path(fragment).absolute() != main_path(request).parent / 'clavis' / (request['feature'] + '.kdl'):
-        raise ValueError('Only the corresponding clavis fragment can be written')
+    if Path(fragment).absolute() != _managed(main_path(request)) / (request['feature'] + '.kdl'):
+        raise ValueError('Only the corresponding nyxuri fragment can be written')
     return request
 
 

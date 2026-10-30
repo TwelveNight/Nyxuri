@@ -300,10 +300,12 @@ Singleton {
     rounding: QtObject {
         property int extraSmall: 4
         property int small: 12
+        property int medium: 16
         property int normal: 17
         property int large: 23
         property int extraLarge: 28
         property int veryLarge: 30
+        property int extraLargeIncreased: 32
         property int full: 9999
     }
 

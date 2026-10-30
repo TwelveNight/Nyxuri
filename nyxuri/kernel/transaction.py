@@ -36,6 +36,7 @@ from typing import Callable, Dict, List, Optional
 
 from nyxuri.kernel import ledger, registry
 from nyxuri.core import get_env, log_msg, remove_path
+from nyxuri.deploy.atomic import CarryPolicy
 from nyxuri.deploy.deploy import _phase_atomic_deployment, merge_deploy_unit
 from nyxuri.deploy.manifest import ModuleManifest, living_path
 from nyxuri.deploy.preset import write_active_preset
@@ -137,8 +138,72 @@ def _enabled_set() -> set:
 
 
 def _is_user_owned(rel: str, manifest: ModuleManifest) -> bool:
-    """Dunder-protocol and manifest-preserve files belong to the user."""
-    return "__custom__" in rel or rel in set(manifest.preserve)
+    """Dunder-protocol and manifest-preserve files belong to the user.
+
+    A preserve entry may name a DIRECTORY (#139 field report): the whole
+    tree is runtime-managed (e.g. fish/functions — Fisher's territory), so
+    every path under it is user-owned by prefix.
+    """
+    if "__custom__" in rel:
+        return True
+    for entry in manifest.preserve:
+        if rel == entry or rel.startswith(entry + "/"):
+            return True
+    return False
+
+
+def carry_baselines(unit_ids: List[str]) -> Dict[str, Optional[Dict[str, str]]]:
+    """Ledger ``files`` maps for enabled units among ``unit_ids`` (#139).
+
+    The baseline is what the engine last laid: a dest file hashing equal to
+    its baseline entry is untouched and follows the new template; anything
+    else is the user's and is carried. Units without an enabled record map
+    to None (Ghost — provenance unknown).
+    """
+    out: Dict[str, Optional[Dict[str, str]]] = {}
+    for uid in unit_ids:
+        rec = ledger.get_unit(uid)
+        files = (rec or {}).get("files")
+        out[uid] = dict(files) if rec and rec.get("state") == "enabled" and isinstance(files, dict) else None
+    return out
+
+
+def resnapshot_units(unit_ids: List[str],
+                     carried: Optional[Dict[str, Dict[str, str]]] = None) -> None:
+    """Re-baseline ledger snapshots after an out-of-band deploy (update path).
+
+    The ledger means "hashes of what the engine last laid". After an update
+    the laid truth changed under the enabled records, so every deployed
+    enabled unit is re-recorded from its living area — minus the files the
+    swap carried as user-owned. A carried file must never enter the
+    snapshot: it would read as engine-laid and be clobbered by the next
+    template change. Ownership only ever grows through ``on`` (adoption),
+    never through an update.
+    """
+    carried = carried or {}
+    for uid in unit_ids:
+        rec = ledger.get_unit(uid)
+        if not rec or rec.get("state") != "enabled":
+            continue
+        try:
+            manifest = registry.load_unit(uid)
+        except KeyError:
+            continue
+        if _is_runtime(manifest) or manifest.merge:
+            continue
+        dest = _unit_dest(uid, manifest)
+        if not (dest.exists() or dest.is_symlink()):
+            continue
+        files = snapshot_files(dest, manifest)
+        for rel in carried.get(uid, {}):
+            files.pop(rel, None)
+        ledger.set_unit(
+            uid,
+            state="enabled",
+            preset=(rec.get("preset") or "default"),
+            files=files,
+            vault=None,
+        )
 
 
 def _hash_file(path: Path) -> str:
@@ -385,14 +450,19 @@ def _wipe_unit(unit_id: str, dest: Path, rec: Optional[dict],
 
     Merge units (shared living areas) never remove the directory itself:
     ownership = exactly the files the transaction laid (the ledger
-    snapshot). A pre-ledger fallback laid by an old-world install survives
-    as foreign residue and is reported (doctor's blueprint-named Ghost
-    view flags it); the user's own same-named file is never eaten.
+    snapshot). Without a snapshot, ownership falls back to blueprint names:
+    engine payload files are withdrawn, everything else survives and is
+    reported — a pre-ledger (v3-era) dest never loses personal files to an
+    ``off`` (#139).
     """
     if not (dest.exists() or dest.is_symlink()):
         return []
     if dest.is_file() or dest.is_symlink():
         # Single-file unit (target=): the file is the whole living area.
+        # A file outside the managed snapshot is user-owned (carried at
+        # deploy, or dropped in) — never eaten (#139).
+        if dest.name not in set((rec or {}).get("files") or {}):
+            return [dest.name]
         remove_path(dest)
         return []
     if manifest.merge:
@@ -414,9 +484,31 @@ def _wipe_unit(unit_id: str, dest: Path, rec: Optional[dict],
         return sorted(remaining - managed)
     if rec is None or not (rec.get("files") or {}):
         # No managed snapshot (never switched through the transaction, or
-        # already-off): blueprint ownership of the whole target applies.
-        remove_path(dest)
-        return []
+        # already-off): ownership falls back to blueprint names — engine-laid
+        # payload files are withdrawn, anything else is the user's and
+        # survives, reported as foreign (#139: a v3-era dest must not lose
+        # personal files to an `off`).
+        blueprint = set(_blueprint_rels(manifest))
+        withdrawn: set = set()
+        for p in list(dest.rglob("*")):
+            if not (p.is_file() or p.is_symlink()):
+                continue
+            rel = p.relative_to(dest).as_posix()
+            if rel in blueprint:
+                p.unlink(missing_ok=True)
+                withdrawn.add(rel)
+        _prune_empty_dirs(dest)
+        remaining: set = set()
+        if dest.is_dir():
+            if not any(dest.iterdir()):
+                remove_path(dest)
+            else:
+                remaining = {
+                    p.relative_to(dest).as_posix()
+                    for p in dest.rglob("*")
+                    if p.is_file() or p.is_symlink()
+                }
+        return sorted(remaining - withdrawn)
     managed = set(rec["files"])
     remaining = {
         p.relative_to(dest).as_posix()
@@ -534,6 +626,7 @@ def unit_on(
         dest = _unit_dest(uid, manifest)
         runtime = _is_runtime(manifest)
         files: Dict[str, str] = {}
+        carried_rels: List[str] = []
         if runtime:
             # Runtime unit (§6): no living area, no vault, no deploy. The
             # ledger record plus the event below is the whole transaction.
@@ -553,11 +646,27 @@ def unit_on(
                     results.append(Step(uid, False, "deploy-failed"))
                     return results
                 files = {rel: _hash_file(dest / rel) for rel in laid}
-            elif uid in _phase_atomic_deployment([uid]):
-                results.append(Step(uid, False, "deploy-failed"))
-                return results
             else:
+                # `on` is adoption: the engine claims its payload names
+                # (carry_unknown=False), user-placed extras are carried and
+                # stay user-owned (#139). A previously-enabled record acts as
+                # the drift baseline so a preset switch never eats edits.
+                rec = ledger.get_unit(uid)
+                baseline = None
+                if rec and rec.get("state") == "enabled" and isinstance(rec.get("files"), dict):
+                    baseline = dict(rec["files"])
+                policy = CarryPolicy(
+                    baselines={uid: baseline}, unknown=False, carried={uid: {}}
+                )
+                if uid in _phase_atomic_deployment([uid], carry_policy=policy):
+                    results.append(Step(uid, False, "deploy-failed"))
+                    return results
                 files = snapshot_files(dest, manifest)
+                # Carried files stay user-owned: they must never enter the
+                # snapshot, or the next deploy would mistake them for
+                # engine-laid content and clobber them. (Re-applied after the
+                # hook below, which may lay further engine-owned products.)
+                carried_rels = list(policy.carried.get(uid, {}))
         hook_note = ""
         if manifest.post_install:
             # Runs BEFORE the ledger snapshot: a hook that lands files inside
@@ -565,15 +674,21 @@ def unit_on(
             # ``off`` wipes them through the normal white-paper path (KM3).
             if not _run_unit_hook(uid, manifest, manifest.post_install):
                 hook_note = f"; hook-failed: {manifest.post_install}"
+        if not runtime and not manifest.merge:
+            # Post-hook snapshot (hook products are engine-laid), minus the
+            # files the swap carried as user-owned (#139).
+            files = snapshot_files(dest, manifest)
+            for rel in carried_rels:
+                files.pop(rel, None)
         ledger.set_unit(
             uid,
             state="enabled",
             preset=_active_preset_name(uid),
             # Merge units snapshot at deploy time (laid files only — the
-            # shared area's other content is never ours); atomic units
-            # snapshot after the hook so hook products are covered; runtime
+            # shared area's other content is never ours); atomic units use
+            # the post-hook snapshot minus carried user files (#139); runtime
             # units keep the empty map (nothing on disk is theirs).
-            files=files if (runtime or manifest.merge) else snapshot_files(dest, manifest),
+            files=files,
             vault=None,
         )
         _emit(uid, "enabled")
@@ -669,7 +784,13 @@ def audit_units(unit_id: Optional[str] = None) -> Dict[str, str]:
             if manifest.merge:
                 synced = _merge_managed_view(dest, manifest) == (rec.get("files") or {})
             else:
-                synced = (not dest.is_symlink()) and snapshot_files(dest, manifest) == (rec.get("files") or {})
+                # Per-record verdict (#139): a managed entry counts as synced
+                # only when dest still hashes to it. Entries are judged one by
+                # one so carried user files (deliberately outside the
+                # snapshot) never masquerade as drift — a missing or tampered
+                # managed file still does.
+                snap = {} if dest.is_symlink() else snapshot_files(dest, manifest)
+                synced = all(snap.get(rel) == h for rel, h in (rec.get("files") or {}).items())
             report[uid] = STATE_SYNCED if synced else STATE_DRIFTED
         elif manifest.merge:
             # Shared living area: the directory existing is the user's own

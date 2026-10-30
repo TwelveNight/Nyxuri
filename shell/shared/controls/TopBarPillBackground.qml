@@ -40,8 +40,8 @@ Item {
 
         // Let MultiEffect derive the source texture padding from its blur.
         // A manually expanded paddingRect caused the source itself to vanish
-        // on the Qt version used by Clavis. The PanelWindow still reserves
-        // shadowPadding below the visual bar for the resulting shadow.
+        // on the Qt version shipped by the upstream base. The PanelWindow
+        // still reserves shadowPadding below the visual bar for the shadow.
         autoPaddingEnabled: true
     }
 }

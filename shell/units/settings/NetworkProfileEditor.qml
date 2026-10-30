@@ -1,10 +1,18 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
+// Connection profile editor (T3 M4): atom rows inside the network config
+// modal. Basic information rides the info atom, IPv4 method the toggle +
+// select atoms; the manual address/gateway/DNS fields stay full-width
+// labeled fields and the dirty-tracking/apply flow is untouched.
 StyledFlickable {
     id: root
 
@@ -124,7 +132,7 @@ StyledFlickable {
 
     clip: true
     contentWidth: width
-    contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
+    contentHeight: contentColumn.implicitHeight + NexusStyle.padding.large * 2
     Component.onCompleted: root.resetEditor()
     onTargetChanged: root.resetEditor()
     onProfileChanged: {
@@ -190,14 +198,14 @@ StyledFlickable {
     ColumnLayout {
         id: contentColumn
 
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
-        spacing: Metrics.spacingL
+        width: Math.min(640, Math.max(0, root.width - NexusStyle.padding.largeIncreased * 2))
+        x: Math.max(NexusStyle.padding.largeIncreased, (root.width - width) / 2)
+        y: NexusStyle.padding.largeIncreased
+        spacing: NexusStyle.padding.extraSmall / 2
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: Metrics.spacingS
+            spacing: NexusStyle.padding.small
 
             ActionButton {
                 visible: root.connectionIsActive
@@ -239,7 +247,6 @@ StyledFlickable {
 
         InlineStatusBanner {
             Layout.fillWidth: true
-            radius: Metrics.cornerM
             visible: root.errorMessage.length > 0
             tone: "error"
             message: root.errorMessage
@@ -247,96 +254,88 @@ StyledFlickable {
 
         InlineStatusBanner {
             Layout.fillWidth: true
-            radius: Metrics.cornerM
             visible: root.successMessage.length > 0
             tone: "info"
             iconName: "check_circle"
             message: root.successMessage
         }
 
-        SettingsSection {
-            Layout.fillWidth: true
-            title: I18n.tr("Basic information")
-            iconName: "info"
+        // Basic information
+        PreferenceHeader {
+            first: true
+            text: I18n.tr("Basic information")
+        }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Profile name")
-                supportingText: root.profile ? root.profile.name : I18n.tr("No editable profile")
-            }
+        PreferenceInfo {
+            first: true
+            label: I18n.tr("Profile name")
+            subtext: root.profile ? root.profile.name : I18n.tr("No editable profile")
+        }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                visible: !root.isWired
-                title: I18n.tr("SSID")
-                supportingText: root.profile ? root.profile.ssid : "—"
-            }
+        PreferenceInfo {
+            visible: !root.isWired
+            label: I18n.tr("SSID")
+            subtext: root.profile ? root.profile.ssid : "—"
+        }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Interface")
-                supportingText: root.profile ? root.profile.deviceName : root.target ? root.target.deviceName
-                                                                                       || root.target.name :
-                                                                                       "—"
+        PreferenceInfo {
+            last: true
+            label: I18n.tr("Interface")
+            subtext: root.profile ? root.profile.deviceName : root.target ? root.target.deviceName
+                                                                            || root.target.name : "—"
+        }
+
+        // IPv4
+        PreferenceHeader {
+            visible: root.profile !== null
+            text: I18n.tr("IPv4")
+        }
+
+        PreferenceToggle {
+            visible: root.profile !== null
+            first: true
+            text: I18n.tr("Connect automatically")
+            checked: root.autoconnect
+            onToggled: root.autoconnect = checked
+        }
+
+        PreferenceSelect {
+            visible: root.profile !== null
+            last: true
+            label: I18n.tr("IP assignment")
+            model: [
+                {
+                    "label": I18n.tr("Automatic (DHCP)"),
+                    "value": "auto"
+                },
+                {
+                    "label": I18n.tr("DHCP + custom DNS"),
+                    "value": "auto-dns"
+                },
+                {
+                    "label": I18n.tr("Manual"),
+                    "value": "manual"
+                }
+            ]
+            currentValue: root.mode
+            inputRegionService: PopupInputRegionService
+            onSelected: value => {
+                root.mode = value;
             }
         }
 
-        SettingsSection {
+        Item {
             Layout.fillWidth: true
-            visible: root.profile !== null
-            title: I18n.tr("IPv4")
-            iconName: "network_manage"
-            contentSpacing: Metrics.spacingL
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Connect automatically")
-
-                trailing: StyledSwitch {
-                    checked: root.autoconnect
-                    onToggled: root.autoconnect = checked
-                }
-            }
+            Layout.preferredHeight: manualColumn.implicitHeight
+            visible: root.mode === "manual"
 
             ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Metrics.spacingXS
+                id: manualColumn
 
-                Text {
-                    text: I18n.tr("IP assignment")
-                    color: Appearance.colors.colOnSurfaceVariant
-                    font.family: Typography.labelLarge.family
-                    font.pixelSize: Typography.labelLarge.pixelSize
-                    font.weight: Typography.labelLarge.weight
-                }
-
-                StyledButtonGroup {
-                    Layout.fillWidth: true
-                    model: [
-                        {
-                            "value": "auto",
-                            "label": I18n.tr("Automatic (DHCP)")
-                        },
-                        {
-                            "value": "auto-dns",
-                            "label": I18n.tr("DHCP + custom DNS")
-                        },
-                        {
-                            "value": "manual",
-                            "label": I18n.tr("Manual")
-                        }
-                    ]
-                    currentValue: root.mode
-                    onValueSelected: value => {
-                        return root.mode = value;
-                    }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: root.mode === "manual"
-                spacing: Metrics.spacingM
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: NexusStyle.padding.small
 
                 OutlinedTextField {
                     Layout.fillWidth: true
@@ -360,22 +359,26 @@ StyledFlickable {
                     onEditingFinished: root.gatewayTouched = true
                 }
             }
+        }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: root.mode !== "auto"
-                spacing: Metrics.spacingM
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: dnsField.implicitHeight
+            visible: root.mode !== "auto"
 
-                OutlinedTextField {
-                    Layout.fillWidth: true
-                    labelText: I18n.tr("DNS")
-                    text: root.dns
-                    errorText: root.dnsTouched && !root.dnsValid ? I18n.tr(
-                                                                       "Enter at least one valid IPv4 DNS address") :
-                                                                   ""
-                    onTextChanged: root.dns = text
-                    onEditingFinished: root.dnsTouched = true
-                }
+            OutlinedTextField {
+                id: dnsField
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                labelText: I18n.tr("DNS")
+                text: root.dns
+                errorText: root.dnsTouched && !root.dnsValid ? I18n.tr(
+                                                                   "Enter at least one valid IPv4 DNS address") :
+                                                               ""
+                onTextChanged: root.dns = text
+                onEditingFinished: root.dnsTouched = true
             }
         }
 

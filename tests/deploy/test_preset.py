@@ -21,6 +21,12 @@ from nyxuri.deploy.atomic import atomic_replace_item
 from nyxuri.tui import PresetSwitcher
 from nyxuri.core import msg
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import contextlib
+import io
+import re
+import sys
+
 
 
 class TestActiveStateFile(unittest.TestCase):
@@ -694,14 +700,14 @@ class TestPresetSwitcher(unittest.TestCase):
             return switcher.run()
 
     def test_enter_returns_app_and_preset(self):
-        sw = PresetSwitcher(["kitty"], lambda a: [("default", True), ("transparent", False)])
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", "official", True), ("transparent", "user", False)])
         # RIGHT → expand kitty & land on default; DOWN → transparent; ENTER
         self.assertEqual(self._run_keys(sw, ["RIGHT", "DOWN", "ENTER"]), ("kitty", "transparent"))
 
     def test_pane_switch_keeps_app_cursor(self):
         apps = ["fastfetch", "kitty"]
-        presets_kitty = [("default", True), ("transparent", False)]
-        sw = PresetSwitcher(apps, lambda a: presets_kitty if a == "kitty" else [("default", True)])
+        presets_kitty = [("default", "official", True), ("transparent", "user", False)]
+        sw = PresetSwitcher(apps, lambda a: presets_kitty if a == "kitty" else [("default", "official", True)])
         # DOWN→app kitty; RIGHT→expand; LEFT→back to app kitty; RIGHT→focus presets; DOWN; ENTER
         self.assertEqual(
             self._run_keys(sw, ["DOWN", "RIGHT", "LEFT", "RIGHT", "DOWN", "ENTER"]),
@@ -709,23 +715,23 @@ class TestPresetSwitcher(unittest.TestCase):
         )
 
     def test_up_down_cycles_in_pane(self):
-        sw = PresetSwitcher(["kitty"], lambda a: [("default", True), ("transparent", False), ("compact", False)])
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", "official", True), ("transparent", "user", False), ("compact", "user", False)])
         # RIGHT; DOWN; DOWN; ENTER
         self.assertEqual(self._run_keys(sw, ["RIGHT", "DOWN", "DOWN", "ENTER"]), ("kitty", "compact"))
 
     def test_app_switch_lands_cursor_on_active_preset(self):
         apps = ["fastfetch", "kitty"]
-        presets_kitty = [("default", False), ("transparent", True)]  # transparent is active
-        sw = PresetSwitcher(apps, lambda a: presets_kitty if a == "kitty" else [("default", True)])
+        presets_kitty = [("default", "official", False), ("transparent", "user", True)]  # transparent is active
+        sw = PresetSwitcher(apps, lambda a: presets_kitty if a == "kitty" else [("default", "official", True)])
         # DOWN→kitty; RIGHT→expand kitty; ENTER applies active transparent directly
         self.assertEqual(self._run_keys(sw, ["DOWN", "RIGHT", "ENTER"]), ("kitty", "transparent"))
 
     def test_cancel_returns_none(self):
-        sw = PresetSwitcher(["kitty"], lambda a: [("default", True)])
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", "official", True)])
         self.assertIsNone(self._run_keys(sw, ["q"]))
 
     def test_no_tty_returns_none(self):
-        sw = PresetSwitcher(["kitty"], lambda a: [("default", True)])
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", "official", True)])
         with patch("sys.stdin.isatty", return_value=False):
             self.assertIsNone(sw.run())
 
@@ -740,7 +746,7 @@ class TestPresetSwitcher(unittest.TestCase):
         }
         sw = PresetSwitcher(
             apps=["niri"],
-            presets_for=lambda a: [("default", True)],
+            presets_for=lambda a: [("default", "official", True)],
             parts_for=lambda a: parts_data if a == "niri" else {},
             active_part_for=lambda a, slot: "default",
         )
@@ -765,7 +771,7 @@ class TestPresetSwitcher(unittest.TestCase):
 
         sw = PresetSwitcher(
             apps=["niri"],
-            presets_for=lambda a: [("default", True)],
+            presets_for=lambda a: [("default", "official", True)],
             parts_for=lambda a: parts_data,
             active_part_for=lambda a, slot: "default",
             on_action=on_action,
@@ -784,7 +790,7 @@ class TestPresetSwitcher(unittest.TestCase):
         }
         sw = PresetSwitcher(
             apps=["niri"],
-            presets_for=lambda a: [("default", True)],
+            presets_for=lambda a: [("default", "official", True)],
             parts_for=lambda a: parts_data,
             active_part_for=lambda a, slot: "default",
         )
@@ -816,14 +822,14 @@ class TestPresetSwitcherMouse(unittest.TestCase):
         return MouseEvent(kind=kind, col=col, row=row)
 
     def test_click_app_applies_active_preset_in_standalone_mode(self):
-        sw = PresetSwitcher(["kitty"], lambda a: [("default", True), ("transparent", False)])
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", "official", True), ("transparent", "user", False)])
         # Click kitty at row 15 -> returns ("kitty", "default")
         self.assertEqual(self._run_keys(sw, [self._click(10, 14)]), ("kitty", "default"))
 
     def test_wheel_down_cycles_app(self):
         sw = PresetSwitcher(
             ["fastfetch", "kitty"],
-            lambda a: [("default", True)] if a == "fastfetch" else [("transparent", True)],
+            lambda a: [("default", "official", True)] if a == "fastfetch" else [("transparent", "user", True)],
         )
         # wheel-down -> fastfetch to kitty; Enter applies kitty/transparent.
         self.assertEqual(
@@ -834,7 +840,7 @@ class TestPresetSwitcherMouse(unittest.TestCase):
     def test_wheel_up_cycles_backwards(self):
         sw = PresetSwitcher(
             ["fastfetch", "kitty"],
-            lambda a: [("default", True)] if a == "fastfetch" else [("transparent", True)],
+            lambda a: [("default", "official", True)] if a == "fastfetch" else [("transparent", "user", True)],
         )
         # DOWN to kitty first, then WHEEL_UP back to fastfetch, Enter -> fastfetch/default.
         self.assertEqual(
@@ -843,7 +849,7 @@ class TestPresetSwitcherMouse(unittest.TestCase):
         )
 
     def test_click_on_header_row_is_ignored(self):
-        sw = PresetSwitcher(["kitty"], lambda a: [("default", True)])
+        sw = PresetSwitcher(["kitty"], lambda a: [("default", "official", True)])
         self.assertEqual(self._run_keys(sw, [self._click(40, 12), "ENTER"]), ("kitty", "default"))
 
 
@@ -1320,3 +1326,133 @@ default = "default"
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestPresetDurability(unittest.TestCase):
+
+    def _sandbox(self, ctx):
+        ctx.env.units_src = Path(tempfile.mkdtemp())
+        import nyxuri.deploy.manifest as manifest
+        manifest._MANIFEST_CACHE = None
+        return ctx.env.units_src
+
+    def _app(self, src, name, manifest_toml, files):
+        root = src / name
+        for rel, content in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        (root / "manifest.toml").write_text(manifest_toml, encoding="utf-8")
+        return root
+
+    def test_failed_save_keeps_the_existing_preset(self):
+        from nyxuri.desktop import presets as preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "kitty", "", {"kitty.conf": "# conf"})
+            dest = ctx.env.config_dir / "kitty"
+            dest.mkdir(parents=True)
+            (dest / "kitty.conf").write_text("# live", encoding="utf-8")
+            os.mkfifo(dest / "ipc.fifo")
+            old = ctx.env.presets_dir / "kitty" / "mine"
+            old.mkdir(parents=True)
+            (old / "old.conf").write_text("OLD-PRESET", encoding="utf-8")
+            self.assertFalse(_quiet(preset.save_preset, "kitty", "mine"))
+            self.assertEqual((old / "old.conf").read_text(encoding="utf-8"), "OLD-PRESET")
+            self.assertEqual(sorted(p.name for p in (ctx.env.presets_dir / "kitty").iterdir()), ["mine"])
+
+    def test_deleting_the_active_preset_resets_to_default(self):
+        from nyxuri.desktop import presets as preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "kitty", "", {"kitty.conf": "# base"})
+            user = ctx.env.presets_dir / "kitty" / "mine"
+            user.mkdir(parents=True)
+            (user / "kitty.conf").write_text("# mine", encoding="utf-8")
+            self.assertTrue(_quiet(preset.apply_preset, "kitty", "mine"))
+            self.assertEqual(preset.read_active_preset("kitty"), "mine")
+            self.assertTrue(_quiet(preset.delete_preset, "kitty", "mine"))
+            self.assertEqual(preset.read_active_preset("kitty"), "default")
+
+    def test_official_guard_uses_the_resolved_official_dir(self):
+        from nyxuri.desktop import presets as preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(src, "kitty", "", {"kitty.conf": "# base"})
+            official = root / "__presets__" / "shared"
+            official.mkdir(parents=True)
+            (official / "kitty.conf").write_text("# official", encoding="utf-8")
+            shadow = ctx.env.presets_dir / "kitty" / "shared"
+            shadow.mkdir(parents=True)
+            (shadow / "kitty.conf").write_text("# shadow", encoding="utf-8")
+            self.assertFalse(_quiet(preset.delete_preset, "kitty", "shared"))
+            self.assertFalse(_quiet(preset.edit_preset, "kitty", "shared"))
+            self.assertTrue(shadow.is_dir())
+
+    def test_active_file_is_authoritative_and_syncs_the_ledger(self):
+        import nyxuri.deploy.preset as preset
+        from nyxuri.kernel.ledger import read_ledger
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "demo", "", {"config.kdl": "// b"})
+            preset.write_active_preset("demo", "A")
+            self.assertEqual(preset.read_active_preset("demo"), "A")
+            (ctx.env.presets_dir / "demo.active").write_text("B", encoding="utf-8")
+            self.assertEqual(preset.read_active_preset("demo"), "B")
+            self.assertEqual(read_ledger().get("presets", {}).get("demo"), "B")
+
+    def test_non_string_part_target_returns_false(self):
+        import nyxuri.deploy.preset as preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(src, "demo", '[parts.x]\ntarget = ["a.kdl"]\nsource_dir = "x"\n',
+                             {"config.kdl": "// b"})
+            slot = root / "__presets__" / "x"
+            slot.mkdir(parents=True)
+            (slot / "default.kdl").write_text("// v", encoding="utf-8")
+            self.assertFalse(_quiet(preset.apply_part, "demo", "x", "default"))
+
+    def test_preset_include_keeps_directory_and_double_star_matches(self):
+        from nyxuri.desktop import presets as preset
+        cases = (
+            ('["scripts"]', {"a.kdl", "scripts/run.sh"}),
+            ('["**/*.kdl"]', {"a.kdl", "sub/x.kdl"}),
+            ('["*.kdl"]', {"a.kdl", "sub/x.kdl"}),
+        )
+        for include, expected in cases:
+            with TempEnv() as ctx:
+                src = self._sandbox(ctx)
+                self._app(
+                    src, "demo",
+                    f"[presets]\ninherit = true\ninclude = {include}\n",
+                    {"config.kdl": "// c", "scripts/run.sh": "#!/bin/sh\n",
+                     "sub/x.kdl": "// x", "a.kdl": "// a"},
+                )
+                root = src / "demo" / "__presets__" / "A"
+                root.mkdir(parents=True)
+                (root / "a.kdl").write_text("// a", encoding="utf-8")
+                self.assertTrue(_quiet(preset.apply_preset, "demo", "A"))
+                dest = ctx.env.config_dir / "demo"
+                got = {str(p.relative_to(dest)) for p in dest.rglob("*") if p.is_file()}
+                self.assertTrue(expected <= got, f"{include}: missing {sorted(expected - got)}")
+
+    def test_apply_preset_applies_manifest_chmod(self):
+        from nyxuri.desktop import presets as preset
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(src, "demo",
+                             'chmod = ["scripts/*.sh"]\n[presets]\ninherit = true\n',
+                             {"config.kdl": "// c", "scripts/run.sh": "#!/bin/sh\n"})
+            os.chmod(root / "scripts" / "run.sh", 0o644)
+            slot = root / "__presets__" / "A"
+            slot.mkdir(parents=True)
+            (slot / "a.kdl").write_text("// a", encoding="utf-8")
+            self.assertTrue(_quiet(preset.apply_preset, "demo", "A"))
+            script = ctx.env.config_dir / "demo" / "scripts" / "run.sh"
+            self.assertTrue(script.is_file())
+            self.assertEqual(script.stat().st_mode & 0o777, 0o755)

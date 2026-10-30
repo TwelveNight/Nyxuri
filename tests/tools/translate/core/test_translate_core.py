@@ -13,6 +13,10 @@ from orbit_translate.capture import CaptureError, capture_primary, normalize_tex
 from orbit_translate.config import ConfigError, ProviderConfig, parse_config
 from orbit_translate.engine import ResultRelay
 from orbit_translate.geometry import PanelPlacement, center_panel, clamp_panel, place_panel
+
+# Blueprint modules imported from units/ must never drop __pycache__ into the read-only source tree (unit-model §1).
+import sys
+sys.dont_write_bytecode = True
 from orbit_translate.providers import (
     ProviderOutcome,
     build_bing_dict_url,
@@ -47,6 +51,11 @@ from orbit_translate.providers import (
     substitute_command,
     translate_provider,
 )
+
+# Imports consolidated from the dissolved bugfix ledger.
+import sys
+import tempfile
+from pathlib import Path
 
 
 class CaptureTests(unittest.TestCase):
@@ -424,3 +433,42 @@ class GeometryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTranslateConfigErrors(unittest.TestCase):
+
+    def _module(self, name):
+        import importlib
+        tools = Path(__file__).resolve().parents[4] / "units" / "noctalia" / "tools"
+        if str(tools) not in sys.path:
+            sys.path.insert(0, str(tools))
+        return importlib.import_module(f"orbit_translate.{name}")
+
+    def test_non_ai_provider_bad_base_url_raises_config_error(self):
+        config = self._module("config")
+        for provider_type in ("google", "libretranslate", "mymemory", "deepl", "bing",
+                              "bing_dict", "cambridge_dict", "lingva", "yandex",
+                              "ecdict", "transmart", "tatoeba"):
+            with self.assertRaises(config.ConfigError, msg=provider_type):
+                config.parse_config({"providers": [{"id": "x", "type": provider_type,
+                                                    "base_url": "http://[::1"}]})
+
+    def test_non_utf8_config_raises_config_error(self):
+        config = self._module("config")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "c.toml"
+            path.write_bytes(b'source = "en"\n# \xff\xfe not utf-8\ntarget = "zh-CN"\n')
+            with self.assertRaises(config.ConfigError):
+                config.load_config(path)
+
+    def test_save_round_trip_failure_raises_settings_error(self):
+        settings = self._module("settings")
+        text = 'name = "a\\u007Fb"\n\n[[providers]]\nid = "x"\ntype = "google"\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "s.toml"
+            path.write_text(text, encoding="utf-8")
+            document = settings.SettingsDocument(path)
+            document.toggle(0)
+            with self.assertRaises(settings.SettingsError):
+                document.save()
+            self.assertEqual(path.read_text(encoding="utf-8"), text)

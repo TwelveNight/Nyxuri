@@ -73,7 +73,7 @@ FloatingWindow {
 
     visible: false
     parentWindow: root.parentModal
-    title: "clavis-file-picker"
+    title: "nyxuri-file-picker"
     implicitWidth: 920
     implicitHeight: 600
     minimumSize: Qt.size(680, 440)

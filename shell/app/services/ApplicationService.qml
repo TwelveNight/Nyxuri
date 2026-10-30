@@ -20,16 +20,16 @@ Singleton {
         return "";
     }
     readonly property var settingsApplication: ({
-                                                    id: "org.clavis.Settings",
+                                                    id: "org.nyxuri.Settings",
                                                     name: I18n.tr("Settings", "ControlCenterWindow"),
-                                                    genericName: "Clavis",
-                                                    keywords: ["Clavis", "settings", "preferences",
+                                                    genericName: "Nyxuri",
+                                                    keywords: ["Nyxuri", "settings", "preferences",
                                                         "control center"],
                                                     symbol: root.settingsIconName ? "" : "settings",
                                                     icon: root.settingsIconName
                                                 })
     readonly property var spaceApplication: ({
-                                                 id: "org.clavis.Space",
+                                                 id: "org.nyxuri.Space",
                                                  name: I18n.tr("Space"),
                                                  genericName: I18n.tr("Drag to Dock to add a blank space"),
                                                  keywords: ["space", "spacer", "blank", "dock"],
@@ -38,7 +38,7 @@ Singleton {
                                                  dragOnly: true
                                              })
     readonly property var smallSpaceApplication: ({
-                                                      id: "org.clavis.SmallSpace",
+                                                      id: "org.nyxuri.SmallSpace",
                                                       name: I18n.tr("Small Space"),
                                                       genericName: I18n.tr(
                                                                        "Drag to Dock to add a blank space"),
@@ -59,7 +59,7 @@ Singleton {
             return false;
 
         // Enter the scope before executing the app, so even its earliest
-        // children cannot inherit clavis-shell.service's control group.
+        // children cannot inherit the shell service's control group.
         // Scope mode preserves the caller's environment and working directory.
         const scopedCommand = ["systemd-run", "--user", "--scope", "--collect", "--quiet", "--slice=app.slice",
                                "--expand-environment=no"];

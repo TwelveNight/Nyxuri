@@ -4,6 +4,7 @@
     {
       "id": "account",
       "title": "Account",
+      "description": "Profile name, avatar, and banner",
       "context": "ControlCenterWindow",
       "icon": "account_circle",
       "source": "AccountPage.qml",
@@ -15,6 +16,7 @@
     {
       "id": "theme",
       "title": "Theme",
+      "description": "Colors, effects, and palettes",
       "context": "ControlCenterWindow",
       "icon": "palette",
       "source": "ThemePage.qml",
@@ -33,6 +35,7 @@
     {
       "id": "wallpaper",
       "title": "Wallpaper",
+      "description": "Sources, auto-cycle, and switching",
       "context": "ControlCenterWindow",
       "icon": "wallpaper",
       "source": "WallpaperPage.qml",
@@ -44,6 +47,7 @@
     {
       "id": "bar",
       "title": "Bar",
+      "description": "Position, modules, and indicators",
       "context": "ControlCenterWindow",
       "icon": "dock_to_bottom",
       "source": "GeneralBarPage.qml",
@@ -57,6 +61,7 @@
     {
       "id": "dock",
       "title": "Dock",
+      "description": "Position, size, and behavior",
       "context": "ControlCenterWindow",
       "icon": "dock_to_bottom",
       "source": "DockPage.qml",
@@ -72,6 +77,7 @@
     {
       "id": "sidebar",
       "title": "Sidebars",
+      "description": "Sides, cards, and monitoring",
       "context": "ControlCenterWindow",
       "icon": "side_navigation",
       "source": "GeneralSidebarPage.qml",
@@ -86,6 +92,7 @@
     {
       "id": "displays",
       "title": "Displays",
+      "description": "Monitor layout and night light",
       "context": "ControlCenterWindow",
       "icon": "monitor",
       "source": "DisplaysPage.qml",
@@ -99,6 +106,7 @@
     {
       "id": "keystone",
       "title": "Keystone",
+      "description": "Style, clock, and media controls",
       "context": "ControlCenterWindow",
       "icon": "toggle_off",
       "source": "KeystonePage.qml",
@@ -110,6 +118,7 @@
     {
       "id": "shortcuts",
       "title": "Keyboard shortcuts",
+      "description": "Global shortcuts and actions",
       "context": "ControlCenterWindow",
       "icon": "keyboard",
       "source": "ShortcutsPage.qml",
@@ -123,6 +132,7 @@
     {
       "id": "spotlight",
       "title": "Spotlight",
+      "description": "Search modes, layout, and order",
       "context": "ControlCenterWindow",
       "icon": "search",
       "source": "SpotlightPage.qml",
@@ -136,6 +146,7 @@
     {
       "id": "network",
       "title": "Network",
+      "description": "Wi-Fi and wired connections",
       "context": "ControlCenterWindow",
       "icon": "wifi",
       "source": "NetworkPage.qml",
@@ -149,6 +160,7 @@
     {
       "id": "connected-devices",
       "title": "Connected devices",
+      "description": "Bluetooth devices and pairing",
       "context": "ControlCenterWindow",
       "icon": "devices_other",
       "source": "ConnectedDevicesPage.qml",
@@ -163,6 +175,7 @@
     {
       "id": "autostart",
       "title": "Autostart",
+      "description": "Session startup applications",
       "context": "ControlCenterWindow",
       "icon": "rocket_launch",
       "source": "AutostartPage.qml",
@@ -176,6 +189,7 @@
     {
       "id": "default-apps",
       "title": "Default applications",
+      "description": "Browser, terminal, and other defaults",
       "context": "ControlCenterWindow",
       "icon": "apps",
       "source": "DefaultAppsPage.qml",
@@ -189,6 +203,7 @@
     {
       "id": "language-region",
       "title": "Language & region",
+      "description": "Language, temperature, and clock",
       "context": "ControlCenterWindow",
       "icon": "language",
       "source": "LanguageAndRegionPage.qml",
@@ -202,6 +217,7 @@
     {
       "id": "shell",
       "title": "Nyxuri Shell",
+      "description": "Unit toggles and diagnostics",
       "context": "ControlCenterWindow",
       "icon": "monitor_heart",
       "source": "ShellPage.qml",
@@ -216,6 +232,7 @@
     {
       "id": "displays.configuration",
       "title": "Display configuration",
+      "description": "Resolution, refresh, and layout",
       "context": "DisplaysPage",
       "icon": "monitor",
       "source": "DisplayConfigurationPage.qml",
@@ -230,6 +247,7 @@
     {
       "id": "displays.gamma",
       "title": "Gamma Control",
+      "description": "Night light color temperature",
       "context": "DisplaysPage",
       "icon": "brightness_6",
       "source": "GammaControlPage.qml",
@@ -246,6 +264,7 @@
     {
       "id": "keystone.horizontal-clock",
       "title": "Horizontal clock style",
+      "description": "Horizontal clock appearance",
       "context": "KeystonePage",
       "icon": "schedule",
       "source": "HorizontalClockPage.qml",
@@ -258,6 +277,7 @@
     {
       "id": "connected-devices.bluetooth-pairing",
       "title": "Pair new device",
+      "description": "Scan and pair nearby devices",
       "context": "ConnectedDevicesPage",
       "icon": "bluetooth_searching",
       "source": "BluetoothPairingPage.qml",
@@ -268,6 +288,18 @@
       "aliases": [
         "general.bluetooth-pairing"
       ]
+    },
+    {
+      "id": "about",
+      "title": "About",
+      "description": "System information and versions",
+      "context": "ControlCenterWindow",
+      "icon": "info",
+      "source": "AboutPage.qml",
+      "path": [
+        "about"
+      ],
+      "aliases": []
     }
   ]
 }

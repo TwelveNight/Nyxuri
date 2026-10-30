@@ -21,7 +21,7 @@ import display_preview as preview
 
 class PreviewContracts(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(prefix='clavis-preview-test-')
+        self.temp=tempfile.TemporaryDirectory(prefix='nyxuri-preview-test-')
         self.addCleanup(self.temp.cleanup)
         self.directory=Path(self.temp.name)
         self.main=self.directory/'config.kdl'
@@ -30,7 +30,7 @@ class PreviewContracts(unittest.TestCase):
         self.environment.start(); self.addCleanup(self.environment.stop)
         os.environ.pop('NIRI_SOCKET',None)
         config.run(dict(operation='setup',feature='outputs',main=str(self.main)))
-        self.before_file=(self.directory/'clavis/outputs.kdl').read_bytes()
+        self.before_file=(self.directory/'nyxuri/outputs.kdl').read_bytes()
         self.peer=socket.socket(socket.AF_UNIX)
         self.peer.bind(str(self.directory/'niri.sock'));self.peer.listen()
         self.peer.settimeout(0.1)
@@ -134,7 +134,7 @@ class PreviewContracts(unittest.TestCase):
         self.assertEqual(self.start()['phase'],'confirming')
         self.until('reverted')
         self.assertEqual(self.state,self.initial)
-        self.assertEqual((self.directory/'clavis/outputs.kdl').read_bytes(),self.before_file)
+        self.assertEqual((self.directory/'nyxuri/outputs.kdl').read_bytes(),self.before_file)
 
     def test_keep_persists_and_verifies(self):
         self.assertEqual(self.start()['phase'],'confirming')
@@ -176,7 +176,7 @@ class PreviewContracts(unittest.TestCase):
         self.assertIn('scale 1.5',self.main.read_text())
 
     def test_recovery_publication_preserves_external_edits(self):
-        path=self.directory/'clavis/outputs.kdl'
+        path=self.directory/'nyxuri/outputs.kdl'
         path.write_text('// external edit\n')
         with self.assertRaises(ValueError):
             config.restore_output_publication(self.main,'// candidate\n','// original\n')

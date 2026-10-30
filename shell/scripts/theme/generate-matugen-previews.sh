@@ -34,7 +34,7 @@ if [[ "$mode" != dark && "$mode" != light ]]; then
     usage
     exit 2
 fi
-generated_home="${NYXURI_SHELL_GENERATED_HOME:-${CLAVIS_GENERATED_HOME:-}}"
+generated_home="${NYXURI_SHELL_GENERATED_HOME:-}"
 if [[ -z "$generated_home" ]]; then
     printf 'generated home is required (NYXURI_SHELL_GENERATED_HOME)\n' >&2
     exit 1

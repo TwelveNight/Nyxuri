@@ -945,10 +945,10 @@
     "parameters": true
   },
   {
-    "id": "clavis:lock:open",
-    "category": "clavis",
+    "id": "nyxuri:lock:open",
+    "category": "nyxuri",
     "name": "Lock: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"lock\" \"open\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"lock\" \"open\"",
     "parameters": false,
     "target": "lock",
     "method": "open",
@@ -968,10 +968,10 @@
     }
   },
   {
-    "id": "clavis:lock:isLocked",
-    "category": "clavis",
+    "id": "nyxuri:lock:isLocked",
+    "category": "nyxuri",
     "name": "Lock: is locked",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"lock\" \"isLocked\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"lock\" \"isLocked\"",
     "parameters": false,
     "target": "lock",
     "method": "isLocked",
@@ -980,10 +980,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:toggle",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:toggle",
+    "category": "nyxuri",
     "name": "Spotlight: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"toggle\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"toggle\"",
     "parameters": false,
     "target": "spotlight",
     "method": "toggle",
@@ -992,10 +992,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:open",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:open",
+    "category": "nyxuri",
     "name": "Spotlight: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"open\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"open\"",
     "parameters": false,
     "target": "spotlight",
     "method": "open",
@@ -1004,10 +1004,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:search",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:search",
+    "category": "nyxuri",
     "name": "Spotlight: Search",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"search\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"search\"",
     "parameters": false,
     "target": "spotlight",
     "method": "search",
@@ -1026,10 +1026,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:close",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:close",
+    "category": "nyxuri",
     "name": "Spotlight: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"close\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"close\"",
     "parameters": false,
     "target": "spotlight",
     "method": "close",
@@ -1038,10 +1038,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:web",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:web",
+    "category": "nyxuri",
     "name": "Spotlight: web",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"web\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"web\"",
     "parameters": false,
     "target": "spotlight",
     "method": "web",
@@ -1061,10 +1061,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:commands",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:commands",
+    "category": "nyxuri",
     "name": "Spotlight: Commands",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"commands\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"commands\"",
     "parameters": false,
     "target": "spotlight",
     "method": "commands",
@@ -1073,10 +1073,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:calc",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:calc",
+    "category": "nyxuri",
     "name": "Spotlight: Calculator",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"calc\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"calc\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1085,10 +1085,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:fx",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:fx",
+    "category": "nyxuri",
     "name": "Spotlight: Currency",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"fx\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"fx\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1097,10 +1097,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:time",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:time",
+    "category": "nyxuri",
     "name": "Spotlight: Time zone",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"time\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"time\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1109,10 +1109,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:light",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:light",
+    "category": "nyxuri",
     "name": "Spotlight: Light theme",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"light\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"light\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1121,10 +1121,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:dark",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:dark",
+    "category": "nyxuri",
     "name": "Spotlight: Dark theme",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"dark\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"dark\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1133,10 +1133,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:find-settings",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:find-settings",
+    "category": "nyxuri",
     "name": "Spotlight: Search settings",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"find-settings\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"find-settings\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1145,10 +1145,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:actions",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:actions",
+    "category": "nyxuri",
     "name": "Spotlight: Search IPC actions",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"actions\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"actions\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1157,10 +1157,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:command:map",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:command:map",
+    "category": "nyxuri",
     "name": "Spotlight: Location picker",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"command\" \"map\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"command\" \"map\"",
     "parameters": false,
     "target": "spotlight",
     "method": "command",
@@ -1169,10 +1169,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:openMode",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:openMode",
+    "category": "nyxuri",
     "name": "Spotlight: open mode",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"openMode\" \"<mode>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"openMode\" \"<mode>\"",
     "parameters": true,
     "target": "spotlight",
     "method": "openMode",
@@ -1181,10 +1181,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:files",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:files",
+    "category": "nyxuri",
     "name": "Spotlight: Find files",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"files\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"files\"",
     "parameters": false,
     "target": "spotlight",
     "method": "files",
@@ -1203,10 +1203,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:openMode:apps",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:openMode:apps",
+    "category": "nyxuri",
     "name": "Spotlight: open applications",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"openMode\" \"apps\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"openMode\" \"apps\"",
     "parameters": false,
     "target": "spotlight",
     "method": "openMode",
@@ -1228,10 +1228,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:openMode:clipboard",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:openMode:clipboard",
+    "category": "nyxuri",
     "name": "Spotlight: open clipboard",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"openMode\" \"clipboard\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"openMode\" \"clipboard\"",
     "parameters": false,
     "target": "spotlight",
     "method": "openMode",
@@ -1252,10 +1252,10 @@
     }
   },
   {
-    "id": "clavis:spotlight:openMode:wallpapers",
-    "category": "clavis",
+    "id": "nyxuri:spotlight:openMode:wallpapers",
+    "category": "nyxuri",
     "name": "Spotlight: open wallpaper picker",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"spotlight\" \"openMode\" \"wallpapers\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"spotlight\" \"openMode\" \"wallpapers\"",
     "parameters": false,
     "target": "spotlight",
     "method": "openMode",
@@ -1276,10 +1276,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:set",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:set",
+    "category": "nyxuri",
     "name": "Wallpaper: set",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"set\" \"<path>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"set\" \"<path>\"",
     "parameters": true,
     "target": "wallpaper",
     "method": "set",
@@ -1288,10 +1288,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:setForScreen",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:setForScreen",
+    "category": "nyxuri",
     "name": "Wallpaper: set for screen",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"setForScreen\" \"<path>\" \"<screenName>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"setForScreen\" \"<path>\" \"<screenName>\"",
     "parameters": true,
     "target": "wallpaper",
     "method": "setForScreen",
@@ -1300,10 +1300,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:clear",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:clear",
+    "category": "nyxuri",
     "name": "Wallpaper: clear",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"clear\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"clear\"",
     "parameters": false,
     "target": "wallpaper",
     "method": "clear",
@@ -1322,10 +1322,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:clearForScreen",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:clearForScreen",
+    "category": "nyxuri",
     "name": "Wallpaper: clear for screen",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"clearForScreen\" \"<screenName>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"clearForScreen\" \"<screenName>\"",
     "parameters": true,
     "target": "wallpaper",
     "method": "clearForScreen",
@@ -1334,10 +1334,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:previous",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:previous",
+    "category": "nyxuri",
     "name": "Wallpaper: previous",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"previous\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"previous\"",
     "parameters": false,
     "target": "wallpaper",
     "method": "previous",
@@ -1356,10 +1356,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:next",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:next",
+    "category": "nyxuri",
     "name": "Wallpaper: next",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"next\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"next\"",
     "parameters": false,
     "target": "wallpaper",
     "method": "next",
@@ -1378,10 +1378,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:random",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:random",
+    "category": "nyxuri",
     "name": "Wallpaper: random",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"random\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"random\"",
     "parameters": false,
     "target": "wallpaper",
     "method": "random",
@@ -1400,10 +1400,10 @@
     }
   },
   {
-    "id": "clavis:wallpaper:setFolder",
-    "category": "clavis",
+    "id": "nyxuri:wallpaper:setFolder",
+    "category": "nyxuri",
     "name": "Wallpaper: set folder",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"wallpaper\" \"setFolder\" \"<path>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"wallpaper\" \"setFolder\" \"<path>\"",
     "parameters": true,
     "target": "wallpaper",
     "method": "setFolder",
@@ -1412,10 +1412,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open",
+    "category": "nyxuri",
     "name": "Control center: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"<pageId>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"<pageId>\"",
     "parameters": true,
     "target": "control-center",
     "method": "open",
@@ -1424,10 +1424,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:account",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:account",
+    "category": "nyxuri",
     "name": "Control center: open Account",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"account\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"account\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1436,10 +1436,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:general",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:general",
+    "category": "nyxuri",
     "name": "Control center: open General",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"general\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"general\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1448,10 +1448,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:wallpaper",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:wallpaper",
+    "category": "nyxuri",
     "name": "Control center: open Wallpaper",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"wallpaper\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"wallpaper\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1460,10 +1460,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:theme",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:theme",
+    "category": "nyxuri",
     "name": "Control center: open Theme",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"theme\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"theme\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1472,10 +1472,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:keystone",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:keystone",
+    "category": "nyxuri",
     "name": "Control center: open Keystone",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"keystone\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"keystone\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1484,10 +1484,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:advanced",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:advanced",
+    "category": "nyxuri",
     "name": "Control center: open Advanced",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"advanced\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"advanced\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1496,10 +1496,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:language-region",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:language-region",
+    "category": "nyxuri",
     "name": "Control center: open Language & region",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"language-region\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\" \"language-region\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1508,10 +1508,10 @@
     }
   },
   {
-    "id": "clavis:control-center:open:current",
-    "category": "clavis",
+    "id": "nyxuri:control-center:open:current",
+    "category": "nyxuri",
     "name": "Control center: open current page",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"open\" \"\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"open\"",
     "parameters": false,
     "target": "control-center",
     "method": "open",
@@ -1520,10 +1520,10 @@
     }
   },
   {
-    "id": "clavis:control-center:close",
-    "category": "clavis",
+    "id": "nyxuri:control-center:close",
+    "category": "nyxuri",
     "name": "Control center: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"close\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"close\"",
     "parameters": false,
     "target": "control-center",
     "method": "close",
@@ -1532,10 +1532,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle",
+    "category": "nyxuri",
     "name": "Control center: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"<pageId>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"<pageId>\"",
     "parameters": true,
     "target": "control-center",
     "method": "toggle",
@@ -1544,10 +1544,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:account",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:account",
+    "category": "nyxuri",
     "name": "Control center: toggle Account",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"account\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"account\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1556,10 +1556,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:general",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:general",
+    "category": "nyxuri",
     "name": "Control center: toggle General",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"general\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"general\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1568,10 +1568,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:wallpaper",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:wallpaper",
+    "category": "nyxuri",
     "name": "Control center: toggle Wallpaper",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"wallpaper\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"wallpaper\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1580,10 +1580,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:theme",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:theme",
+    "category": "nyxuri",
     "name": "Control center: toggle Theme",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"theme\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"theme\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1592,10 +1592,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:keystone",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:keystone",
+    "category": "nyxuri",
     "name": "Control center: toggle Keystone",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"keystone\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"keystone\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1604,10 +1604,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:advanced",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:advanced",
+    "category": "nyxuri",
     "name": "Control center: toggle Advanced",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"advanced\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"advanced\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1616,10 +1616,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:language-region",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:language-region",
+    "category": "nyxuri",
     "name": "Control center: toggle Language & region",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"language-region\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\" \"language-region\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1628,10 +1628,10 @@
     }
   },
   {
-    "id": "clavis:control-center:toggle:current",
-    "category": "clavis",
+    "id": "nyxuri:control-center:toggle:current",
+    "category": "nyxuri",
     "name": "Control center: toggle current page",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"control-center\" \"toggle\" \"\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"control-center\" \"toggle\"",
     "parameters": false,
     "target": "control-center",
     "method": "toggle",
@@ -1640,10 +1640,10 @@
     }
   },
   {
-    "id": "clavis:keystone:cancelRecord",
-    "category": "clavis",
+    "id": "nyxuri:keystone:cancelRecord",
+    "category": "nyxuri",
     "name": "Keystone: cancel record",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"cancelRecord\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"cancelRecord\"",
     "parameters": false,
     "target": "keystone",
     "method": "cancelRecord",
@@ -1653,10 +1653,10 @@
     }
   },
   {
-    "id": "clavis:keystone:closeAllOthers",
-    "category": "clavis",
+    "id": "nyxuri:keystone:closeAllOthers",
+    "category": "nyxuri",
     "name": "Keystone: close all others",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"closeAllOthers\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"closeAllOthers\"",
     "parameters": false,
     "target": "keystone",
     "method": "closeAllOthers",
@@ -1675,10 +1675,10 @@
     }
   },
   {
-    "id": "clavis:keystone:currentStyle",
-    "category": "clavis",
+    "id": "nyxuri:keystone:currentStyle",
+    "category": "nyxuri",
     "name": "Keystone: current style",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"currentStyle\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"currentStyle\"",
     "parameters": false,
     "target": "keystone",
     "method": "currentStyle",
@@ -1687,10 +1687,10 @@
     }
   },
   {
-    "id": "clavis:keystone:dashboard",
-    "category": "clavis",
+    "id": "nyxuri:keystone:dashboard",
+    "category": "nyxuri",
     "name": "Keystone: dashboard",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"dashboard\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"dashboard\"",
     "parameters": false,
     "target": "keystone",
     "method": "dashboard",
@@ -1709,10 +1709,10 @@
     }
   },
   {
-    "id": "clavis:keystone:hub",
-    "category": "clavis",
+    "id": "nyxuri:keystone:hub",
+    "category": "nyxuri",
     "name": "Keystone: hub",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"hub\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"hub\"",
     "parameters": false,
     "target": "keystone",
     "method": "hub",
@@ -1731,10 +1731,10 @@
     }
   },
   {
-    "id": "clavis:keystone:lyrics",
-    "category": "clavis",
+    "id": "nyxuri:keystone:lyrics",
+    "category": "nyxuri",
     "name": "Keystone: lyrics",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"lyrics\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"lyrics\"",
     "parameters": false,
     "target": "keystone",
     "method": "lyrics",
@@ -1753,10 +1753,10 @@
     }
   },
   {
-    "id": "clavis:keystone:tools",
-    "category": "clavis",
+    "id": "nyxuri:keystone:tools",
+    "category": "nyxuri",
     "name": "Keystone: tools",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"keystone\" \"tools\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"keystone\" \"tools\"",
     "parameters": false,
     "target": "keystone",
     "method": "tools",
@@ -1776,10 +1776,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:open",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:open",
+    "category": "nyxuri",
     "name": "Sidebar: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"open\" \"<target>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"open\" \"<target>\"",
     "parameters": true,
     "target": "sidebar",
     "method": "open",
@@ -1788,10 +1788,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:open:dashboard",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:open:dashboard",
+    "category": "nyxuri",
     "name": "Notifications: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"open\" \"dashboard\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"open\" \"dashboard\"",
     "parameters": false,
     "target": "sidebar",
     "method": "open",
@@ -1812,10 +1812,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:open:quicksettings",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:open:quicksettings",
+    "category": "nyxuri",
     "name": "Quick settings: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"open\" \"quicksettings\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"open\" \"quicksettings\"",
     "parameters": false,
     "target": "sidebar",
     "method": "open",
@@ -1836,10 +1836,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:toggle:weather",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:toggle:weather",
+    "category": "nyxuri",
     "name": "Weather sidebar: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"toggle\" \"weather\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"toggle\" \"weather\"",
     "parameters": false,
     "target": "sidebar",
     "method": "toggle",
@@ -1861,10 +1861,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:toggle:drawer",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:toggle:drawer",
+    "category": "nyxuri",
     "name": "Sidebar drawer: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"toggle\" \"drawer\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"toggle\" \"drawer\"",
     "parameters": false,
     "target": "sidebar",
     "method": "toggle",
@@ -1886,10 +1886,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:close",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:close",
+    "category": "nyxuri",
     "name": "Sidebar: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"close\" \"<target>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"close\" \"<target>\"",
     "parameters": true,
     "target": "sidebar",
     "method": "close",
@@ -1898,10 +1898,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:close:dashboard",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:close:dashboard",
+    "category": "nyxuri",
     "name": "Notifications: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"close\" \"dashboard\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"close\" \"dashboard\"",
     "parameters": false,
     "target": "sidebar",
     "method": "close",
@@ -1910,10 +1910,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:close:quicksettings",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:close:quicksettings",
+    "category": "nyxuri",
     "name": "Quick settings: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"close\" \"quicksettings\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"close\" \"quicksettings\"",
     "parameters": false,
     "target": "sidebar",
     "method": "close",
@@ -1922,10 +1922,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:toggle",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:toggle",
+    "category": "nyxuri",
     "name": "Sidebar: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"toggle\" \"<target>\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"toggle\" \"<target>\"",
     "parameters": true,
     "target": "sidebar",
     "method": "toggle",
@@ -1934,10 +1934,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:toggle:dashboard",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:toggle:dashboard",
+    "category": "nyxuri",
     "name": "Notifications: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"toggle\" \"dashboard\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"toggle\" \"dashboard\"",
     "parameters": false,
     "target": "sidebar",
     "method": "toggle",
@@ -1946,10 +1946,10 @@
     }
   },
   {
-    "id": "clavis:sidebar:toggle:quicksettings",
-    "category": "clavis",
+    "id": "nyxuri:sidebar:toggle:quicksettings",
+    "category": "nyxuri",
     "name": "Quick settings: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"sidebar\" \"toggle\" \"quicksettings\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"sidebar\" \"toggle\" \"quicksettings\"",
     "parameters": false,
     "target": "sidebar",
     "method": "toggle",
@@ -1958,10 +1958,10 @@
     }
   },
   {
-    "id": "clavis:shortcut-map:open",
-    "category": "clavis",
+    "id": "nyxuri:shortcut-map:open",
+    "category": "nyxuri",
     "name": "Shortcut map: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"shortcut-map\" \"open\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"shortcut-map\" \"open\"",
     "parameters": false,
     "target": "shortcut-map",
     "method": "open",
@@ -1980,10 +1980,10 @@
     }
   },
   {
-    "id": "clavis:shortcut-map:close",
-    "category": "clavis",
+    "id": "nyxuri:shortcut-map:close",
+    "category": "nyxuri",
     "name": "Shortcut map: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"shortcut-map\" \"close\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"shortcut-map\" \"close\"",
     "parameters": false,
     "target": "shortcut-map",
     "method": "close",
@@ -1992,10 +1992,10 @@
     }
   },
   {
-    "id": "clavis:shortcut-map:toggle",
-    "category": "clavis",
+    "id": "nyxuri:shortcut-map:toggle",
+    "category": "nyxuri",
     "name": "Shortcut map: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"shortcut-map\" \"toggle\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"shortcut-map\" \"toggle\"",
     "parameters": false,
     "target": "shortcut-map",
     "method": "toggle",
@@ -2004,10 +2004,10 @@
     }
   },
   {
-    "id": "clavis:power-menu:open",
-    "category": "clavis",
+    "id": "nyxuri:power-menu:open",
+    "category": "nyxuri",
     "name": "Power menu: open",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"power-menu\" \"open\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"power-menu\" \"open\"",
     "parameters": false,
     "target": "power-menu",
     "method": "open",
@@ -2029,10 +2029,10 @@
     }
   },
   {
-    "id": "clavis:power-menu:close",
-    "category": "clavis",
+    "id": "nyxuri:power-menu:close",
+    "category": "nyxuri",
     "name": "Power menu: close",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"power-menu\" \"close\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"power-menu\" \"close\"",
     "parameters": false,
     "target": "power-menu",
     "method": "close",
@@ -2041,10 +2041,10 @@
     }
   },
   {
-    "id": "clavis:power-menu:toggle",
-    "category": "clavis",
+    "id": "nyxuri:power-menu:toggle",
+    "category": "nyxuri",
     "name": "Power menu: toggle",
-    "expression": "spawn \"qs\" \"-c\" \"clavis\" \"ipc\" \"call\" \"power-menu\" \"toggle\"",
+    "expression": "spawn \"nyxuri-shell\" \"--ipc\" \"power-menu\" \"toggle\"",
     "parameters": false,
     "target": "power-menu",
     "method": "toggle",

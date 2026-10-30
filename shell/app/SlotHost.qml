@@ -8,6 +8,8 @@ import qs.app.services
 // the top level imports would otherwise get its FIRST resolution inside a
 // Loader-loaded component, which is exactly the 0.3.2 defect documented
 // below (KM4.6 实机验收案例：shell.desktopcards 永久 compiled empty).
+// qs.units.settings.controls (T3 preference atoms) joins for the same
+// reason: consumed only by settings pages inside the unit's Loader tree.
 import qs.app.cards
 import qs.units.bar
 import qs.units.desktopcards
@@ -19,6 +21,7 @@ import qs.units.notifications
 import qs.units.regionselector
 import qs.units.session
 import qs.units.settings
+import qs.units.settings.controls
 import qs.units.sidebars
 import qs.units.wallpaper
 

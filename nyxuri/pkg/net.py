@@ -16,9 +16,6 @@ from typing import Any, List, Optional, Tuple
 
 from nyxuri.core import (
     Colors,
-    CUSTOM_REPO_URL,
-    CUSTOM_REPO_URL_VALID,
-    GIT_MIRROR_REGISTRY,
     RAW_MIRROR_TEMPLATES,
 )
 from nyxuri.core import get_env, log_msg, register_temp_path, timed_run
@@ -133,80 +130,6 @@ def _run_git_transfer(command: List[str], **kwargs: Any) -> subprocess.Completed
         return subprocess.CompletedProcess(progress_command, 124, "", "git command timed out")
     except OSError as exc:
         return subprocess.CompletedProcess(progress_command, 127, "", str(exc))
-
-
-def git_clone_timeout(url: str, target_dir: Path, cancellable: bool = False) -> bool:
-    """Perform a shallow clone with strict network timeouts and non-interactive prompts."""
-    try:
-        env = {
-            **os.environ,
-            "GIT_TERMINAL_PROMPT": "0",
-            "LC_ALL": "C",
-        }
-        command = [
-            "git",
-            "clone",
-            "-c",
-            "http.lowSpeedTime=15",
-            "-c",
-            "http.lowSpeedLimit=1000",
-            "-c",
-            "http.connectTimeout=10",
-            "-c",
-            "http.timeout=20",
-            "--depth",
-            "1",
-            url,
-            str(target_dir),
-        ]
-        command, show_progress = _with_git_progress(command)
-        if cancellable:
-            attempt = _run_cancellable_process(command, show_output=show_progress, env=env)
-            return not attempt.interrupted and attempt.returncode == 0
-        res = subprocess.run(
-            command,
-            capture_output=not show_progress,
-            text=True,
-            env=env,
-            check=False,
-        )
-        return res.returncode == 0
-    except Exception as e:
-        log_msg("WARN", f"git_clone_timeout exception: {e}")
-        return False
-
-
-def clone_repo_with_fallback(target_dir: Path, mirrors: Optional[List[Tuple[str, str]]] = None) -> bool:
-    """Clone repository attempting each configured mirror in order."""
-    if mirrors is None:
-        if CUSTOM_REPO_URL and not CUSTOM_REPO_URL_VALID:
-            # Single-source override means no official fallback by contract;
-            # a bogus address fails loudly instead of silently switching source.
-            sys.stderr.write(msg("net_custom_repo_invalid", CUSTOM_REPO_URL))
-            log_msg("ERROR", f"NYXURI_REPO rejected: {CUSTOM_REPO_URL}")
-            return False
-        mirrors = GIT_MIRROR_REGISTRY
-
-    log_msg("INFO", "Starting Git clone with fallback mirrors")
-    sys.stderr.write(msg("net_pull_repo") + "\n")
-
-    total = len(mirrors)
-    for idx, (tag, url) in enumerate(mirrors, start=1):
-        sys.stderr.write(msg("net_pull_node", idx, total, tag) + "\n")
-        if target_dir.exists():
-            shutil.rmtree(target_dir, ignore_errors=True)
-
-        if git_clone_timeout(url, target_dir):
-            sys.stderr.write(msg("net_pull_node_ok", tag))
-            log_msg("INFO", f"Git clone [{tag}] SUCCESS ({url})")
-            return True
-        else:
-            sys.stderr.write(msg("net_pull_node_fail", tag) + "\n")
-            log_msg("WARN", f"Git clone [{tag}] FAILED ({url})")
-
-    sys.stderr.write(msg("net_pull_all_fail"))
-    log_msg("ERROR", "All Git clone attempts failed")
-    return False
 
 
 def fetch_raw_with_fallback(user_repo: str, branch: str, file_path: str, output_file: Path, expected_sha256: Optional[str] = None) -> bool:

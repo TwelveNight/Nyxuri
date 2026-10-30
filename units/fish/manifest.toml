@@ -1,3 +1,8 @@
 # fish shell — pinned Fisher plugin set rides on this unit
 post_install = "install-fisher"
 post_remove = "remove-fisher"
+
+# Runtime exemptions: fish_variables is fish's own universal-variable store;
+# functions/ is entirely Fisher's territory (the template lays nothing there
+# — a preserve directory must never mix payload, it would freeze forever).
+preserve = ["fish_variables", "functions"]

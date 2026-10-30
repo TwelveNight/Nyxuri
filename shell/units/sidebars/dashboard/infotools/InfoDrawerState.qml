@@ -10,7 +10,7 @@ Singleton {
     id: root
 
     readonly property string stateDir: Paths.stateHome
-    readonly property string filePath: stateDir + "/clavis-info-drawer.json"
+    readonly property string filePath: stateDir + "/nyxuri-info-drawer.json"
 
     property bool storeReady: false
     property bool ready: false

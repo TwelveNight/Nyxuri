@@ -14,11 +14,19 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import os
+import re
+import subprocess
+import time
+
 
 _TOOLS = Path(__file__).resolve().parents[3] / "units" / "noctalia" / "tools"
 _SCANNER = _TOOLS / "wallpaper_picker" / "scanner.py"
 if str(_TOOLS) not in sys.path:
     sys.path.insert(0, str(_TOOLS))
+# Blueprint modules imported from units/ must never drop __pycache__ into the read-only source tree (unit-model §1).
+sys.dont_write_bytecode = True
 
 
 def _gdkpixbuf_available():
@@ -174,3 +182,41 @@ class TestThumbSubmitContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHexParsingRejectsMalformed(unittest.TestCase):
+
+    def _module(self, relative, name):
+        import importlib.util
+        path = Path(__file__).resolve().parents[3] / "units" / "noctalia" / "tools" / relative
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_orbit_palette_falls_back(self):
+        mod = self._module(Path("orbit") / "palette.py", "orbit_palette_hex")
+        for bad in ("#-1FFFF", "#+FFFFF", "#12 345", "# FF FF"):
+            self.assertEqual(mod.hex_to_rgb(bad), (0.5, 0.5, 0.5))
+        self.assertEqual(mod.hex_to_rgb("#FF0000"), (1.0, 0.0, 0.0))
+
+    def test_wallpaper_theme_falls_back(self):
+        mod = self._module(Path("wallpaper_picker") / "theme.py", "wp_theme_hex")
+        for bad in ("#-1FFFF", "#+FFFFF", "#12 345"):
+            self.assertIsNone(mod.hex_to_rgb(bad))
+        self.assertEqual(mod.hex_to_rgb("#00FF00"), (0.0, 1.0, 0.0))
+
+class TestNaturalSort(unittest.TestCase):
+
+    def test_numeric_runs_sort_numerically(self):
+        import importlib.util
+        path = Path(__file__).resolve().parents[3] / "units" / "noctalia" / "tools" / "wallpaper_picker" / "scanner.py"
+        source = path.read_text(encoding="utf-8")
+        namespace = {"re": re}
+        start = source.index("_NATURAL_SPLIT")
+        end = source.index("class WallpaperItem")
+        exec(compile(source[start:end], str(path), "exec"), namespace)
+        key = namespace["_natural_key"]
+        names = ["10.jpg", "2.jpg", "a.png", "b.jpg"]
+        self.assertEqual(sorted(names, key=lambda n: key(os.path.splitext(n)[0])),
+                         ["2.jpg", "10.jpg", "a.png", "b.jpg"])

@@ -1,247 +1,180 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
-import qs.shared.theme
 import qs.shared.controls
 import qs.app.services
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Default applications page (T3 M4): NexusPageBase scaffold + M1 select
+// atoms. The row shape mirrors Caelestia's DefaultRow (leading role icon +
+// label + trailing selection pill); the pill replaces the upstream blob
+// popup, which stays unported by the pure-QML red line.
+NexusPageBase {
     id: root
 
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.y + contentColumn.implicitHeight + Metrics.pageMargin
+    title: SpotlightCatalog.title("default-apps")
 
-    readonly property real pageContentWidth: 640
+    // Window contract surface — consumed by ControlCenterWindow.
+    readonly property Item searchLeaf: root.flickable
 
-    component DefaultAppSettingRow: Item {
-        id: settingRow
-
-        required property string roleId
-        required property string title
-        required property string iconName
-
-        readonly property var roleState: DefaultApplicationsService.stateFor(settingRow.roleId)
-        readonly property var selectedOption: {
-            const options = settingRow.roleState.candidates || [];
-            return options.find(option => option.value === settingRow.roleState.currentId) || null;
-        }
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: Metrics.controlHeightL
-
-        RowLayout {
-            id: rowColumn
-
-            anchors.fill: parent
-            spacing: Metrics.spacingS
-
-            MaterialSymbol {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: Metrics.iconM
-                Layout.preferredHeight: Metrics.iconM
-                text: settingRow.iconName
-                iconSize: Metrics.iconM
-                color: Appearance.colors.colOnSurfaceVariant
-
-                // Keep the row icon as a glyph; only group headers use a
-                // tonal icon container.
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 0
-
-                Text {
-                    Layout.fillWidth: true
-                    text: settingRow.title
-                    color: Appearance.colors.colOnSurface
-                    font.family: Typography.bodyLarge.family
-                    font.pixelSize: Typography.bodyLarge.pixelSize
-                    font.weight: Typography.bodyLarge.weight
-                    elide: Text.ElideRight
-                }
-            }
-
-            ThemeIcon {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: Metrics.iconM
-                Layout.preferredHeight: Metrics.iconM
-                visible: settingRow.selectedOption !== null && settingRow.selectedOption.icon !== ""
-                iconSource: settingRow.selectedOption ? ApplicationService.iconSource(
-                                                            settingRow.selectedOption.icon) : ""
-                sourceSize.width: Metrics.iconM * 2
-                sourceSize.height: Metrics.iconM * 2
-                fillMode: Image.PreserveAspectFit
-            }
-
-            SearchSelectMenuField {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: 220
-                Layout.preferredHeight: Metrics.controlHeightM
-                options: settingRow.roleState.candidates || []
-                value: settingRow.roleState.currentId || ""
-                placeholder: DefaultApplicationsService.loading ? I18n.tr("Loading…") : settingRow.roleId
-                                                                  === "terminal"
-                                                                  && settingRow.roleState.currentId === ""
-                                                                  ? I18n.tr("System default") : I18n.tr(
-                                                                        "No available applications")
-                closeOnAccept: true
-                enabled: !DefaultApplicationsService.loading && !DefaultApplicationsService.busy && (
-                             settingRow.roleState.candidates || []).length > 0
-                Accessible.name: settingRow.title
-                onAccepted: value => DefaultApplicationsService.setRole(settingRow.roleId, value)
-            }
-        }
-
-        Text {
-            anchors.left: rowColumn.left
-            anchors.leftMargin: Metrics.controlHeightM + Metrics.spacingS
-            anchors.right: rowColumn.right
-            anchors.top: rowColumn.bottom
-            visible: !DefaultApplicationsService.loading && (settingRow.roleState.candidates || []).length
-                     === 0
-            text: I18n.tr("No available system applications were found")
-            color: Appearance.colors.colError
-            font.family: Typography.bodySmall.family
-            font.pixelSize: Typography.bodySmall.pixelSize
-        }
-    }
-
-    component DefaultAppsGroup: SettingsSection {
-        property string groupTitle: ""
-        property string groupIcon: "apps"
-
-        flat: true
-        flatIconContainer: true
-        title: groupTitle
-        iconName: groupIcon
-
-        default property alias rows: body.data
-
-        ColumnLayout {
-            id: body
-
-            Layout.fillWidth: true
-            spacing: Metrics.spacingXS
-        }
-    }
+    property var parentModal: null
+    property bool presentationActive: false
 
     Component.onCompleted: DefaultApplicationsService.refresh()
 
+    component DefaultAppRow: PreferenceSelect {
+        id: appRow
+
+        required property string roleId
+        required property string roleTitle
+        required property string roleIcon
+
+        readonly property var roleState: DefaultApplicationsService.stateFor(appRow.roleId)
+        readonly property var candidates: appRow.roleState.candidates || []
+        readonly property bool unavailable: !DefaultApplicationsService.loading && appRow.candidates.length
+                                            === 0
+
+        icon: appRow.roleIcon
+        label: appRow.roleTitle
+        subtext: appRow.unavailable ? I18n.tr("No available system applications were found") : ""
+        model: appRow.candidates
+        currentValue: appRow.roleState.currentId || ""
+        fallbackText: DefaultApplicationsService.loading ? I18n.tr("Loading…") : appRow.roleId === "terminal"
+                                                           && appRow.currentValue === "" ? I18n.tr(
+                                                                                               "System default") :
+                                                                                           I18n.tr("No available applications")
+        enabled: !DefaultApplicationsService.loading && !DefaultApplicationsService.busy
+                 && appRow.candidates.length > 0
+        inputRegionService: PopupInputRegionService
+        onSelected: value => DefaultApplicationsService.setRole(appRow.roleId, value)
+    }
+
     ColumnLayout {
-        id: contentColumn
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
-        width: Math.min(root.pageContentWidth, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
-        spacing: Metrics.spacingXL
+        // Internet
+        PreferenceHeader {
+            first: true
+            text: I18n.tr("Internet")
+        }
 
-        DefaultAppsGroup {
-            id: extraSearchSection0
-            Layout.fillWidth: true
-            groupTitle: extraSearchAnchor0.title
+        DefaultAppRow {
+            id: browserRow
+
+            first: true
+            roleId: "browser"
+            roleTitle: I18n.tr("Web browser")
+            roleIcon: "language"
+
             SettingsSearchAnchor {
                 id: extraSearchAnchor0
-                target: extraSearchSection0
+                target: browserRow
                 declaration:
                     '{"id":"default-apps.section.internet","route":"default-apps","title":"Internet","context":"DefaultAppsPage","icon":"settings","aliases":["general.default-apps.section.internet"]}'
             }
-            groupIcon: "public"
-
-            DefaultAppSettingRow {
-                roleId: "browser"
-                title: I18n.tr("Web browser")
-                iconName: "language"
-            }
-
-            DefaultAppSettingRow {
-                roleId: "mail"
-                title: I18n.tr("Email")
-                iconName: "mail"
-            }
         }
 
-        DefaultAppsGroup {
-            id: extraSearchSection1
-            Layout.fillWidth: true
-            groupTitle: extraSearchAnchor1.title
+        DefaultAppRow {
+            last: true
+            roleId: "mail"
+            roleTitle: I18n.tr("Email")
+            roleIcon: "mail"
+        }
+
+        // Utilities
+        PreferenceHeader {
+            text: I18n.tr("Utilities")
+        }
+
+        DefaultAppRow {
+            id: fileManagerRow
+
+            first: true
+            roleId: "file-manager"
+            roleTitle: I18n.tr("File manager")
+            roleIcon: "folder"
+
             SettingsSearchAnchor {
                 id: extraSearchAnchor1
-                target: extraSearchSection1
+                target: fileManagerRow
                 declaration:
                     '{"id":"default-apps.section.utilities","route":"default-apps","title":"Utilities","context":"DefaultAppsPage","icon":"settings","aliases":["general.default-apps.section.utilities"]}'
             }
-            groupIcon: "terminal"
-
-            DefaultAppSettingRow {
-                roleId: "file-manager"
-                title: I18n.tr("File manager")
-                iconName: "folder"
-            }
-
-            DefaultAppSettingRow {
-                roleId: "terminal"
-                title: I18n.tr("Terminal")
-                iconName: "terminal"
-            }
         }
 
-        DefaultAppsGroup {
-            id: extraSearchSection2
-            Layout.fillWidth: true
-            groupTitle: extraSearchAnchor2.title
+        DefaultAppRow {
+            last: true
+            roleId: "terminal"
+            roleTitle: I18n.tr("Terminal")
+            roleIcon: "terminal"
+        }
+
+        // Documents
+        PreferenceHeader {
+            text: I18n.tr("Documents")
+        }
+
+        DefaultAppRow {
+            id: textEditorRow
+
+            first: true
+            roleId: "text-editor"
+            roleTitle: I18n.tr("Text editor")
+            roleIcon: "edit_note"
+
             SettingsSearchAnchor {
                 id: extraSearchAnchor2
-                target: extraSearchSection2
+                target: textEditorRow
                 declaration:
                     '{"id":"default-apps.section.documents","route":"default-apps","title":"Documents","context":"DefaultAppsPage","icon":"settings","aliases":["general.default-apps.section.documents"]}'
             }
-            groupIcon: "description"
-
-            DefaultAppSettingRow {
-                roleId: "text-editor"
-                title: I18n.tr("Text editor")
-                iconName: "edit_note"
-            }
-
-            DefaultAppSettingRow {
-                roleId: "pdf-reader"
-                title: I18n.tr("PDF reader")
-                iconName: "picture_as_pdf"
-            }
         }
 
-        DefaultAppsGroup {
-            id: extraSearchSection3
-            Layout.fillWidth: true
-            groupTitle: extraSearchAnchor3.title
+        DefaultAppRow {
+            last: true
+            roleId: "pdf-reader"
+            roleTitle: I18n.tr("PDF reader")
+            roleIcon: "picture_as_pdf"
+        }
+
+        // Multimedia
+        PreferenceHeader {
+            text: I18n.tr("Multimedia")
+        }
+
+        DefaultAppRow {
+            id: imageViewerRow
+
+            first: true
+            roleId: "image-viewer"
+            roleTitle: I18n.tr("Image viewer")
+            roleIcon: "image"
+
             SettingsSearchAnchor {
                 id: extraSearchAnchor3
-                target: extraSearchSection3
+                target: imageViewerRow
                 declaration:
                     '{"id":"default-apps.section.multimedia","route":"default-apps","title":"Multimedia","context":"DefaultAppsPage","icon":"settings","aliases":["general.default-apps.section.multimedia"]}'
             }
-            groupIcon: "movie"
+        }
 
-            DefaultAppSettingRow {
-                roleId: "image-viewer"
-                title: I18n.tr("Image viewer")
-                iconName: "image"
-            }
+        DefaultAppRow {
+            roleId: "video-player"
+            roleTitle: I18n.tr("Video player")
+            roleIcon: "smart_display"
+        }
 
-            DefaultAppSettingRow {
-                roleId: "video-player"
-                title: I18n.tr("Video player")
-                iconName: "smart_display"
-            }
-
-            DefaultAppSettingRow {
-                roleId: "music-player"
-                title: I18n.tr("Music player")
-                iconName: "music_note"
-            }
+        DefaultAppRow {
+            last: true
+            roleId: "music-player"
+            roleTitle: I18n.tr("Music player")
+            roleIcon: "music_note"
         }
 
         InlineStatusBanner {
@@ -263,11 +196,6 @@ StyledFlickable {
             visible: DefaultApplicationsService.loading
             iconName: "progress_activity"
             message: I18n.tr("Reading system default applications…")
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Metrics.pageMargin
         }
     }
 }

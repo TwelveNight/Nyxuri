@@ -610,6 +610,10 @@ en = "Terminal & Shell"
 zh = "系统工具"
 en = "System Tools"
 
+[apps_cat_shell-runtime]
+zh = "Shell 运行时"
+en = "Shell Runtime"
+
 [app_brave_origin]
 zh = "Brave Origin"
 en = "Brave Origin"
@@ -689,6 +693,18 @@ en = "Mission Center (System Monitor)"
 [app_fcitx5_rime]
 zh = "Fcitx5 + 雾凇拼音 (输入法)"
 en = "Fcitx5 + Rime Ice (Input Method)"
+
+[app_greeter]
+zh = "Noctalia Greeter (greetd 登录界面)"
+en = "Noctalia Greeter (greetd login screen)"
+
+[app_mango]
+zh = "Mango WM (Wayland 合成器)"
+en = "Mango WM (Wayland compositor)"
+
+[app_wallpapers]
+zh = "内置壁纸 (离线默认包)"
+en = "Bundled wallpapers (offline defaults)"
 
 [installing_selected_apps]
 zh = """\n{Colors.BOLD_BLUE}:: 正在安装常用软件…{Colors.RESET}"""
@@ -1137,6 +1153,14 @@ en = "{Colors.BOLD}Unit audit (declared vs living):{Colors.RESET}"
 zh = "{Colors.BOLD_GREEN}[✓]{Colors.RESET} 对账干净：无漂移、无幽灵。"
 en = "{Colors.BOLD_GREEN}[✓]{Colors.RESET} Audit clean: no drift, no ghosts."
 
+[cli_audit_drifted_hint]
+zh = "{Colors.BOLD_YELLOW}[!]{Colors.RESET} Drifted = 存在你的改动，更新会原样保留；`nyxuri update --force` 可采纳模板版"
+en = "{Colors.BOLD_YELLOW}[!]{Colors.RESET} Drifted = your changes are present; updates keep them — `nyxuri update --force` adopts the template side"
+
+[cli_audit_ghost_hint]
+zh = "{Colors.BOLD_RED}[✗]{Colors.RESET} Ghost = 目录存在但未登记：更新不会覆盖它；`nyxuri on <unit>` 收编并开始追踪"
+en = "{Colors.BOLD_RED}[✗]{Colors.RESET} Ghost = living files without a ledger record: updates never clobber them — `nyxuri on <unit>` adopts and starts tracking"
+
 [preflight_express_summary]
 zh = """\n{Colors.BOLD_BLUE}:: 即将执行以下更改:{Colors.RESET}"""
 en = """\n{Colors.BOLD_BLUE}:: Changes to apply:{Colors.RESET}"""
@@ -1160,38 +1184,6 @@ en = "  {Colors.BOLD_CYAN}- Snapshot:{Colors.RESET} Save current configs before 
 [preflight_sudo_prompt]
 zh = """\n{Colors.BOLD_BLUE}:: 以下步骤需要 sudo，验证一次：{Colors.RESET}"""
 en = """\n{Colors.BOLD_BLUE}:: These steps need sudo. Authenticate once:{Colors.RESET}"""
-
-[net_pull_repo]
-zh = "{Colors.BOLD_BLUE}:: 拉取仓库（官方 -> gh-proxy）…{Colors.RESET}"
-en = "{Colors.BOLD_BLUE}:: Pulling repository (official -> gh-proxy)…{Colors.RESET}"
-
-[net_pull_node]
-zh = """\n  {Colors.BOLD_CYAN}[{0}/{1}] 从 [{2}] 节点拉取…{Colors.RESET}"""
-en = """\n  {Colors.BOLD_CYAN}[{0}/{1}] Pulling from [{2}]…{Colors.RESET}"""
-
-[net_pull_node_ok]
-zh = """{Colors.BOLD_GREEN}[✓] 已从 [{0}] 拉取{Colors.RESET}
-"""
-en = """{Colors.BOLD_GREEN}[✓] Pulled from [{0}]{Colors.RESET}
-"""
-
-[net_pull_node_fail]
-zh = "{Colors.BOLD_RED}[!] 从 [{0}] 拉取失败，尝试下一节点…{Colors.RESET}"
-en = "{Colors.BOLD_RED}[!] Pull from [{0}] failed, trying next…{Colors.RESET}"
-
-[net_pull_all_fail]
-zh = """{Colors.BOLD_RED}[✗] 所有镜像节点均拉取失败。请检查网络。{Colors.RESET}
-"""
-en = """{Colors.BOLD_RED}[✗] All mirror nodes failed. Please check network.{Colors.RESET}
-"""
-
-[net_custom_repo_invalid]
-zh = """{Colors.BOLD_RED}[✗] NYXURI_REPO 指定的地址不受支持：{0}{Colors.RESET}
-  仅接受以 https://、git@ 或 ssh:// 开头的仓库地址，已停止安装。
-"""
-en = """{Colors.BOLD_RED}[✗] Unsupported NYXURI_REPO address: {0}{Colors.RESET}
-  Only addresses beginning with https://, git@, or ssh:// are accepted; installation stopped.
-"""
 
 [net_download_asset]
 zh = "{Colors.BOLD_BLUE}:: 下载资源 ({0}/{1})…{Colors.RESET}"
@@ -1240,6 +1232,38 @@ en = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} Preserved custom dir: ~/.config/{
 [log_keep_preserved_file]
 zh = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} 保留受保护文件: ~/.config/{0}/{1}"
 en = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} Preserved file: ~/.config/{0}/{1}"
+
+[log_keep_modified_file]
+zh = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} 保留你的改动: ~/.config/{0}（模板已有新版本）"
+en = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} Kept your changes: ~/.config/{0} (newer template available)"
+
+[log_keep_user_file]
+zh = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} 保留用户文件: ~/.config/{0}"
+en = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} Kept your file: ~/.config/{0}"
+
+[log_keep_unresolved_file]
+zh = "  {Colors.BOLD_YELLOW}[?]{Colors.RESET} 保留现有内容: ~/.config/{0}（单元未登记，来源不明；`nyxuri on` 后恢复模板更新）"
+en = "  {Colors.BOLD_YELLOW}[?]{Colors.RESET} Kept as-is: ~/.config/{0} (unregistered unit, origin unknown; `nyxuri on` restores template updates)"
+
+[update_ghost_hint]
+zh = "{0} 未登记：更新已原样保留现有内容；`nyxuri on {0}` 采纳模板并启用改动追踪"
+en = "{0} is not registered: the update kept existing content as-is; run `nyxuri on {0}` to adopt the template and enable change tracking"
+
+[summary_section_notice]
+zh = "提示"
+en = "Notices"
+
+[summary_section_modified]
+zh = "你的改动（模板已有新版本，`nyxuri update --force` 可采纳）"
+en = "Your changes (a newer template version exists — `nyxuri update --force` adopts it)"
+
+[summary_section_user_files]
+zh = "用户文件"
+en = "Your files"
+
+[summary_section_unknown]
+zh = "来源不明（单元未登记；`nyxuri on <unit>` 收编后恢复模板更新）"
+en = "Unresolved origin (unit not registered; `nyxuri on <unit>` restores template updates)"
 
 [log_deploy_config_item]
 zh = "  {Colors.BOLD_GREEN}[✓]{Colors.RESET} 安装配置: ~/.config/{0}"

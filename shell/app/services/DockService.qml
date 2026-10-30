@@ -14,7 +14,7 @@ Singleton {
     id: root
 
     readonly property string filePath: Paths.configHome + "/dock.json"
-    readonly property string dragMimeType: "application/x-clavis-dock"
+    readonly property string dragMimeType: "application/x-nyxuri-dock"
     readonly property bool supportsThumbnails: false
     readonly property bool showThumbnails: root._options.showThumbnails
     readonly property int previewSize: root._options.previewSize
@@ -104,7 +104,7 @@ Singleton {
     property var _pinned: [
         {
             kind: "app",
-            desktopId: "org.clavis.Settings"
+            desktopId: "org.nyxuri.Settings"
         }
     ]
     property var _windowsByKey: ({})

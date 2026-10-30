@@ -14,10 +14,10 @@ spec.loader.exec_module(compiler)
 
 class CatalogTests(unittest.TestCase):
     def setUp(self):
-        self.routes = {'schemaVersion': 1, 'routes': [dict(id='bar', title='Bar', context='ControlCenterWindow', icon='dock_to_bottom', source='GeneralBarPage.qml', path=['bar'], aliases=[])]}
+        self.routes = {'schemaVersion': 1, 'routes': [dict(id='bar', title='Bar', description='Position, modules, and indicators', context='ControlCenterWindow', icon='dock_to_bottom', source='GeneralBarPage.qml', path=['bar'], aliases=[])]}
         self.section = dict(id='bar.section.position', route='bar', title='Position', context='GeneralBarPage', icon='dock_to_bottom', aliases=[])
-        self.action = dict(id='clavis:spotlight:openMode:clipboard', category='clavis', name='Clipboard', target='spotlight', method='openMode', parameters=False,
-            expression='spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "clipboard"',
+        self.action = dict(id='nyxuri:spotlight:openMode:clipboard', category='nyxuri', name='Clipboard', target='spotlight', method='openMode', parameters=False,
+            expression='spawn "nyxuri-shell" "--ipc" "spotlight" "openMode" "clipboard"',
             search=dict(policy='include', title='Clipboard', description='Open clipboard history', context='Actions', icon='content_paste', args=['clipboard'], aliases=[], confirmation='none'))
 
     def compile(self, sections=None, actions=None):
@@ -44,11 +44,22 @@ class CatalogTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.compile()
 
     def test_routes_need_a_declared_navigation_host(self):
-        self.routes['routes'].append(dict(id='displays', title='Displays', context='ControlCenterWindow', icon='monitor', source='DisplaysPage.qml', path=['displays'], aliases=[]))
-        self.routes['routes'].append(dict(id='displays.child', title='Child', context='DisplaysPage', icon='settings', source='Child.qml', path=['displays', 'child'], aliases=[]))
+        self.routes['routes'].append(dict(id='displays', title='Displays', description='Monitor layout', context='ControlCenterWindow', icon='monitor', source='DisplaysPage.qml', path=['displays'], aliases=[]))
+        self.routes['routes'].append(dict(id='displays.child', title='Child', description='Nested page', context='DisplaysPage', icon='settings', source='Child.qml', path=['displays', 'child'], aliases=[]))
         self.compile()
-        self.routes['routes'].append(dict(id='displays.child.leaf', title='Leaf', context='DisplaysPage', icon='settings', source='Leaf.qml', path=['displays', 'child', 'leaf'], aliases=[]))
+        self.routes['routes'].append(dict(id='displays.child.leaf', title='Leaf', description='Deeper page', context='DisplaysPage', icon='settings', source='Leaf.qml', path=['displays', 'child', 'leaf'], aliases=[]))
         with self.assertRaises(ValueError): self.compile()
+
+    def test_routes_without_a_description_are_rejected(self):
+        route = dict(id='bar', title='Bar', description='Position, modules, and indicators', context='ControlCenterWindow', icon='dock_to_bottom', source='GeneralBarPage.qml', path=['bar'], aliases=[])
+        for mutate in ('del', 'blank'):
+            bad = dict(route)
+            if mutate == 'del':
+                del bad['description']
+            else:
+                bad['description'] = '   '
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                compiler.compile_catalog({'schemaVersion': 1, 'routes': [bad]}, [], [])
 
     def test_incomplete_unknown_and_unsafe_execution_rejected(self):
         for change in [{'parameters': True}, {'method': 'eval'}, {'expression': 'spawn-sh "evil"'}]:
@@ -58,13 +69,13 @@ class CatalogTests(unittest.TestCase):
             action['search']['args'] = args
             with self.subTest(args=args), self.assertRaises(ValueError): self.compile(actions=[action])
         action = copy.deepcopy(self.action)
-        action.update(target='power-menu', method='open', expression='spawn "qs" "-c" "clavis" "ipc" "call" "power-menu" "open"')
+        action.update(target='power-menu', method='open', expression='spawn "nyxuri-shell" "--ipc" "power-menu" "open"')
         action['search']['args'] = []
         with self.assertRaises(ValueError): self.compile(actions=[action])
         action['search']['confirmation'] = 'power-menu'
         self.assertEqual(len(self.compile(actions=[action])['actions']), 1)
 
-    def test_explicit_exclusions_and_non_clavis_actions(self):
+    def test_explicit_exclusions_and_non_catalog_actions(self):
         for policy in ['parameters', 'internal', 'alias', 'settings', 'unsafe']:
             excluded = dict(self.action, search={'policy': policy})
             self.assertEqual(self.compile(actions=[excluded])['actions'], [])
@@ -77,7 +88,7 @@ class CatalogTests(unittest.TestCase):
             'account', 'theme', 'wallpaper', 'bar', 'dock', 'sidebar',
             'displays', 'keystone', 'shortcuts', 'spotlight', 'network',
             'connected-devices', 'autostart', 'default-apps', 'language-region',
-            'shell'
+            'shell', 'about'
         })
         self.assertNotIn(str(ROOT), json.dumps(catalog))
         self.assertEqual(len({entry['id'] for entry in catalog['settings']}), len(catalog['settings']))

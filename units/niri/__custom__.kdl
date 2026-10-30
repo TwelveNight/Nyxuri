@@ -1,15 +1,41 @@
 // Nyxuri Custom Configuration
-// 
-// Any modifications in this file will be safely preserved during system updates.
-// You can put your personal configuration habits here, for example:
-// 
-// 任何在此文件中的修改都会在系统更新时被安全保留。
-// 你可以把针对你个人习惯的配置写在这里，例如：
-// 
+//
+// Any modification in this file — or any file you drop next to the shipped
+// ones — is preserved across updates. Updates never overwrite your changes:
+// they are kept and reported, and `nyxuri update --force` adopts the
+// template side when you reviewed them.
+//
+// 任何在此文件中的修改——以及你放在配置目录里的任何自建文件——都会在系统
+// 更新时被安全保留。更新永不覆盖你的改动：它们会被保留并在报告中列明；
+// 确认过后可用 `nyxuri update --force` 采纳模板版。
+//
+// Personal autostart / window rules / 个人自启动与窗口规则：
+//
 // spawn-at-startup "fcitx5" "-d"
 // spawn-at-startup "easyeffects" "--gapplication-service"
-// 
+//
 // window-rule {
 //     match app-id="my-custom-app"
 //     open-floating true
 // }
+//
+// Custom key bindings / 自定义快捷键：
+//
+// This file loads AFTER binds.kdl, so binds here OVERRIDE template binds
+// (niri include is positional; later binds win). Keep big keymap rewrites
+// in their own file and include it from here — included files are watched
+// and preserved the same way:
+//
+// 本文件在 binds.kdl 之后加载，这里的键位会覆盖模板键位（niri 的 include
+// 是位置性的，后者胜出）。整套键位改写建议单独放一个文件并在此 include，
+// 被包含文件享受同样的更新保护：
+//
+// include "my-binds__custom__.kdl"
+// binds {
+//     Mod+T { spawn "kitty"; }   // overrides the template bind / 覆盖模板键位
+// }
+//
+// Note: niri can only OVERRIDE a bound key, not unbind it — to neutralize a
+// template bind, rebind that key here to the action you prefer.
+// 注意：niri 只能覆盖键位、不能解绑——想取消模板按键，在这里把它重新绑定
+// 为你想要的动作即可。

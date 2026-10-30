@@ -1005,13 +1005,13 @@ class CategoryCheckboxList:
                 elif key in ("0", "q", "Q", "ESC", "EXIT", "EOF"):
                     return None
 
-# --- Component: Dual-Pane Preset Switcher (§9) ---
+# --- Component: Shared Subpage Header ---
 def show_header(title: str, env: Optional[Environment] = None) -> int:
     """Render a clean, modern subpage header with subtle brand tagline."""
     if env is None:
         env = get_env()
     header_text = (
-        f"\n  {Colors.BOLD_PURPLE}NYX NIRI{Colors.RESET}  "
+        f"\n  {Colors.BOLD_PURPLE}NYXURI{Colors.RESET}  "
         f"{Colors.BOLD_WHITE}{env.version}{Colors.RESET}  "
         f"{Colors.DARK_GRAY}·{Colors.RESET}  "
         f"{Colors.BOLD_WHITE}{title}{Colors.RESET}\n\n"
@@ -1049,13 +1049,8 @@ class PresetSwitcher:
     def _normalize_presets(self, raw_list: List[Any]) -> List[Tuple[str, str, bool]]:
         norm: List[Tuple[str, str, bool]] = []
         for item in raw_list:
-            if len(item) == 2:
-                name, is_active = item
-                source = "official" if name == "default" else "user"
-                norm.append((name, source, is_active))
-            elif len(item) >= 3:
-                name, source, is_active = item[0], item[1], item[2]
-                norm.append((name, source, is_active))
+            name, source, is_active = item[0], item[1], item[2]
+            norm.append((name, source, is_active))
         return norm
 
     def run(self) -> Optional[Tuple[str, str]]:
@@ -1625,7 +1620,7 @@ class UnitWorkshop:
         if uid not in self._audit:
             try:
                 self._audit.update(transaction.audit_units(uid))
-            except (KeyError, Exception):
+            except Exception:
                 self._audit[uid] = ""
         return self._audit.get(uid, "")
 

@@ -115,7 +115,7 @@ PanelWindow {
     }
 
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.namespace: "clavis-shell-sidebars"
+    WlrLayershell.namespace: "nyxuri-shell-sidebars"
     // Reveal from physical screen edges, including the bar/dock reserved area.
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: root.anySidebarOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None

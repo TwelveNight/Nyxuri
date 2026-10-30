@@ -48,12 +48,18 @@ float radialPosition(vec2 uv, vec2 center) {
 // Mix both integer pixel coordinates before the avalanche. A sine/dot hash
 // loses precision at desktop-sized coordinates and produces repeated diagonal
 // patterns. Keep 24 output bits so conversion to float is exact and below 1.
+// Qt's qsb baker aborts on any uint constant above INT_MAX (SPIRV bake
+// converts uint literals to int), so the high bit is assembled at runtime:
+// msw = 0xffffffff, msw - 0x7fffffff = 0x80000000. Values are identical to
+// the classic 0x9e3779b9 / 0x85ebca6b / 0x846ca68b constants.
 float pixelGrain(uvec2 pixel) {
-    uint hash = (pixel.x * 0x9e3779b9u) ^ (pixel.y * 0x85ebca6bu);
+    uint msw = ~(pixel.x & 0u);
+    uint hash = (pixel.x * (uint(0x1e3779b9) | (msw - uint(0x7fffffff))))
+              ^ (pixel.y * (uint(0x05ebca6b) | (msw - uint(0x7fffffff))));
     hash ^= hash >> 16u;
     hash *= 0x7feb352du;
     hash ^= hash >> 15u;
-    hash *= 0x846ca68bu;
+    hash *= uint(0x046ca68b) | (msw - uint(0x7fffffff));
     hash ^= hash >> 16u;
     return float(hash >> 8u) * (1.0 / 16777216.0);
 }

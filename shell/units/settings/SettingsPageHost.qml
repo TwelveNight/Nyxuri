@@ -10,6 +10,7 @@ Item {
     property string route: ""
     property int navigationDepth: 0
     property bool presentationActive: false
+    property bool animationsEnabled: true
     property Component headerComponent: null
     readonly property var item: currentLayer ? currentLayer.page : null
     readonly property bool ready: currentLayer !== null && currentLayer.pageSource === source && pendingLayer
@@ -37,22 +38,24 @@ Item {
         next.load(source);
     }
 
-    function present(layer) {
-        if (pendingLayer !== layer || layer.pageSource !== root.source)
+    function present(nextLayer) {
+        if (pendingLayer !== nextLayer || nextLayer.pageSource !== root.source)
             return;
         const previous = currentLayer;
         // Peers fade in place; deeper routes and back navigation share an axis.
-        const direction = previous ? Math.sign(layer.navigationDepth - previous.navigationDepth) : 0;
+        // With animationsEnabled false the host swaps instantly — an owning
+        // window can drive its own container-level transition instead.
+        const direction = previous ? Math.sign(nextLayer.navigationDepth - previous.navigationDepth) : 0;
         const readingDirection = root.LayoutMirroring.enabled ? -1 : 1;
-        layer.enterOffset = direction * readingDirection * Metrics.spacingL;
-        layer.animate = previous !== null;
-        currentLayer = layer;
+        nextLayer.enterOffset = direction * readingDirection * Metrics.spacingL;
+        nextLayer.animate = previous !== null && root.animationsEnabled;
+        currentLayer = nextLayer;
         pendingLayer = null;
         loaded();
-        layer.active = true;
+        nextLayer.active = true;
         if (previous) {
             previous.exitOffset = -direction * readingDirection * Metrics.spacingL;
-            previous.animate = true;
+            previous.animate = root.animationsEnabled;
             previous.retired = true;
             previous.active = false;
             if (!previous.visible)
@@ -67,7 +70,7 @@ Item {
         id: pageComponent
 
         Item {
-            id: layer
+            id: pageLayer
 
             required property string route
             required property int navigationDepth
@@ -94,18 +97,18 @@ Item {
             z: active ? 1 : 0
 
             Behavior on opacity {
-                enabled: root.presentationActive && layer.animate
+                enabled: root.presentationActive && pageLayer.animate
                 NumberAnimation {
-                    duration: layer.active ? Appearance.animation.expressiveDefaultEffects.duration :
-                                             Appearance.animation.expressiveFastEffects.duration
+                    duration: pageLayer.active ? Appearance.animation.expressiveDefaultEffects.duration :
+                                                 Appearance.animation.expressiveFastEffects.duration
                     easing.type: Easing.BezierSpline
-                    easing.bezierCurve: layer.active ? Animations.curves.standardDecel :
-                                                       Animations.curves.standardAccel
+                    easing.bezierCurve: pageLayer.active ? Animations.curves.standardDecel :
+                                                           Animations.curves.standardAccel
                 }
             }
 
             Behavior on x {
-                enabled: root.presentationActive && layer.animate
+                enabled: root.presentationActive && pageLayer.animate
                 NumberAnimation {
                     duration: Appearance.animation.elementResize.duration
                     easing.type: Appearance.animation.elementResize.type
@@ -120,9 +123,9 @@ Item {
             Loader {
                 id: headerLoader
 
-                readonly property string route: layer.route
+                readonly property string route: pageLayer.route
                 width: parent.width
-                sourceComponent: layer.header
+                sourceComponent: pageLayer.header
             }
 
             Loader {
@@ -131,7 +134,7 @@ Item {
                 anchors.fill: parent
                 anchors.topMargin: headerLoader.height
                 asynchronous: true
-                onLoaded: root.present(layer)
+                onLoaded: root.present(pageLayer)
             }
         }
     }

@@ -93,7 +93,7 @@ class ResourceIntegrityTests(unittest.TestCase):
 
         with open(en_us_path, "rb") as f:
             en_data = tomllib.load(f)
-        self.assertIn("%n minute(s) ago", en_data)
+        self.assertIn("%n second(s)", en_data)
 
     def test_builtin_templates_exist(self):
         """Assert the Noctalia-syntax builtin template pool is complete."""
@@ -102,6 +102,34 @@ class ResourceIntegrityTests(unittest.TestCase):
                        "btop/btop.theme", "btop/btop-apply.sh",
                        "starship/starship.toml", "starship/starship-apply.sh"]:
             self.assertTrue((t_dir / t_file).is_file(), f"Missing builtin template: {t_file}")
+
+    def test_all_qml_files_parse(self):
+        """Every tracked .qml file must pass qmllint's syntax pass.
+
+        Root cause gate: a glued newline once merged two property declarations
+        into one line; brace balance stayed even and every Python-side test
+        stayed green while the settings unit compiled empty at runtime, killing
+        its IPC targets. Only qmllint's syntax pass catches this class. Import
+        resolution noise from qs.* synthetic pools is deliberately ignored —
+        only [syntax] diagnostics fail this test. qmllint lives outside PATH on
+        Arch (/usr/lib/qt6/bin); a missing tool fails the test loudly rather
+        than silently skipping.
+        """
+        import subprocess
+        candidates = ["/usr/lib/qt6/bin/qmllint", "qmllint"]
+        qmllint = next((c for c in candidates if subprocess.run(
+            ["bash", "-c", f"command -v {c}"], capture_output=True).returncode == 0), None)
+        self.assertIsNotNone(qmllint, "qmllint (qt6-declarative tools) is required by this test")
+
+        qml_files = sorted((SHELL_DIR).rglob("*.qml"))
+        qml_files = [p for p in qml_files if "references" not in p.parts]
+        self.assertGreater(len(qml_files), 500, "QML file discovery collapsed")
+        broken = []
+        for path in qml_files:
+            result = subprocess.run([qmllint, str(path)], capture_output=True, text=True)
+            if "[syntax]" in result.stderr or "[syntax]" in result.stdout:
+                broken.append(str(path.relative_to(REPO_ROOT)))
+        self.assertEqual(broken, [], f"QML syntax errors (units compile empty at runtime): {broken}")
 
 
 def build_category_suite(category: str) -> unittest.TestSuite:

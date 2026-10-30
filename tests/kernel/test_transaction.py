@@ -14,6 +14,11 @@ from unittest import mock
 
 from nyxuri.kernel import ledger, transaction
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import os
+import re
+from unittest.mock import patch
+
 
 
 def _stage(ctx, spec):
@@ -230,16 +235,63 @@ class TestUnitOff(unittest.TestCase):
             self.assertFalse((dest / "k.conf").exists())
             self.assertEqual(transaction.audit_units("kitty"), {"kitty": "Ghost"})
 
-    def test_off_without_ledger_snapshot_wipes_blueprint_area(self):
-        """Files deployed outside the transaction (pre-KM2 install) are all managed."""
+    def test_off_without_ledger_wipes_blueprint_keeps_foreign(self):
+        """No snapshot: blueprint-named files are withdrawn, foreign survive.
+
+        A pre-ledger (v3-era) dest must never lose the user's personal files
+        to an `off` (#139) — ownership falls back to blueprint names, and
+        everything else survives, reported as foreign-left.
+        """
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"k.conf": "x"}}})
             dest = ctx.home / ".config/kitty"
             dest.mkdir(parents=True)
             (dest / "k.conf").write_text("deployed by old installer\n")
+            (dest / "my-notes.txt").write_text("keep me\n")
             steps = transaction.unit_off("kitty")
             self.assertTrue(steps[0].ok)
+            self.assertFalse((dest / "k.conf").exists(), "blueprint-named files are ours to withdraw")
+            self.assertTrue((dest / "my-notes.txt").is_file(), "user files must never be eaten")
+            self.assertIn("foreign-left: my-notes.txt", steps[0].detail)
+
+    def test_off_never_eats_unregistered_single_file(self):
+        """Single-file unit: a dest file outside the managed snapshot survives."""
+        with TempEnv() as ctx:
+            _stage(ctx, {"starship": {"manifest": 'target = "starship.toml"\n',
+                                      "files": {"starship.toml": "$schema\n"}}})
+            dest = ctx.home / ".config/starship.toml"
+            dest.write_text("user's own\n", encoding="utf-8")
+            steps = transaction.unit_off("starship")
+            self.assertTrue(steps[0].ok)
+            self.assertIn("foreign-left: starship.toml", steps[0].detail)
+            self.assertEqual(dest.read_text(), "user's own\n")
+
+    def test_off_vaults_preserve_directory_and_restores_it(self):
+        """A preserve DIRECTORY rides the Vault both ways (#139 field report):
+        archived whole on off, restored before the next on."""
+        with TempEnv() as ctx:
+            _stage(ctx, {"fish": {
+                "manifest": 'preserve = ["functions"]\n',
+                "files": {"config.fish": "set -x PATH\n"},
+            }})
+            transaction.unit_on("fish")
+            dest = ctx.home / ".config/fish"
+            (dest / "functions/fisher.fish").parent.mkdir(parents=True)
+            (dest / "functions/fisher.fish").write_text("plugin\n", encoding="utf-8")
+            self.assertTrue(
+                transaction._is_user_owned("functions/fisher.fish",
+                                           transaction.registry.load_unit("fish")),
+                "every file under a preserved directory is user-owned by prefix")
+
+            steps = transaction.unit_off("fish")
+            self.assertTrue(steps[0].ok, str(steps))
+            vault = ctx.home / ".local/state/nyxuri/vault/fish"
+            self.assertEqual((vault / "functions/fisher.fish").read_text(), "plugin\n")
             self.assertFalse(dest.exists())
+
+            transaction.unit_on("fish")
+            self.assertEqual((dest / "functions/fisher.fish").read_text(), "plugin\n",
+                             "the preserved tree must ride the Vault back")
 
     def test_off_then_on_restores_vault_and_consumes_it(self):
         with TempEnv() as ctx:
@@ -269,6 +321,144 @@ class TestUnitOff(unittest.TestCase):
             steps = transaction.unit_off("kitty")
             self.assertEqual(steps[0].detail, "already-disabled")
             self.assertIsNone(ledger.get_unit("kitty"))
+
+
+class TestOwnershipCarryLedger(unittest.TestCase):
+    """Ledger doctrine (#139): the ledger records what the engine laid,
+    never what it carried. Update re-baselines through ``resnapshot_units``;
+    ``on`` is adoption (payload names claimed, extras stay user-owned)."""
+
+    def setUp(self):
+        patcher = mock.patch.object(transaction, "missing_packages", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _make_hook(self, unit_dir: Path, name: str, body: str) -> Path:
+        hooks = unit_dir / "hooks"
+        hooks.mkdir(exist_ok=True)
+        script = hooks / name
+        script.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
+        script.chmod(0o755)
+        return script
+
+    def test_carry_baselines_enabled_units_only(self):
+        with TempEnv() as ctx:
+            _stage(ctx, {
+                "kitty": {"files": {"k.conf": "x"}},
+                "fish": {"files": {"f.conf": "y"}},
+            })
+            transaction.unit_on("kitty")
+            baselines = transaction.carry_baselines(["kitty", "fish"])
+            self.assertEqual(set(baselines["kitty"]), {"k.conf"})
+            self.assertIsNone(baselines["fish"], "Ghost units have no baseline")
+
+    def test_on_adopts_claiming_payload_and_keeps_extras(self):
+        with TempEnv() as ctx:
+            _stage(ctx, {"app": {"files": {"a.conf": "template\n"}}})
+            dest = ctx.home / ".config/app"
+            dest.mkdir(parents=True)
+            (dest / "a.conf").write_text("user's own take\n", encoding="utf-8")
+            (dest / "extra.conf").write_text("user's tool\n", encoding="utf-8")
+            steps = transaction.unit_on("app")
+            self.assertTrue(steps[0].ok, str(steps))
+            # Adoption: the engine claims its payload name…
+            self.assertEqual((dest / "a.conf").read_text(), "template\n")
+            # …and the user's extra file survives as user-owned.
+            self.assertEqual((dest / "extra.conf").read_text(), "user's tool\n")
+            rec = ledger.get_unit("app")
+            self.assertEqual(set(rec["files"]), {"a.conf"},
+                             "carried extras must never enter the snapshot")
+            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+
+    def test_update_carry_then_resnapshot_rebaselines_laid_only(self):
+        from nyxuri.deploy.atomic import CarryPolicy
+
+        with TempEnv() as ctx:
+            _stage(ctx, {"app": {"files": {"a.conf": "v1\n"}}})
+            transaction.unit_on("app")
+            dest = ctx.home / ".config/app"
+            (dest / "a.conf").write_text("my edit\n", encoding="utf-8")
+            (dest / "extra.conf").write_text("user's tool\n", encoding="utf-8")
+            # Template moves on (the repo pull).
+            (ctx.env.units_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
+
+            policy = CarryPolicy(
+                baselines=transaction.carry_baselines(["app"]), unknown=True
+            )
+            self.assertNotIn("app", transaction._phase_atomic_deployment(["app"], carry_policy=policy))
+            # 宁可错保: the user's edit and extra file both survive the update.
+            self.assertEqual((dest / "a.conf").read_text(), "my edit\n")
+            self.assertEqual((dest / "extra.conf").read_text(), "user's tool\n")
+            self.assertEqual(policy.carried["app"]["a.conf"], "modified")
+            self.assertEqual(policy.carried["app"]["extra.conf"], "user")
+
+            transaction.resnapshot_units(["app"], policy.carried)
+            rec = ledger.get_unit("app")
+            self.assertNotIn("a.conf", rec["files"],
+                             "a carried file must never read as engine-laid")
+            self.assertNotIn("extra.conf", rec["files"])
+            # Drift is judged per ledger entry, so carried files are not noise.
+            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+
+            # Force is the adopt verb: template side wins and is re-baselined.
+            self.assertNotIn("app", transaction._phase_atomic_deployment(["app"]))
+            transaction.resnapshot_units(["app"], carried={})
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+            self.assertEqual(
+                ledger.get_unit("app")["files"]["a.conf"],
+                hashlib.sha256((dest / "a.conf").read_bytes()).hexdigest(),
+            )
+
+    def test_hook_product_lifecycle_through_update(self):
+        """KM3 restored under carry (#139 field report): hook products retire
+        at the swap (engine didn't lay them), the hook replay re-lays them,
+        and resnapshot puts them back under ledger ownership — `off` wipes
+        them again instead of leaving foreign residue."""
+        with TempEnv() as ctx:
+            _stage(ctx, {"app": {"manifest": 'packages = []\npost_install = "seed"\n',
+                                 "files": {"a.conf": "v1\n"}}})
+            self._make_hook(
+                ctx.env.units_src / "app", "seed",
+                'printf "hooked\\n" > "$NYXURI_UNIT_DEST/hooked.conf"',
+            )
+            self.assertTrue(transaction.unit_on("app")[0].ok)
+            dest = ctx.home / ".config/app"
+            self.assertIn("hooked.conf", ledger.get_unit("app")["files"])
+
+            # Template moves on; the payload still has no hooked.conf.
+            (ctx.env.units_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
+            from nyxuri.deploy.atomic import CarryPolicy
+            policy = CarryPolicy(
+                baselines=transaction.carry_baselines(["app"]), unknown=True
+            )
+            self.assertNotIn("app", transaction._phase_atomic_deployment(["app"], carry_policy=policy))
+            self.assertFalse((dest / "hooked.conf").exists(),
+                             "retired hook product must not be carried as a user file")
+            self.assertEqual(policy.carried.get("app"), {})
+
+            # Hook replay re-lays it; resnapshot re-owns it.
+            self.assertTrue(transaction._run_unit_hook(
+                "app", transaction.registry.load_unit("app"), "seed"))
+            transaction.resnapshot_units(["app"], policy.carried)
+            self.assertIn("hooked.conf", ledger.get_unit("app")["files"])
+            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+
+    def test_preset_switch_on_enabled_unit_respects_baseline(self):
+        """A re-deploy over an enabled unit carries edits made after `on`."""
+        from nyxuri.deploy.atomic import CarryPolicy
+
+        with TempEnv() as ctx:
+            _stage(ctx, {"app": {"files": {"a.conf": "v1\n"}}})
+            transaction.unit_on("app")
+            dest = ctx.home / ".config/app"
+            (dest / "a.conf").write_text("tuned\n", encoding="utf-8")
+            (ctx.env.units_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
+            policy = CarryPolicy(
+                baselines=transaction.carry_baselines(["app"]), unknown=False
+            )
+            self.assertNotIn("app", transaction._phase_atomic_deployment(["app"], carry_policy=policy))
+            self.assertEqual((dest / "a.conf").read_text(), "tuned\n")
+            self.assertEqual(policy.carried["app"]["a.conf"], "modified")
 
 
 class TestAudit(unittest.TestCase):
@@ -532,3 +722,37 @@ class TestUnitHooks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLedgerResilience(unittest.TestCase):
+
+    def test_unhashable_active_shell_falls_back_to_default(self):
+        from nyxuri.kernel import ledger
+        with TempEnv():
+            for bad in ([], {}, ["a"], 5, None, "weird"):
+                ledger.update_ledger(active_shell=bad)
+                self.assertEqual(ledger.active_shell(), "noctalia")
+
+    def test_concurrent_updates_do_not_lose_keys(self):
+        from nyxuri.kernel import ledger
+        with TempEnv():
+            ledger.update_ledger(seed="x")
+            read_fd, write_fd = os.pipe()
+            pids = []
+            for index in range(6):
+                pid = os.fork()
+                if pid == 0:
+                    try:
+                        os.read(read_fd, 1)
+                        ledger.update_ledger(**{f"k{index}": index})
+                    finally:
+                        os._exit(0)
+                pids.append(pid)
+            os.close(read_fd)
+            for _ in range(6):
+                os.write(write_fd, b"g")
+            os.close(write_fd)
+            for pid in pids:
+                os.waitpid(pid, 0)
+            data = ledger.read_ledger()
+            self.assertEqual([data.get(f"k{i}") for i in range(6)], list(range(6)))

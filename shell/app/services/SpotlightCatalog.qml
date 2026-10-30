@@ -38,6 +38,10 @@ Singleton {
         const currentLanguage = root.language;
         return Catalog.title(id);
     }
+    function description(id) {
+        const currentLanguage = root.language;
+        return Catalog.description(id);
+    }
     function route(id) {
         return routes.find(entry => entry.id === id || (entry.aliases && entry.aliases.includes(id))) || null;
     }
@@ -74,7 +78,7 @@ Singleton {
             return true;
         case "awww":
             return PersonalizationConfig.desktopWallpaperBackend === "awww";
-        case "clavis-wallpaper":
+        case "nyxuri-wallpaper":
             return PersonalizationConfig.desktopWallpaperBackend !== "awww";
         case "wallpaper-idle":
             return !WallpaperService.busy;

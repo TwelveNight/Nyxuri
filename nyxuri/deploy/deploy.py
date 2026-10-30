@@ -13,7 +13,7 @@ import sys
 import time
 from contextlib import ExitStack
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from nyxuri.core import Colors, REPO_URL, THEME_ENGINE
 from nyxuri.core import get_env, log_msg, timed_run
@@ -21,6 +21,7 @@ from nyxuri.core import msg
 from nyxuri.tui import read_key, responsive_hint, show_logo, raw_input_mode, _drain_pending
 
 from nyxuri.deploy.atomic import (
+    CarryPolicy,
     atomic_replace_item,
 )
 from nyxuri.deploy.manifest import (
@@ -74,12 +75,17 @@ def _phase_atomic_deployment(
     keep_preserved: bool = True,
     preserved_log: Optional[List[str]] = None,
     test_mode: bool = False,
+    carry_policy: Optional[CarryPolicy] = None,
 ) -> List[str]:
     """Execute atomic copy for selected configuration units.
 
     Per-app manifest drives: the preserve list (files kept across deploys,
     e.g. niri/monitor.kdl), and the chmod globs (executable scripts). The
     Dunder __custom__ walk inside atomic_replace_item is untouched.
+
+    ``carry_policy`` (issue #139) threads the transaction layer's ownership
+    verdict per unit: baselines from the ledger, the unknown-provenance
+    stance, and the out-map of carried files. None = plain template swap.
     """
     env = get_env()
     config_dir = env.config_dir
@@ -142,6 +148,15 @@ def _phase_atomic_deployment(
         preserve = manifest.preserve if keep_preserved else None
         preserve_values = manifest.preserve_values if keep_preserved else None
 
+        carry_kwargs = {}
+        if carry_policy is not None:
+            carry_kwargs = dict(
+                carry=True,
+                carry_baseline=carry_policy.baselines.get(item),
+                carry_unknown=carry_policy.unknown,
+                carried_out=carry_policy.carried.setdefault(item, {}),
+            )
+
         if not atomic_replace_item(
             src,
             dest,
@@ -152,6 +167,7 @@ def _phase_atomic_deployment(
             base_src=result.base_src,
             base_include=result.base_include,
             base_exclude=result.base_exclude,
+            **carry_kwargs,
         ):
             failed_items.append(item)
             print(msg("log_deploy_config_failed", item), file=sys.stderr)
@@ -289,8 +305,16 @@ def render_completion_screen(
     wallpaper_ok: Optional[bool] = None,
     failed_items: Optional[List[str]] = None,
     hook_diagnostics: Optional[List[str]] = None,
+    notice_lines: Optional[List[str]] = None,
+    carried_groups: Optional[Dict[str, List[str]]] = None,
 ) -> None:
-    """Render completion state, including non-blocking hook diagnostics."""
+    """Render completion state, including non-blocking hook diagnostics.
+
+    ``carried_groups`` (#139): carried files keyed by verdict — "modified"
+    (user edits, template has newer), "user" (user-placed), "unknown"
+    (unregistered unit). Different verdicts, different sections: one bucket
+    would read as "all of this is yours" and erode trust in the report.
+    """
     if chosen_items is None:
         chosen_items = discover_config_items()
     if preserved_lines is None:
@@ -299,6 +323,10 @@ def render_completion_screen(
         failed_items = []
     if hook_diagnostics is None:
         hook_diagnostics = []
+    if notice_lines is None:
+        notice_lines = []
+    if carried_groups is None:
+        carried_groups = {}
 
     from nyxuri.pkg.deps import get_missing_deps
 
@@ -343,6 +371,25 @@ def render_completion_screen(
             sys.stdout.write(f"\n  {Colors.BOLD_WHITE}{msg('summary_section_preserved')}{Colors.RESET}\n")
             for pline in sorted(set(preserved_lines)):
                 sys.stdout.write(f"    {pline}\n")
+
+        if carried_groups:
+            section_keys = (
+                ("modified", "summary_section_modified"),
+                ("user", "summary_section_user_files"),
+                ("unknown", "summary_section_unknown"),
+            )
+            for kind, key in section_keys:
+                lines = carried_groups.get(kind) or []
+                if not lines:
+                    continue
+                sys.stdout.write(f"\n  {Colors.BOLD_WHITE}{msg(key)}{Colors.RESET}\n")
+                for cline in sorted(set(lines)):
+                    sys.stdout.write(f"    {cline}\n")
+
+        if notice_lines:
+            sys.stdout.write(f"\n  {Colors.BOLD_WHITE}{msg('summary_section_notice')}{Colors.RESET}\n")
+            for nline in notice_lines:
+                sys.stdout.write(f"    {nline}\n")
 
     if not sys.stdin.isatty() or mode == "test":
         sys.stdout.write(Colors.CLEAR_SCREEN)
@@ -405,8 +452,13 @@ def deploy_selected_configs(
     do_backup: bool = False,
     items_to_deploy: Optional[List[str]] = None,
     preserved_log: Optional[List[str]] = None,
+    carry_policy: Optional[CarryPolicy] = None,
 ) -> List[str]:
-    """Deploy selected dotfile items with optional backup and template rendering."""
+    """Deploy selected dotfile items with optional backup and template rendering.
+
+    ``carry_policy`` (#139) forwards the ownership-carry directive; None keeps
+    the plain template-swap semantics (rollback/force paths).
+    """
     if isinstance(items_to_deploy, str):
         items_to_deploy = [items_to_deploy]
     if items_to_deploy is None:
@@ -419,7 +471,9 @@ def deploy_selected_configs(
         backup_configs(note="auto_snapshot_before_deploy", interactive=False)
 
     print(msg("copying_configs"))
-    failed_items = _phase_atomic_deployment(items_to_deploy, keep_preserved=True, preserved_log=preserved_log)
+    failed_items = _phase_atomic_deployment(
+        items_to_deploy, keep_preserved=True, preserved_log=preserved_log, carry_policy=carry_policy
+    )
     if failed_items:
         print(msg("deploy_failed", ", ".join(failed_items)), file=sys.stderr)
         return failed_items
@@ -455,13 +509,27 @@ def enable_theme_unit() -> Optional[bool]:
         return False
 
 
+def _carry_baselines(items: List[str]) -> Dict[str, Optional[Dict[str, str]]]:
+    """Ledger baselines for ``nyxuri test``'s update-grade carry (lazy kernel read)."""
+    try:
+        from nyxuri.kernel import transaction
+        return transaction.carry_baselines(items)
+    except Exception:
+        return {}
+
+
 def test_deploy() -> bool:
     """Developer test command: fast idempotent re-deploy in current environment."""
     print(msg("test_start"))
 
     preserved_log: List[str] = []
     items = discover_config_items()
-    failed_items = _phase_atomic_deployment(items, keep_preserved=True, preserved_log=preserved_log, test_mode=True)
+    failed_items = _phase_atomic_deployment(
+        items, keep_preserved=True, preserved_log=preserved_log, test_mode=True,
+        # `nyxuri test` means "make it match the repo" (hardware-neutrality
+        # scrub included): adoption semantics, not update-grade carry.
+        carry_policy=CarryPolicy(baselines=_carry_baselines(items), unknown=False),
+    )
     if failed_items:
         print(msg("deploy_failed", ", ".join(failed_items)), file=sys.stderr)
         render_completion_screen(mode="test", chosen_items=items, preserved_lines=preserved_log, failed_items=failed_items)

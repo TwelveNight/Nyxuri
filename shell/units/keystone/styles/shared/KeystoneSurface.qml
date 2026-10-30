@@ -156,7 +156,7 @@ Variants {
         screen: modelData
         color: "transparent"
         exclusiveZone: -1
-        WlrLayershell.namespace: "clavis-shell-keystone"
+        WlrLayershell.namespace: "nyxuri-shell-keystone"
         // The reservation surface controls floating; Top stays below fullscreen.
         WlrLayershell.layer: WlrLayer.Top
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
@@ -182,7 +182,7 @@ Variants {
             color: "transparent"
             exclusiveZone: reservedThickness
             WlrLayershell.layer: WlrLayer.Top
-            WlrLayershell.namespace: "clavis-shell-keystone-reservation"
+            WlrLayershell.namespace: "nyxuri-shell-keystone-reservation"
             WlrLayershell.exclusionMode: ExclusionMode.Normal
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             anchors {
@@ -204,7 +204,7 @@ Variants {
             implicitHeight: 1
             color: "transparent"
             exclusiveZone: -1
-            WlrLayershell.namespace: "clavis-shell-keystone-keyboard"
+            WlrLayershell.namespace: "nyxuri-shell-keystone-keyboard"
             WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand

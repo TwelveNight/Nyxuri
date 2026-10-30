@@ -140,7 +140,7 @@ class TestUpdateReexecHandoff(unittest.TestCase):
                  patch("nyxuri.cli.check_path_occlusion"), \
                  patch("nyxuri.cli.safe_git_pull", return_value=True if pull else False), \
                  patch("nyxuri.cli.safe_git_checkout_ref", return_value=True if checkout else False), \
-                 patch("nyxuri.cli.os.execve", side_effect=exec_side_effect) as mock_exec, \
+                 patch("nyxuri.core.os.execve", side_effect=exec_side_effect) as mock_exec, \
                  patch("builtins.print"):
                 with self.assertRaises(SystemExit) as ctx:
                     main()
@@ -149,12 +149,23 @@ class TestUpdateReexecHandoff(unittest.TestCase):
     def test_update_reexecs_into_fresh_process(self):
         mock_exec, ctx = self._main_update()
         mock_exec.assert_called_once()
-        argv = mock_exec.call_args[0][1]
-        env = mock_exec.call_args[0][2]
-        # §9 argument-shape contract: [python, -m, <cli>] + pending marker
-        self.assertEqual(argv, [sys.executable, "-m", "nyxuri"])
+        target, argv, env = mock_exec.call_args[0]
+        # §9 argument-shape contract: the restart goes back through the
+        # permanent launcher entry — repo/standalone runs are only importable
+        # there, since launcher.sh is what seeds sys.path (#138).
+        launcher = Path(__file__).resolve().parent.parent / "nyxuri" / "launcher.sh"
+        self.assertEqual(target, str(launcher))
+        self.assertEqual(argv, [str(launcher)])
         self.assertEqual(env[PENDING_UPGRADE_ENV], "")
         self.assertNotIn(PENDING_UPGRADE_MENU_ENV, env)  # CLI source: exit after deploy
+        self.assertEqual(ctx.exception.code, 0)
+
+    def test_update_reexec_falls_back_to_module_without_launcher(self):
+        with patch("nyxuri.core.launcher_path", return_value=None):
+            mock_exec, ctx = self._main_update()
+        target, argv, _ = mock_exec.call_args[0]
+        self.assertEqual(target, sys.executable)
+        self.assertEqual(argv, [sys.executable, "-m", "nyxuri"])
         self.assertEqual(ctx.exception.code, 0)
 
     def test_update_force_carries_flag(self):
@@ -399,9 +410,9 @@ class TestPreflightSudo(unittest.TestCase):
             return self._result(command)
 
         with patch("sys.stdin.isatty", return_value=True), \
-             patch("nyxuri.cli.subprocess.run", side_effect=fake_run), \
-             patch("builtins.print"), \
-             patch("nyxuri.cli.log_msg"):
+             patch("nyxuri.installer.workflows.subprocess.run", side_effect=fake_run), \
+             patch("sys.stdout"), \
+             patch("builtins.print"):
             self._preflight()
 
         self.assertEqual(calls, [["sudo", "-n", "/bin/sh", "-c", ":"]])
@@ -416,9 +427,9 @@ class TestPreflightSudo(unittest.TestCase):
                     return self._result(command, 1 if len(calls) == 1 else 0)
 
                 with patch("sys.stdin.isatty", return_value=isatty), \
-                     patch("nyxuri.cli.subprocess.run", side_effect=fake_run), \
-                     patch("builtins.print"), \
-                     patch("nyxuri.cli.log_msg"):
+                     patch("nyxuri.installer.workflows.subprocess.run", side_effect=fake_run), \
+                     patch("sys.stdout"), \
+                     patch("builtins.print"):
                     self._preflight()
 
                 self.assertEqual(calls, [["sudo", "-n", "/bin/sh", "-c", ":"], expected])
@@ -433,9 +444,9 @@ class TestPreflightSudo(unittest.TestCase):
                     return self._result(command, 1)
 
                 with patch("sys.stdin.isatty", return_value=isatty), \
-                     patch("nyxuri.cli.subprocess.run", side_effect=fake_run), \
+                     patch("nyxuri.installer.workflows.subprocess.run", side_effect=fake_run), \
+                     patch("sys.stdout"), \
                      patch("builtins.print"), \
-                     patch("nyxuri.cli.log_msg"), \
                      self.assertRaises(SystemExit) as ctx:
                     self._preflight()
 

@@ -1,6 +1,14 @@
 Nyxuri 是 Arch Linux / CachyOS 上的 Material You 桌面套件与管理底座。
 根目录 README 作为展示门面与单行安装入口；本 Wiki 记录完整的配置体系、预设规则、快捷键全景、CLI 命令与排障手册。
 
+### 从 AUR 安装（Arch / CachyOS 推荐）
+
+```bash
+paru -S nyxuri-git        # 管理引擎 + 配置单元 + Nyxuri Shell，一包全量
+nyxuri install full       # 或按单元自由组装桌面：nyxuri on <单元>
+```
+> 安装即进入系统包模式：更新交给 pacman。桌面软件不捆绑——启用哪个单元才装它需要的软件。
+
 ---
 
 ## 核心模块索引

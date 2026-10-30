@@ -135,6 +135,38 @@ class TestI18nKeyIntegrity(unittest.TestCase):
         self.assertEqual(orphans, set(),
                          f"Orphan i18n keys (defined in TRANSLATIONS but never referenced): {sorted(orphans)}")
 
+    def test_dynamic_menu_keys_resolve(self):
+        """Dynamic keys exempted from orphan checks must still exist.
+
+        The reverse direction of the orphan check: every app_* / apps_cat_* key
+        the deps menu can construct at runtime (catalog.toml entries plus
+        optional units) must have a TRANSLATIONS entry, otherwise the menu
+        renders the raw key. This is the blind spot that once let
+        app_greeter/app_mango/app_wallpapers show as literal key names.
+        """
+        import tomllib
+
+        repo_root = Path(__file__).resolve().parents[1]
+        required = set()
+        with open(repo_root / "catalog.toml", "rb") as f:
+            catalog = tomllib.load(f)
+        for entry_id, entry in catalog.items():
+            if isinstance(entry, dict):
+                required.add(f"app_{entry_id.replace('-', '_')}")
+                if entry.get("category"):
+                    required.add(f"apps_cat_{entry['category']}")
+        for manifest in sorted((repo_root / "units").glob("*/manifest.toml")):
+            with open(manifest, "rb") as f:
+                data = tomllib.load(f)
+            if data.get("optional") is True:
+                required.add(f"app_{manifest.parent.name.replace('-', '_')}")
+                if data.get("category"):
+                    required.add(f"apps_cat_{data['category']}")
+
+        missing = required - self.translation_keys
+        self.assertEqual(missing, set(),
+                         f"Menu keys without translations (raw key names would render): {sorted(missing)}")
+
 
 class TestTemplateSubstitution(unittest.TestCase):
     """Both languages must accept the same arguments and resolve constants."""

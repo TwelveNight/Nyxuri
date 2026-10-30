@@ -26,7 +26,7 @@ require() {
 }
 
 # Keep successful output short, retain full failed diagnostics on disk.
-log_dir=$(mktemp -d "${TMPDIR:-/tmp}/clavis-check.XXXXXX")
+log_dir=$(mktemp -d "${TMPDIR:-/tmp}/nyxuri-check.XXXXXX")
 keep_logs=false
 trap 'status=$?; if (( status == 0 )) && ! ${keep_logs}; then rm -rf -- "${log_dir}"; else printf "check: logs: %s\n" "${log_dir}" >&2; fi' EXIT
 step() {
@@ -54,7 +54,7 @@ step() {
 }
 
 step whitespace git diff --check HEAD
-mapfile -d '' -t files < <(clavis_files "${scope}")
+mapfile -d '' -t files < <(nyxuri_files "${scope}")
 shell_files=() python_files=()
 qml=false
 catalog=false
@@ -94,7 +94,7 @@ for test_name in niri_cursor_config manage_niri_effects matugen_registry; do
             niri_cursor_config:scripts/theme/write-niri-cursor-config.sh|niri_cursor_config:tests/test_niri_cursor_config.sh|\
             manage_niri_effects:scripts/system/manage-niri-effects.sh|manage_niri_effects:tests/test_manage_niri_effects.sh|\
             matugen_registry:scripts/theme/*|matugen_registry:scripts/lib/matugen-registry.sh|matugen_registry:tests/test_matugen_registry.sh|\
-            *:scripts/lib/clavis-paths.sh|*:scripts/system/manage-niri-fragment.sh|*:tests/fixtures/mock-niri) run_test=true ;;
+            *:tests/fixtures/mock-niri) run_test=true ;;
         esac
     done
     if ${run_test}; then

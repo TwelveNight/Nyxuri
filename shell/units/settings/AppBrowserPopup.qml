@@ -20,9 +20,9 @@ FloatingWindow {
     signal appSelected(var application)
 
     parentWindow: root.parentModal
-    objectName: "clavisAutostartAppBrowser"
+    objectName: "nyxuriAutostartAppBrowser"
     // Stable compositor rule identity; visible headings remain localized.
-    title: "clavis-control-center-application-browser"
+    title: "nyxuri-control-center-application-browser"
     minimumSize: Qt.size(420, 380)
     implicitWidth: 560
     implicitHeight: 620

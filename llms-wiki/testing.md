@@ -53,15 +53,19 @@ argv[0]（shebang 直启下是解释器名，不是脚本名），验证恒假�
 | 划词翻译工具 | 渠道协议与解析、定位几何、ResultRelay、凭据脱敏、TUI（含 PTY）、Alt+E / Orbit 入口契约；经 `tests/tools/translate/support.py` 套 `TempEnv` | `tests/tools/translate/` |
 | 网络弹性 | HTTP 超时、多镜像回退、网络中断软降级 | `tests/pkg/test_network.py` |
 
-## 必跑命令
+## 验证分级（按需测试，拒绝无谓浪费）
 
-```bash
-python3 -m compileall nyxuri                                    # 语法/静态检查
-bash -n install.sh units/noctalia/*.sh units/niri/scripts/*.sh
-shellcheck install.sh
-python3 -m unittest discover -s tests -q                        # 行为契约
-HOME=$(mktemp -d) ./install.sh test                             # 沙箱隔离部署
-```
+**严禁一刀切乱跑全量测试，禁止无谓耗时**：
+- **纯文档 / 文本 / 规划改动**：免跑引擎测试；涉及相对链接或索引时仅需 `python3 -m unittest tests/test_ai_specs.py`（0.06s）。
+- **日常单域代码改动**：只跑上表对应的定向测试文件（秒级返回）。
+- **发版或重大引擎重构全量把关**：
+  ```bash
+  python3 -m compileall nyxuri                                    # 语法/静态检查
+  bash -n install.sh units/noctalia/*.sh units/niri/scripts/*.sh
+  shellcheck install.sh
+  python3 -m unittest discover -s tests -q                        # 全量行为契约
+  HOME=$(mktemp -d) python3 -m nyxuri test                        # 沙箱隔离部署
+  ```
 
 个人分支的无头模板渲染测试固定 gsettings 的深色读取结果，与深色调色板断言一致；
 不从宿主或新 D-Bus 会话的浅色默认值推断主题，运行逻辑不变。

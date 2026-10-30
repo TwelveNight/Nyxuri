@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.app
 import qs.app.services
 import qs.shared.i18n
 
@@ -15,10 +16,7 @@ Singleton {
     readonly property int maximumDiagnosticLines: 20
     readonly property int maximumDiagnosticCharacters: 2048
 
-    property string commandName: {
-        const configured = String(Quickshell.env("CLAVIS_KEY") || "").trim();
-        return configured !== "" ? configured : "key";
-    }
+    property string commandName: Paths.stableKey
     property int configuredIntervalMs: UiPreferences.systemMonitorIntervalMs
     property double sourceIntervalMs: 0
     readonly property int intervalMs: configuredIntervalMs

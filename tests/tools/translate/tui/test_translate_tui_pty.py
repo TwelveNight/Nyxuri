@@ -18,6 +18,9 @@ import termios
 import time
 import tomllib
 import unittest
+# Imports consolidated from the dissolved bugfix ledger.
+from unittest.mock import patch
+
 
 
 _FIXTURE = '''source = "en"
@@ -184,3 +187,27 @@ class TerminalAcceptanceTests(unittest.TestCase):
         self.assertTrue(provider["enabled"])
         self.assertEqual(provider["model"], "fixture-model")
         self.assertNotIn("api_key", provider)
+
+
+class TestTranslatePtyTimeoutScaling(unittest.TestCase):
+
+    def _timeout_default(self, name, scale):
+        import importlib
+        import inspect
+
+        from tests.tools.translate.tui import test_translate_tui_pty as module
+
+        with patch.dict(os.environ, {}, clear=False):
+            for key in ("NYXURI_PRESENTATION_TIMEOUT_SCALE",):
+                os.environ.pop(key, None)
+            if scale is not None:
+                os.environ["NYXURI_PRESENTATION_TIMEOUT_SCALE"] = scale
+            importlib.reload(module)
+            return inspect.signature(getattr(module.TerminalApp, name)).parameters["timeout"].default
+
+    def test_terminal_waits_follow_the_presentation_scale(self):
+        self.assertEqual(self._timeout_default("wait_for", None), 4.0)
+        self.assertEqual(self._timeout_default("send_until", None), 4.0)
+        self.assertEqual(self._timeout_default("wait_for", "25"), 100.0)
+        self.assertEqual(self._timeout_default("send_until", "25"), 100.0)
+        self.assertEqual(self._timeout_default("wait_for", None), 4.0)

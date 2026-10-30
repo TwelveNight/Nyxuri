@@ -14,8 +14,6 @@ Quick reference: `nyxhelp keys`. For Niri's full overlay, press <kbd>Super</kbd>
 | <kbd>Super</kbd> + <kbd>F</kbd> | Maximize current column |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Fullscreen |
 | <kbd>Super</kbd> + <kbd>Tab</kbd> | Workspace overview |
-| <kbd>Alt</kbd> + <kbd>Tab</kbd> / <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>Tab</kbd> | Focus next / previous window on output |
-| <kbd>Alt</kbd> + <kbd>`</kbd> | Focus next window of the same application |
 | <kbd>Super</kbd> + <kbd>Z</kbd> / <kbd>C</kbd> | Focus left / right column |
 | <kbd>Super</kbd> + <kbd>Arrows</kbd> | Smart focus (column/monitor/workspace) |
 | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Arrows</kbd> | Smart move (column/monitor/workspace) |

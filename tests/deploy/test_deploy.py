@@ -13,6 +13,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import contextlib
+import io
+import json
+import time
+
 
 
 class TestAtomicReplaceFileRollback(unittest.TestCase):
@@ -481,5 +487,398 @@ class TestWallpapersUnit(unittest.TestCase):
         self.assertEqual(report.get("wallpapers"), transaction.STATE_GHOST)
 
 
+class TestOwnershipCarry(unittest.TestCase):
+    """Issue #139: a swap never destroys what the engine cannot explain.
+
+    The verdict is judged against the caller-injected ledger baseline
+    (hashes of what the engine last laid); atomic.py itself never reads
+    the ledger (star layering). Dunder / preserve / preserve_values keep
+    their own mechanisms and are exempt from carry.
+    """
+
+    def setUp(self):
+        from nyxuri.deploy.atomic import atomic_replace_item
+        self._replace = staticmethod(atomic_replace_item)
+
+    @staticmethod
+    def _hash(content: str) -> str:
+        import hashlib
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    def _stage(self, workdir: Path, files: dict) -> Path:
+        src = workdir / "src"
+        src.mkdir(exist_ok=True)
+        for rel, content in files.items():
+            p = src / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+        return src
+
+    def test_untouched_file_follows_template_update(self):
+        """dest == baseline → engine-laid and untouched → template wins."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v1\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True,
+                carry_baseline={"a.conf": self._hash("v1\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+            self.assertEqual(carried, {})
+
+    def test_user_modified_file_is_carried(self):
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("my edit\n", encoding="utf-8")
+            carried: dict = {}
+            log: list = []
+            self.assertTrue(self._replace(
+                src, dest, preserved_log=log, carry=True,
+                carry_baseline={"a.conf": self._hash("v1\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual((dest / "a.conf").read_text(), "my edit\n")
+            self.assertEqual(carried, {"a.conf": "modified"})
+            self.assertTrue(log, "carried files must surface in the report")
+
+    def test_user_extra_file_survives_every_stance(self):
+        """A file outside the payload is the user's — carried even on adoption."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v1\n", encoding="utf-8")
+            (dest / "zz-tools.fish").write_text("atuin init\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True,
+                carry_baseline={"a.conf": self._hash("v1\n")},
+                carry_unknown=False, carried_out=carried,
+            ))
+            self.assertEqual((dest / "zz-tools.fish").read_text(), "atuin init\n")
+            self.assertEqual(carried, {"zz-tools.fish": "user"})
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+
+    def test_ghost_dest_update_carries_payload(self):
+        """No record (Ghost) + update stance: 宁可错保 — nothing is overwritten."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n", "new.conf": "n\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v3-era\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True, carry_baseline=None,
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual((dest / "a.conf").read_text(), "v3-era\n")
+            self.assertEqual(carried, {"a.conf": "unknown"},
+                             "Ghost provenance is reported as unknown, never as the user's edit")
+            self.assertEqual((dest / "new.conf").read_text(), "n\n",
+                             "template-new files still land")
+
+    def test_adoption_claims_payload_names(self):
+        """No record + adoption stance (install/on): payload names are claimed."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("pre-existing\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True, carry_baseline=None,
+                carry_unknown=False, carried_out=carried,
+            ))
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+            self.assertEqual(carried, {})
+
+    def test_carry_off_keeps_plain_swap_semantics(self):
+        """carry=False (--force / rollback): template wins, nothing reported."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("my edit\n", encoding="utf-8")
+            (dest / "extra.conf").write_text("user\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(src, dest, carried_out=carried))
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+            self.assertFalse((dest / "extra.conf").exists())
+            self.assertEqual(carried, {})
+
+    def test_carried_file_stays_carred_on_repeat_updates(self):
+        """A stale baseline keeps protecting the carried file — no self-heal lie."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("my edit\n", encoding="utf-8")
+            baseline = {"a.conf": self._hash("v1\n")}
+            for _ in range(2):
+                carried: dict = {}
+                self.assertTrue(self._replace(
+                    src, dest, carry=True, carry_baseline=baseline,
+                    carry_unknown=True, carried_out=carried,
+                ))
+                self.assertEqual((dest / "a.conf").read_text(), "my edit\n")
+                self.assertEqual(carried, {"a.conf": "modified"})
+
+    def test_single_file_unit_carry(self):
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = wd / "src.toml"
+            src.write_text("v2\n", encoding="utf-8")
+            dest = wd / "starship.toml"
+            dest.write_text("my edit\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True,
+                carry_baseline={"starship.toml": self._hash("v1\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual(dest.read_text(), "my edit\n")
+            self.assertEqual(carried, {"starship.toml": "modified"})
+
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True, carry_baseline=None,
+                carry_unknown=False, carried_out=carried,
+            ))
+            self.assertEqual(dest.read_text(), "v2\n")
+            self.assertEqual(carried, {})
+
+    def test_hook_products_retire_when_not_laid_again(self):
+        """Baseline-known, untouched, not in this payload → engine didn't lay
+        it this time (hook product): it retires with the swap and the hook
+        replay re-lays it — it is not the user's, so it is not carried."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v1\n", encoding="utf-8")
+            fisher = dest / "functions/fisher.fish"
+            fisher.parent.mkdir(parents=True)
+            fisher.write_text("hook product\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True,
+                carry_baseline={"a.conf": self._hash("v1\n"),
+                                "functions/fisher.fish": self._hash("hook product\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertFalse((dest / "functions/fisher.fish").exists(),
+                             "retired engine products must not masquerade as user files")
+            self.assertEqual(carried, {})
+            self.assertEqual((dest / "a.conf").read_text(), "v2\n")
+
+    def test_retired_name_but_user_modified_is_carried(self):
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v1\n", encoding="utf-8")
+            fisher = dest / "functions/fisher.fish"
+            fisher.parent.mkdir(parents=True)
+            fisher.write_text("user tweaked\n", encoding="utf-8")
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True,
+                carry_baseline={"a.conf": self._hash("v1\n"),
+                                "functions/fisher.fish": self._hash("hook product\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual((dest / "functions/fisher.fish").read_text(), "user tweaked\n")
+            self.assertEqual(carried, {"functions/fisher.fish": "modified"})
+
+    def test_pycache_never_carried_or_reported(self):
+        """Bytecode cache is neither payload nor user content (#139 field
+        report): pruned from the carry walk, gone with the swap, absent from
+        the report."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v1\n", encoding="utf-8")
+            pyc_dir = dest / "tools/__pycache__"
+            pyc_dir.mkdir(parents=True)
+            (pyc_dir / "config.cpython-314.pyc").write_bytes(b"\x00bytecode")
+            (dest / "tools/loose.pyc").write_bytes(b"\x00bytecode")
+            carried: dict = {}
+            log: list = []
+            self.assertTrue(self._replace(
+                src, dest, preserved_log=log, carry=True,
+                carry_baseline={"a.conf": self._hash("v1\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertFalse(pyc_dir.exists())
+            self.assertFalse((dest / "tools/loose.pyc").exists())
+            self.assertEqual(carried, {})
+            self.assertFalse(any(".pyc" in line or "__pycache__" in line for line in log))
+
+    def test_directory_preserve_injects_tree_and_shields_carry(self):
+        """A preserve DIRECTORY is a whole runtime-managed tree (#139 field
+        report): injected before the rename in one piece, its files shielded
+        from carry — they are Fisher's, not the user's, and not residue."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {"a.conf": "v2\n"})  # template lays no functions/
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "a.conf").write_text("v1\n", encoding="utf-8")
+            fisher = dest / "functions/fisher.fish"
+            fisher.parent.mkdir(parents=True)
+            fisher.write_text("fisher plugin\n", encoding="utf-8")
+            carried: dict = {}
+            log: list = []
+            self.assertTrue(self._replace(
+                src, dest, preserved_log=log, carry=True,
+                preserve=["functions"],
+                carry_baseline={"a.conf": self._hash("v1\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual((dest / "functions/fisher.fish").read_text(), "fisher plugin\n")
+            self.assertEqual(carried, {}, "preserved tree files must not enter the carry map")
+            self.assertEqual([line for line in log if "functions" in line],
+                             ["~/.config/dest/functions"],
+                             "a preserved tree reports once, not per file")
+
+    def test_preserve_and_values_targets_exempt_from_carry(self):
+        """preserve / preserve_values files ride their own mechanisms."""
+        with tempfile.TemporaryDirectory() as wd:
+            wd = Path(wd)
+            src = self._stage(wd, {
+                "monitor.kdl": "template monitor\n",
+                "settings.toml": "[brightness]\nenable_ddcutil = false\n",
+            })
+            dest = wd / "dest"
+            dest.mkdir()
+            (dest / "monitor.kdl").write_text("user monitor layout\n", encoding="utf-8")
+            (dest / "settings.toml").write_text(
+                "[brightness]\nenable_ddcutil = true\n", encoding="utf-8"
+            )
+            carried: dict = {}
+            self.assertTrue(self._replace(
+                src, dest, carry=True,
+                preserve=["monitor.kdl"],
+                preserve_values={"settings.toml": ["enable_ddcutil"]},
+                carry_baseline={"monitor.kdl": self._hash("old\n"),
+                                "settings.toml": self._hash("old\n")},
+                carry_unknown=True, carried_out=carried,
+            ))
+            self.assertEqual(carried, {}, "exempt files never enter the carry map")
+            self.assertEqual((dest / "monitor.kdl").read_text(), "user monitor layout\n")
+            self.assertIn("enable_ddcutil = true", (dest / "settings.toml").read_text())
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestWallpaperPackProbe(unittest.TestCase):
+    """wallpapers_pack_present: video-validated pack probe (user-domain)."""
+
+    def test_pack_requires_a_real_video(self):
+        from nyxuri.deploy.deploy import WALLPAPER_VIDEO_SUFFIXES, wallpapers_pack_present
+        with TempEnv() as ctx:
+            video_dir = ctx.home / "Pictures" / "Wallpapers" / "video"
+            self.assertFalse(wallpapers_pack_present())
+            video_dir.mkdir(parents=True)
+            (video_dir / "README.md").write_text("docs", encoding="utf-8")
+            self.assertFalse(wallpapers_pack_present())
+            clip = video_dir / "clip.mp4"
+            clip.write_text("v", encoding="utf-8")
+            self.assertTrue(clip.suffix in WALLPAPER_VIDEO_SUFFIXES)
+            self.assertTrue(wallpapers_pack_present())
+
+    def test_existing_user_wallpaper_is_never_clobbered_or_tracked(self):
+        from nyxuri.kernel import ledger, transaction
+        with TempEnv() as ctx:
+            wp = ctx.home / "Pictures" / "Wallpapers"
+            wp.mkdir(parents=True)
+            user_file = wp / "lawson_fuji.webp"
+            user_file.write_text("USER", encoding="utf-8")
+            _quiet(transaction.unit_on, "wallpapers")
+            # No tracking marker exists at all — the pack era is over.
+            self.assertFalse((wp / ".nyxuri-managed.json").exists())
+            self.assertEqual(user_file.read_text(encoding="utf-8"), "USER")
+            # The user's same-named file blocked the layout: not ours.
+            self.assertNotIn("lawson_fuji.webp", ledger.get_unit("wallpapers")["files"])
+
+class TestDeployRobustness(unittest.TestCase):
+
+    def _sandbox(self, ctx):
+        ctx.env.units_src = Path(tempfile.mkdtemp())
+        import nyxuri.deploy.manifest as manifest
+        import nyxuri.deploy.deploy as deploy
+        manifest._MANIFEST_CACHE = None
+        deploy._CONFIG_ITEMS_CACHE = []
+        return ctx.env.units_src
+
+    def _app(self, src, name, manifest_toml, files):
+        root = src / name
+        for rel, content in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        (root / "manifest.toml").write_text(manifest_toml, encoding="utf-8")
+        return root
+
+    def test_unrealizable_part_variant_is_reported(self):
+        import nyxuri.deploy.deploy as deploy
+        from nyxuri.kernel.ledger import update_ledger
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            root = self._app(
+                src, "demo",
+                'preserve = ["part.kdl"]\n\n[parts.effects]\ntarget = "part.kdl"\n'
+                'source_dir = "effects"\ndefault = "default"\n',
+                {"part.kdl": "// default-part\n"},
+            )
+            slot = root / "__presets__" / "effects"
+            slot.mkdir(parents=True)
+            (slot / "default.kdl").write_text("// default-part\n", encoding="utf-8")
+            update_ledger(parts={"demo:effects": "ghost"})
+            with patch.object(deploy, "_phase_post_install_services"):
+                failed = _quiet(deploy.deploy_selected_configs, items_to_deploy=["demo"], preserved_log=[])
+            self.assertEqual(failed, ["demo"])
+
+    def test_absolute_or_empty_chmod_pattern_does_not_abort(self):
+        import nyxuri.deploy.deploy as deploy
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "demo", 'chmod = ["/etc/*", ""]\n', {"config.kdl": "// c\n"})
+            with patch.object(deploy, "_phase_post_install_services"):
+                failed = _quiet(deploy.deploy_selected_configs, items_to_deploy=["demo"], preserved_log=[])
+            self.assertEqual(failed, [])
+            self.assertTrue((ctx.env.config_dir / "demo" / "config.kdl").is_file())
+
+    def test_scalar_items_to_deploy_is_treated_as_one_item(self):
+        import nyxuri.deploy.deploy as deploy
+        with TempEnv() as ctx:
+            src = self._sandbox(ctx)
+            self._app(src, "demo", "", {"config.kdl": "// c\n"})
+            with patch.object(deploy, "_phase_post_install_services"):
+                failed = _quiet(deploy.deploy_selected_configs, items_to_deploy="demo", preserved_log=[])
+            self.assertEqual(failed, [])
+            self.assertTrue((ctx.env.config_dir / "demo" / "config.kdl").is_file())

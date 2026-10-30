@@ -125,7 +125,7 @@ class Preview:
         self.original = ipc('Outputs')
         self.combination = connection_key(self.original)
         self.main = config.main_path(request)
-        self.path = self.main.parent/'clavis/outputs.kdl'
+        self.path = config._managed(self.main)/'outputs.kdl'
         self.graph = config.Graph(self.main)
         self.original_graph = self.graph
         if request.get('revision') != self.graph.revision(): raise ValueError('Configuration changed externally; reload before applying')
@@ -317,7 +317,7 @@ def run_guard(request,directory,parent,lock_fd):
 
 
 def directory_for(token):
-    if not isinstance(token,str) or not token.startswith('clavis-display-') or '/' in token: raise ValueError('Invalid preview token')
+    if not isinstance(token,str) or not token.startswith('nyxuri-display-') or '/' in token: raise ValueError('Invalid preview token')
     directory=Path(os.environ.get('XDG_RUNTIME_DIR',tempfile.gettempdir()))/token
     info=directory.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid!=os.getuid() or info.st_mode&0o077: raise ValueError('Unsafe preview directory')
@@ -328,7 +328,7 @@ def run(request):
     operation=request['operation']
     if operation=='start':
         runtime=Path(os.environ.get('XDG_RUNTIME_DIR',tempfile.gettempdir()))
-        lock_path=runtime/('clavis-display-preview-'+str(os.getuid())+'.lock')
+        lock_path=runtime/('nyxuri-display-preview-'+str(os.getuid())+'.lock')
         fd=os.open(lock_path,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
         info=os.fstat(fd)
         if info.st_uid!=os.getuid() or not stat.S_ISREG(info.st_mode) or info.st_nlink!=1:
@@ -336,7 +336,7 @@ def run(request):
         try: fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:
             os.close(fd); raise ValueError('Another display preview is still active')
-        directory=Path(tempfile.mkdtemp(prefix='clavis-display-',dir=runtime))
+        directory=Path(tempfile.mkdtemp(prefix='nyxuri-display-',dir=runtime))
         config.replace_file(directory/'status.json',json.dumps(dict(schemaVersion=1,phase='validating')))
         parent=os.getppid()
         pid=os.fork()

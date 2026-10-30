@@ -20,3 +20,9 @@
 ## 2. 纯逻辑架构参考：iNiR
 - **设计启发**：按功能域组织模块、Niri IPC 集中式单一状态源服务（`app/services/NiriService.qml`）、去 C++ 化纯 QML 取向。
 - **现行状态**：Nyxuri 已完全实现自主设计与独立单测，无任何外部代码直接拷贝。
+
+## 3. 设置界面与安卓视觉范式参考：Caelestia Shell (`caelestia`)
+- **上游来源**：[caelestia-dots/shell](https://github.com/caelestia-dots/shell)
+- **基准提交**：`2e1c51f`
+- **检索方式**：参考树保持在本地 `shell/references/caelestia/`，由 `.gitignore` 排除。检索使用 `rg --no-ignore shell/references/caelestia`。
+- **核心价值**：T3 Nexus 安卓风味（Material Design 3 Master-Detail）视窗与分组卡片范式——双行信息流分类导航（NavPane）、连通偏好设置原件（`ConnectedRect` 几何派生 `InfoRow` / `ToggleRow` / `SliderRow`）、大标题头部与 Hero Banner 设计参考。Nyxuri 在此基础上坚持纯 QML/JS、无外部二进制插件绑定并兼容现有 `SettingsBackend` 统一状态。

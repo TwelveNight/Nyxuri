@@ -43,15 +43,15 @@
 Nyxuri Shell takes inspiration from and integrates ideas or components from projects including:
 
 - [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland)
-- [Zen Browser](https://github.com/zen-browser/desktop) — palette algorithms and editor; see [source and license mapping](assets/licenses/README.md).
+- [Zen Browser](https://github.com/zen-browser/desktop) — palette algorithms and editor; see the third-party appendix in [LICENSE](LICENSE).
 - [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell)
 - [Caelestia Shell](https://github.com/caelestia-dots/shell)
 - [qml-niri](https://github.com/imiric/qml-niri)
 - [Breezy Weather](https://github.com/breezy-weather/breezy-weather)
-- [Animated Weather Cards](https://codepen.io/ste-vg/pen/GqaZbo) by Steve Gardner — the current-weather animation at the top of the sidebar weather view is a Qt/QML recreation of this web project. The original is licensed under MIT; see the [full license and copyright notice](assets/licenses/AnimatedWeatherCards-MIT.txt).
+- [Animated Weather Cards](https://codepen.io/ste-vg/pen/GqaZbo) by Steve Gardner — the current-weather animation at the top of the sidebar weather view is a Qt/QML recreation of this web project. The original is licensed under MIT; the full license and copyright notice are reproduced in the [LICENSE](LICENSE) third-party appendix.
 - [m3shapes](https://github.com/soramanew/m3shapes)
 
-Third-party license notices are kept in [`assets/licenses/`](assets/licenses/).
+Third-party license notices are kept in the appendix of [LICENSE](LICENSE).
 # License
 
 See [LICENSE](LICENSE).

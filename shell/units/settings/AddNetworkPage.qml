@@ -1,16 +1,24 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
+// Add network page (T3 M4): atom rows inside the network config modal. The
+// SSID and password stay full-width labeled fields (the Caelestia Add network
+// original uses full-width fields, not row-embedded ones); hidden/security
+// ride the toggle and select atoms.
 StyledFlickable {
     id: root
 
     property bool submitting: false
     property string errorMessage: ""
-    readonly property bool secure: securitySelect.value === "personal"
+    readonly property bool secure: securitySelect.currentValue === "personal"
     readonly property int ssidBytes: utf8Length(ssidField.text)
     readonly property bool validPassword: !secure || (passwordField.text.length >= 8
                                                       && passwordField.text.length <= 63) ||
@@ -36,13 +44,13 @@ StyledFlickable {
         root.errorMessage = "";
         ssidField.text = "";
         hiddenSwitch.checked = false;
-        securitySelect.value = "personal";
+        securitySelect.currentValue = "personal";
         root.clearSensitiveData();
     }
 
     clip: true
     contentWidth: width
-    contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
+    contentHeight: contentColumn.implicitHeight + NexusStyle.padding.large * 2
     Component.onDestruction: root.clearSensitiveData()
 
     Connections {
@@ -65,87 +73,96 @@ StyledFlickable {
     ColumnLayout {
         id: contentColumn
 
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
-        spacing: Metrics.spacingL
+        width: Math.min(640, Math.max(0, root.width - NexusStyle.padding.largeIncreased * 2))
+        x: Math.max(NexusStyle.padding.largeIncreased, (root.width - width) / 2)
+        y: NexusStyle.padding.largeIncreased
+        spacing: NexusStyle.padding.extraSmall / 2
 
-        SettingsSection {
+        PreferenceHeader {
+            first: true
+            text: I18n.tr("Network information")
+        }
+
+        Item {
             Layout.fillWidth: true
-            title: I18n.tr("Network information")
-            iconName: "add_link"
-            contentSpacing: Metrics.spacingL
+            implicitHeight: ssidField.implicitHeight
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: Metrics.spacingXS
+            OutlinedTextField {
+                id: ssidField
 
-                OutlinedTextField {
-                    id: ssidField
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                labelText: I18n.tr("SSID")
+                errorText: root.ssidBytes > 32 ? I18n.tr("SSID can be at most 32 UTF-8 bytes") : ""
+            }
+        }
 
-                    Layout.fillWidth: true
-                    labelText: I18n.tr("SSID")
-                    errorText: root.ssidBytes > 32 ? I18n.tr("SSID can be at most 32 UTF-8 bytes") : ""
+        PreferenceToggle {
+            id: hiddenSwitch
+
+            first: true
+            text: I18n.tr("Hidden network")
+            subtext: I18n.tr("Try to connect even when this SSID is not in the scan results")
+        }
+
+        PreferenceSelect {
+            id: securitySelect
+
+            last: true
+            label: I18n.tr("Security type")
+            model: [
+                {
+                    "label": I18n.tr("WPA/WPA2 Personal"),
+                    "value": "personal"
+                },
+                {
+                    "label": I18n.tr("None / Open"),
+                    "value": "open"
+                }
+            ]
+            currentValue: "personal"
+            inputRegionService: PopupInputRegionService
+        }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.secure ? passwordField.implicitHeight : 0
+            opacity: root.secure ? 1 : 0
+            clip: true
+
+            Behavior on Layout.preferredHeight {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                 }
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Hidden network")
-                supportingText: I18n.tr("Try to connect even when this SSID is not in the scan results")
-
-                trailing: StyledSwitch {
-                    id: hiddenSwitch
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                 }
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Security type")
+            OutlinedTextField {
+                id: passwordField
 
-                trailing: SearchSelectMenuField {
-                    id: securitySelect
-
-                    Layout.preferredWidth: 240
-                    value: "personal"
-                    closeOnAccept: true
-                    options: [
-                        {
-                            "value": "personal",
-                            "label": I18n.tr("WPA/WPA2 Personal")
-                        },
-                        {
-                            "value": "open",
-                            "label": I18n.tr("None / Open")
-                        }
-                    ]
-                    onAccepted: value => {
-                        return securitySelect.value = value;
-                    }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: root.secure
-                spacing: Metrics.spacingXS
-
-                OutlinedTextField {
-                    id: passwordField
-
-                    Layout.fillWidth: true
-                    labelText: I18n.tr("Password")
-                    passwordToggle: true
-                    errorText: text.length > 0 && !root.validPassword ? I18n.tr(
-                                                                            "Password must be 8–63 characters or a 64-digit hexadecimal PSK") :
-                                                                        ""
-                }
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                labelText: I18n.tr("Password")
+                passwordToggle: true
+                errorText: text.length > 0 && !root.validPassword ? I18n.tr(
+                                                                        "Password must be 8–63 characters or a 64-digit hexadecimal PSK") :
+                                                                    ""
             }
         }
 
         InlineStatusBanner {
             Layout.fillWidth: true
-            radius: Metrics.cornerM
             visible: root.errorMessage.length > 0
             tone: "error"
             message: root.errorMessage

@@ -33,7 +33,7 @@ FloatingWindow {
     visible: false
     parentWindow: root.parentModal
     // Stable compositor rule identity; visible headings remain localized.
-    title: "clavis-control-center-template-add"
+    title: "nyxuri-control-center-template-add"
     implicitWidth: 580
     implicitHeight: 640
     minimumSize: Qt.size(460, 480)

@@ -20,10 +20,10 @@ scheme="scheme-tonal-spot"
 image_path=""
 source_color=""
 dry_run=false
-# assets shipped with @CLAVIS_GENERATED_HOME@-style placeholders once; since the
+# assets shipped with @NYXURI_SHELL_GENERATED_HOME@-style placeholders once; since the
 # Tera render path retired there is nothing to substitute — the shell always
-# passes the real directory and the fallbacks keep manual CLI use working.
-generated_home="${NYXURI_SHELL_GENERATED_HOME:-${CLAVIS_GENERATED_HOME:-}}"
+# passes the real directory and the fallback keeps manual CLI use working.
+generated_home="${NYXURI_SHELL_GENERATED_HOME:-}"
 
 usage() {
     printf 'Usage: %s (--image PATH | --color HEX) [--mode dark|light] [--scheme SCHEME] [--generated-home DIR] [--dry-run]\n' "$0" >&2

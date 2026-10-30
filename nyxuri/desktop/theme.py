@@ -20,16 +20,48 @@ from nyxuri.core import get_env, timed_run
 
 
 def _mode_from_system() -> str:
+    try:
+        from nyxuri.kernel.ledger import active_shell
+        current_shell = active_shell()
+    except Exception:
+        current_shell = "noctalia"
+
+    if current_shell == "nyxuri-shell":
+        res = _nyxuri_shell_ipc(["theme", "status"])
+        if res in ("dark", "light"):
+            return res
+        try:
+            cfg_file = get_env().config_dir / "nyxuri" / "config.json"
+            if cfg_file.is_file():
+                import json
+                with cfg_file.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    mode = data.get("theme", {}).get("mode")
+                    if mode in ("dark", "light"):
+                        return mode
+        except Exception:
+            pass
+
     if shutil.which("noctalia"):
         res = timed_run(["noctalia", "msg", "theme-mode-get"], 3, capture_output=True, text=True, check=False)
         if res is not None and res.returncode == 0:
             val = res.stdout.strip()
             if val in ("dark", "light"):
                 return val
+
+    if current_shell != "nyxuri-shell":
+        res = _nyxuri_shell_ipc(["theme", "status"])
+        if res in ("dark", "light"):
+            return res
+
     if shutil.which("gsettings"):
         res = timed_run(["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"], 5, capture_output=True, text=True, check=False)
         if res is not None and res.returncode == 0:
-            return "light" if "prefer-light" in res.stdout or "default" in res.stdout else "dark"
+            out = res.stdout.lower()
+            if "prefer-light" in out:
+                return "light"
+            if "prefer-dark" in out:
+                return "dark"
     return get_env_var("DEFAULT_MODE", "dark")
 
 
@@ -95,21 +127,44 @@ def _propagate(mode: str, toggle: bool) -> str:
     Returns the channel name for feedback: "noctalia", "nyxuri-shell" or
     "none". Toggle callers may read back the resulting mode afterwards.
     """
-    if toggle:
+    try:
+        from nyxuri.kernel.ledger import active_shell
+        current_shell = active_shell()
+    except Exception:
+        current_shell = "noctalia"
+
+    if current_shell == "nyxuri-shell":
+        if toggle:
+            if _nyxuri_shell_ipc(["theme", "toggle"]) is not None:
+                time.sleep(0.2)
+                return "nyxuri-shell"
+            if _noctalia_available():
+                timed_run(["noctalia", "msg", "theme-mode-toggle"], 3, capture_output=True, text=True, check=False)
+                time.sleep(0.3)
+                return "noctalia"
+            return "none"
+        if _nyxuri_shell_ipc(["theme", "set", mode]) is not None:
+            return "nyxuri-shell"
         if _noctalia_available():
-            timed_run(["noctalia", "msg", "theme-mode-toggle"], 3, capture_output=True, text=True, check=False)
-            time.sleep(0.3)
+            timed_run(["noctalia", "msg", "theme-mode-set", mode], 3, capture_output=True, text=True, check=False)
             return "noctalia"
-        if _nyxuri_shell_ipc(["theme", "toggle"]) is not None:
-            time.sleep(0.2)
+        return "none"
+    else:
+        if toggle:
+            if _noctalia_available():
+                timed_run(["noctalia", "msg", "theme-mode-toggle"], 3, capture_output=True, text=True, check=False)
+                time.sleep(0.3)
+                return "noctalia"
+            if _nyxuri_shell_ipc(["theme", "toggle"]) is not None:
+                time.sleep(0.2)
+                return "nyxuri-shell"
+            return "none"
+        if _noctalia_available():
+            timed_run(["noctalia", "msg", "theme-mode-set", mode], 3, capture_output=True, text=True, check=False)
+            return "noctalia"
+        if _nyxuri_shell_ipc(["theme", "set", mode]) is not None:
             return "nyxuri-shell"
         return "none"
-    if _noctalia_available():
-        timed_run(["noctalia", "msg", "theme-mode-set", mode], 3, capture_output=True, text=True, check=False)
-        return "noctalia"
-    if _nyxuri_shell_ipc(["theme", "set", mode]) is not None:
-        return "nyxuri-shell"
-    return "none"
 
 
 def _sync_glow_layout(current: str) -> None:
@@ -153,7 +208,8 @@ def status() -> int:
         res = timed_run(["noctalia", "msg", "theme-mode-get"], 5, capture_output=True, text=True, check=False)
         if res is not None and res.returncode == 0:
             noctalia_mode = res.stdout.strip() or "unknown"
-    print(f"Current Scheme: {scheme} | Noctalia Mode: {noctalia_mode}")
+    nyxuri_mode = _nyxuri_shell_ipc(["theme", "status"]) or "unknown"
+    print(f"Current Scheme: {scheme} | Noctalia Mode: {noctalia_mode} | Nyxuri Mode: {nyxuri_mode}")
     return 0
 
 

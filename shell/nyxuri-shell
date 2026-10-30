@@ -32,18 +32,26 @@ export XDG_CACHE_HOME="${NYXURI_ORIGINAL_CACHE_HOME}/nyxuri-shell"
 rm -rf "${XDG_CACHE_HOME}/quickshell/qmlcache"
 
 # The generated palette has to be written where the shell reads it. The two sides
-# defaulted to different places: scripts/lib/clavis-paths.sh resolves to
+# defaulted to different places: scripts/lib/nyxuri-paths.sh resolves to
 # $XDG_STATE_HOME/quickshell/user/generated, while Paths.qml computed
 # <dataHome>/profiles/<profile>/generated. Whenever those disagree the palette is
 # written somewhere nothing reads, and every theme change looks inert. Pin both
 # to the same directory here, which is also the only place the deployer would set.
 GENERATED_HOME_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/generated"
 export NYXURI_SHELL_GENERATED_HOME="${NYXURI_SHELL_GENERATED_HOME:-$GENERATED_HOME_DEFAULT}"
-export CLAVIS_GENERATED_HOME="${CLAVIS_GENERATED_HOME:-$GENERATED_HOME_DEFAULT}"
 
 ACTION=""
+IPC_CALL=""
 while [ $# -gt 0 ]; do
     case "$1" in
+        --ipc)
+            if [ $# -lt 3 ] || [ -z "$2" ] || [ -z "$3" ]; then
+                printf 'Usage: nyxuri-shell --ipc <target> <method> [args...]\n' >&2
+                exit 2
+            fi
+            IPC_CALL=1
+            shift 1
+            ;;
         --action)
             if [ $# -lt 2 ] || [ -z "$2" ]; then
                 printf 'Missing action after --action\n' >&2
@@ -69,7 +77,7 @@ while [ $# -gt 0 ]; do
             shift 1
             ;;
         -h|--help)
-            echo "Usage: nyxuri-shell [--action <launcher|session|settings|clipboard|lock|wallpaper-random|wallpaper-picker|radial-launcher|translate>|--check-ready|--stage|--status|--stop]"
+            echo "Usage: nyxuri-shell [--action <launcher|session|settings|clipboard|lock|wallpaper-random|wallpaper-picker|radial-launcher|translate>|--ipc <target> <method> [args...]|--check-ready|--stage|--status|--stop]"
             exit 0
             ;;
         *)
@@ -77,6 +85,12 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+if [ -n "$IPC_CALL" ]; then
+    # Generic unit-IPC passthrough for compositor bindings: binds reference
+    # this PATH-stable gateway instead of a quickshell config name.
+    exec qs -p "${SHELL_DIR}" ipc call "$@"
+fi
 
 if [ -n "$ACTION" ]; then
     case "$ACTION" in

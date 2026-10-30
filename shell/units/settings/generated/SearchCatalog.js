@@ -15,7 +15,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Lock the current session",
       "icon": "lock",
-      "id": "clavis:lock:open",
+      "id": "nyxuri:lock:open",
       "method": "open",
       "policy": "include",
       "target": "lock",
@@ -31,7 +31,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Open Spotlight Search",
       "icon": "search",
-      "id": "clavis:spotlight:search",
+      "id": "nyxuri:spotlight:search",
       "method": "search",
       "policy": "include",
       "target": "spotlight",
@@ -48,7 +48,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Enter Spotlight Web search",
       "icon": "language",
-      "id": "clavis:spotlight:web",
+      "id": "nyxuri:spotlight:web",
       "method": "web",
       "policy": "include",
       "target": "spotlight",
@@ -64,7 +64,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Open Spotlight Files",
       "icon": "draft",
-      "id": "clavis:spotlight:files",
+      "id": "nyxuri:spotlight:files",
       "method": "files",
       "policy": "include",
       "target": "spotlight",
@@ -83,7 +83,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Open the application launcher",
       "icon": "grid_view",
-      "id": "clavis:spotlight:openMode:apps",
+      "id": "nyxuri:spotlight:openMode:apps",
       "method": "openMode",
       "policy": "include",
       "target": "spotlight",
@@ -101,7 +101,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Open clipboard history",
       "icon": "content_paste",
-      "id": "clavis:spotlight:openMode:clipboard",
+      "id": "nyxuri:spotlight:openMode:clipboard",
       "method": "openMode",
       "policy": "include",
       "target": "spotlight",
@@ -119,7 +119,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Browse and apply wallpapers",
       "icon": "image",
-      "id": "clavis:spotlight:openMode:wallpapers",
+      "id": "nyxuri:spotlight:openMode:wallpapers",
       "method": "openMode",
       "policy": "include",
       "target": "spotlight",
@@ -135,7 +135,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Clear the global wallpaper selection",
       "icon": "hide_image",
-      "id": "clavis:wallpaper:clear",
+      "id": "nyxuri:wallpaper:clear",
       "method": "clear",
       "policy": "include",
       "target": "wallpaper",
@@ -151,7 +151,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Apply the previous wallpaper",
       "icon": "skip_previous",
-      "id": "clavis:wallpaper:previous",
+      "id": "nyxuri:wallpaper:previous",
       "method": "previous",
       "policy": "include",
       "target": "wallpaper",
@@ -167,7 +167,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Apply the next wallpaper",
       "icon": "skip_next",
-      "id": "clavis:wallpaper:next",
+      "id": "nyxuri:wallpaper:next",
       "method": "next",
       "policy": "include",
       "target": "wallpaper",
@@ -183,7 +183,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Apply a random wallpaper",
       "icon": "shuffle",
-      "id": "clavis:wallpaper:random",
+      "id": "nyxuri:wallpaper:random",
       "method": "random",
       "policy": "include",
       "target": "wallpaper",
@@ -199,7 +199,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Dismiss open Keystone panels",
       "icon": "close",
-      "id": "clavis:keystone:closeAllOthers",
+      "id": "nyxuri:keystone:closeAllOthers",
       "method": "closeAllOthers",
       "policy": "include",
       "target": "keystone",
@@ -215,7 +215,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Toggle the Keystone dashboard",
       "icon": "dashboard",
-      "id": "clavis:keystone:dashboard",
+      "id": "nyxuri:keystone:dashboard",
       "method": "dashboard",
       "policy": "include",
       "target": "keystone",
@@ -231,7 +231,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Toggle the Keystone hub",
       "icon": "hub",
-      "id": "clavis:keystone:hub",
+      "id": "nyxuri:keystone:hub",
       "method": "hub",
       "policy": "include",
       "target": "keystone",
@@ -247,7 +247,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Toggle Keystone lyrics",
       "icon": "lyrics",
-      "id": "clavis:keystone:lyrics",
+      "id": "nyxuri:keystone:lyrics",
       "method": "lyrics",
       "policy": "include",
       "target": "keystone",
@@ -264,7 +264,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Toggle the Keystone tools panel",
       "icon": "handyman",
-      "id": "clavis:keystone:tools",
+      "id": "nyxuri:keystone:tools",
       "method": "tools",
       "policy": "include",
       "target": "keystone",
@@ -282,7 +282,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Open the notifications sidebar",
       "icon": "notifications",
-      "id": "clavis:sidebar:open:dashboard",
+      "id": "nyxuri:sidebar:open:dashboard",
       "method": "open",
       "policy": "include",
       "target": "sidebar",
@@ -300,7 +300,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Open the Quick settings sidebar",
       "icon": "tune",
-      "id": "clavis:sidebar:open:quicksettings",
+      "id": "nyxuri:sidebar:open:quicksettings",
       "method": "open",
       "policy": "include",
       "target": "sidebar",
@@ -319,7 +319,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Toggle the weather sidebar",
       "icon": "partly_cloudy_day",
-      "id": "clavis:sidebar:toggle:weather",
+      "id": "nyxuri:sidebar:toggle:weather",
       "method": "toggle",
       "policy": "include",
       "target": "sidebar",
@@ -338,7 +338,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Toggle the sidebar drawer",
       "icon": "widgets",
-      "id": "clavis:sidebar:toggle:drawer",
+      "id": "nyxuri:sidebar:toggle:drawer",
       "method": "toggle",
       "policy": "include",
       "target": "sidebar",
@@ -354,7 +354,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Show keyboard shortcuts",
       "icon": "keyboard",
-      "id": "clavis:shortcut-map:open",
+      "id": "nyxuri:shortcut-map:open",
       "method": "open",
       "policy": "include",
       "target": "shortcut-map",
@@ -373,7 +373,7 @@ var catalog = {
       "context": "SpotlightActions",
       "description": "Choose a session or power action",
       "icon": "power_settings_new",
-      "id": "clavis:power-menu:open",
+      "id": "nyxuri:power-menu:open",
       "method": "open",
       "policy": "include",
       "target": "power-menu",
@@ -384,6 +384,7 @@ var catalog = {
     {
       "aliases": [],
       "context": "ControlCenterWindow",
+      "description": "Profile name, avatar, and banner",
       "icon": "account_circle",
       "id": "account",
       "path": [
@@ -402,6 +403,7 @@ var catalog = {
         "blur"
       ],
       "context": "ControlCenterWindow",
+      "description": "Colors, effects, and palettes",
       "icon": "palette",
       "id": "theme",
       "path": [
@@ -413,6 +415,7 @@ var catalog = {
     {
       "aliases": [],
       "context": "ControlCenterWindow",
+      "description": "Sources, auto-cycle, and switching",
       "icon": "wallpaper",
       "id": "wallpaper",
       "path": [
@@ -426,6 +429,7 @@ var catalog = {
         "general.bar"
       ],
       "context": "ControlCenterWindow",
+      "description": "Position, modules, and indicators",
       "icon": "dock_to_bottom",
       "id": "bar",
       "path": [
@@ -441,6 +445,7 @@ var catalog = {
         "launcher"
       ],
       "context": "ControlCenterWindow",
+      "description": "Position, size, and behavior",
       "icon": "dock_to_bottom",
       "id": "dock",
       "path": [
@@ -455,6 +460,7 @@ var catalog = {
         "sidebars"
       ],
       "context": "ControlCenterWindow",
+      "description": "Sides, cards, and monitoring",
       "icon": "side_navigation",
       "id": "sidebar",
       "path": [
@@ -468,6 +474,7 @@ var catalog = {
         "general.displays"
       ],
       "context": "ControlCenterWindow",
+      "description": "Monitor layout and night light",
       "icon": "monitor",
       "id": "displays",
       "path": [
@@ -479,6 +486,7 @@ var catalog = {
     {
       "aliases": [],
       "context": "ControlCenterWindow",
+      "description": "Style, clock, and media controls",
       "icon": "toggle_off",
       "id": "keystone",
       "path": [
@@ -492,6 +500,7 @@ var catalog = {
         "general.shortcuts"
       ],
       "context": "ControlCenterWindow",
+      "description": "Global shortcuts and actions",
       "icon": "keyboard",
       "id": "shortcuts",
       "path": [
@@ -505,6 +514,7 @@ var catalog = {
         "general.spotlight"
       ],
       "context": "ControlCenterWindow",
+      "description": "Search modes, layout, and order",
       "icon": "search",
       "id": "spotlight",
       "path": [
@@ -518,6 +528,7 @@ var catalog = {
         "general.network"
       ],
       "context": "ControlCenterWindow",
+      "description": "Wi-Fi and wired connections",
       "icon": "wifi",
       "id": "network",
       "path": [
@@ -532,6 +543,7 @@ var catalog = {
         "bluetooth"
       ],
       "context": "ControlCenterWindow",
+      "description": "Bluetooth devices and pairing",
       "icon": "devices_other",
       "id": "connected-devices",
       "path": [
@@ -545,6 +557,7 @@ var catalog = {
         "general.autostart"
       ],
       "context": "ControlCenterWindow",
+      "description": "Session startup applications",
       "icon": "rocket_launch",
       "id": "autostart",
       "path": [
@@ -558,6 +571,7 @@ var catalog = {
         "general.default-apps"
       ],
       "context": "ControlCenterWindow",
+      "description": "Browser, terminal, and other defaults",
       "icon": "apps",
       "id": "default-apps",
       "path": [
@@ -571,6 +585,7 @@ var catalog = {
         "general.language-region"
       ],
       "context": "ControlCenterWindow",
+      "description": "Language, temperature, and clock",
       "icon": "language",
       "id": "language-region",
       "path": [
@@ -585,6 +600,7 @@ var catalog = {
         "diagnostics"
       ],
       "context": "ControlCenterWindow",
+      "description": "Unit toggles and diagnostics",
       "icon": "monitor_heart",
       "id": "shell",
       "path": [
@@ -598,6 +614,7 @@ var catalog = {
         "general.displays.configuration"
       ],
       "context": "DisplaysPage",
+      "description": "Resolution, refresh, and layout",
       "icon": "monitor",
       "id": "displays.configuration",
       "path": [
@@ -614,6 +631,7 @@ var catalog = {
         "temperature"
       ],
       "context": "DisplaysPage",
+      "description": "Night light color temperature",
       "icon": "brightness_6",
       "id": "displays.gamma",
       "path": [
@@ -626,6 +644,7 @@ var catalog = {
     {
       "aliases": [],
       "context": "KeystonePage",
+      "description": "Horizontal clock appearance",
       "icon": "schedule",
       "id": "keystone.horizontal-clock",
       "path": [
@@ -640,6 +659,7 @@ var catalog = {
         "general.bluetooth-pairing"
       ],
       "context": "ConnectedDevicesPage",
+      "description": "Scan and pair nearby devices",
       "icon": "bluetooth_searching",
       "id": "connected-devices.bluetooth-pairing",
       "path": [
@@ -648,6 +668,18 @@ var catalog = {
       ],
       "source": "BluetoothPairingPage.qml",
       "title": "Pair new device"
+    },
+    {
+      "aliases": [],
+      "context": "ControlCenterWindow",
+      "description": "System information and versions",
+      "icon": "info",
+      "id": "about",
+      "path": [
+        "about"
+      ],
+      "source": "AboutPage.qml",
+      "title": "About"
     }
   ],
   "schemaVersion": 1,
@@ -656,6 +688,7 @@ var catalog = {
       "aliases": [],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Profile name, avatar, and banner",
       "icon": "account_circle",
       "id": "account",
       "path": [
@@ -676,6 +709,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Colors, effects, and palettes",
       "icon": "palette",
       "id": "theme",
       "path": [
@@ -689,6 +723,7 @@ var catalog = {
       "aliases": [],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Sources, auto-cycle, and switching",
       "icon": "wallpaper",
       "id": "wallpaper",
       "path": [
@@ -704,6 +739,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Position, modules, and indicators",
       "icon": "dock_to_bottom",
       "id": "bar",
       "path": [
@@ -721,6 +757,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Position, size, and behavior",
       "icon": "dock_to_bottom",
       "id": "dock",
       "path": [
@@ -737,6 +774,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Sides, cards, and monitoring",
       "icon": "side_navigation",
       "id": "sidebar",
       "path": [
@@ -752,6 +790,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Monitor layout and night light",
       "icon": "monitor",
       "id": "displays",
       "path": [
@@ -765,6 +804,7 @@ var catalog = {
       "aliases": [],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Style, clock, and media controls",
       "icon": "toggle_off",
       "id": "keystone",
       "path": [
@@ -780,6 +820,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Global shortcuts and actions",
       "icon": "keyboard",
       "id": "shortcuts",
       "path": [
@@ -795,6 +836,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Search modes, layout, and order",
       "icon": "search",
       "id": "spotlight",
       "path": [
@@ -810,6 +852,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Wi-Fi and wired connections",
       "icon": "wifi",
       "id": "network",
       "path": [
@@ -826,6 +869,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Bluetooth devices and pairing",
       "icon": "devices_other",
       "id": "connected-devices",
       "path": [
@@ -841,6 +885,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Session startup applications",
       "icon": "rocket_launch",
       "id": "autostart",
       "path": [
@@ -856,6 +901,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Browser, terminal, and other defaults",
       "icon": "apps",
       "id": "default-apps",
       "path": [
@@ -871,6 +917,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Language, temperature, and clock",
       "icon": "language",
       "id": "language-region",
       "path": [
@@ -887,6 +934,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ControlCenterWindow",
+      "description": "Unit toggles and diagnostics",
       "icon": "monitor_heart",
       "id": "shell",
       "path": [
@@ -902,6 +950,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "DisplaysPage",
+      "description": "Resolution, refresh, and layout",
       "icon": "monitor",
       "id": "displays.configuration",
       "path": [
@@ -920,6 +969,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "DisplaysPage",
+      "description": "Night light color temperature",
       "icon": "brightness_6",
       "id": "displays.gamma",
       "path": [
@@ -934,6 +984,7 @@ var catalog = {
       "aliases": [],
       "anchor": false,
       "context": "KeystonePage",
+      "description": "Horizontal clock appearance",
       "icon": "schedule",
       "id": "keystone.horizontal-clock",
       "path": [
@@ -950,6 +1001,7 @@ var catalog = {
       ],
       "anchor": false,
       "context": "ConnectedDevicesPage",
+      "description": "Scan and pair nearby devices",
       "icon": "bluetooth_searching",
       "id": "connected-devices.bluetooth-pairing",
       "path": [
@@ -959,6 +1011,20 @@ var catalog = {
       "route": "connected-devices.bluetooth-pairing",
       "source": "BluetoothPairingPage.qml",
       "title": "Pair new device"
+    },
+    {
+      "aliases": [],
+      "anchor": false,
+      "context": "ControlCenterWindow",
+      "description": "System information and versions",
+      "icon": "info",
+      "id": "about",
+      "path": [
+        "about"
+      ],
+      "route": "about",
+      "source": "AboutPage.qml",
+      "title": "About"
     },
     {
       "aliases": [],
@@ -1344,7 +1410,7 @@ var catalog = {
       ],
       "anchor": true,
       "context": "GeneralBarPage",
-      "icon": "dock_to_bottom",
+      "icon": "view_agenda",
       "id": "bar.section.components",
       "path": [
         "bar"
@@ -1961,6 +2027,7 @@ function title(id) {
     case "displays.gamma": return I18n.tr("Gamma Control", "DisplaysPage");
     case "keystone.horizontal-clock": return I18n.tr("Horizontal clock style", "KeystonePage");
     case "connected-devices.bluetooth-pairing": return I18n.tr("Pair new device", "ConnectedDevicesPage");
+    case "about": return I18n.tr("About", "ControlCenterWindow");
     case "account.section.language": return I18n.tr("Language", "AccountPage");
     case "account.section.bluetooth-devices": return I18n.tr("Bluetooth devices", "AccountPage");
     case "account.section.keyboard-shortcuts": return I18n.tr("Keyboard shortcuts", "AccountPage");
@@ -2026,56 +2093,77 @@ function title(id) {
     case "wallpaper.section.transition": return I18n.tr("Transition", "WallpaperPage");
     case "wallpaper.section.parallax-effects": return I18n.tr("Parallax effects", "WallpaperPage");
     case "wallpaper.section.overview-background": return I18n.tr("Overview background", "WallpaperPage");
-    case "clavis:lock:open": return I18n.tr("Lock screen", "SpotlightActions");
-    case "clavis:spotlight:search": return I18n.tr("Search", "SpotlightActions");
-    case "clavis:spotlight:web": return I18n.tr("Web search", "SpotlightActions");
-    case "clavis:spotlight:files": return I18n.tr("Find files", "SpotlightActions");
-    case "clavis:spotlight:openMode:apps": return I18n.tr("Applications", "SpotlightActions");
-    case "clavis:spotlight:openMode:clipboard": return I18n.tr("Clipboard history", "SpotlightActions");
-    case "clavis:spotlight:openMode:wallpapers": return I18n.tr("Wallpaper picker", "SpotlightActions");
-    case "clavis:wallpaper:clear": return I18n.tr("Reset wallpaper", "SpotlightActions");
-    case "clavis:wallpaper:previous": return I18n.tr("Previous wallpaper", "SpotlightActions");
-    case "clavis:wallpaper:next": return I18n.tr("Next wallpaper", "SpotlightActions");
-    case "clavis:wallpaper:random": return I18n.tr("Random wallpaper", "SpotlightActions");
-    case "clavis:keystone:closeAllOthers": return I18n.tr("Close Keystone panels", "SpotlightActions");
-    case "clavis:keystone:dashboard": return I18n.tr("Keystone dashboard", "SpotlightActions");
-    case "clavis:keystone:hub": return I18n.tr("Keystone hub", "SpotlightActions");
-    case "clavis:keystone:lyrics": return I18n.tr("Lyrics", "SpotlightActions");
-    case "clavis:keystone:tools": return I18n.tr("Keystone tools", "SpotlightActions");
-    case "clavis:sidebar:open:dashboard": return I18n.tr("Notifications", "SpotlightActions");
-    case "clavis:sidebar:open:quicksettings": return I18n.tr("Quick settings", "SpotlightActions");
-    case "clavis:sidebar:toggle:weather": return I18n.tr("Weather sidebar", "SpotlightActions");
-    case "clavis:sidebar:toggle:drawer": return I18n.tr("Sidebar drawer", "SpotlightActions");
-    case "clavis:shortcut-map:open": return I18n.tr("Shortcut map", "SpotlightActions");
-    case "clavis:power-menu:open": return I18n.tr("Power menu", "SpotlightActions");
+    case "nyxuri:lock:open": return I18n.tr("Lock screen", "SpotlightActions");
+    case "nyxuri:spotlight:search": return I18n.tr("Search", "SpotlightActions");
+    case "nyxuri:spotlight:web": return I18n.tr("Web search", "SpotlightActions");
+    case "nyxuri:spotlight:files": return I18n.tr("Find files", "SpotlightActions");
+    case "nyxuri:spotlight:openMode:apps": return I18n.tr("Applications", "SpotlightActions");
+    case "nyxuri:spotlight:openMode:clipboard": return I18n.tr("Clipboard history", "SpotlightActions");
+    case "nyxuri:spotlight:openMode:wallpapers": return I18n.tr("Wallpaper picker", "SpotlightActions");
+    case "nyxuri:wallpaper:clear": return I18n.tr("Reset wallpaper", "SpotlightActions");
+    case "nyxuri:wallpaper:previous": return I18n.tr("Previous wallpaper", "SpotlightActions");
+    case "nyxuri:wallpaper:next": return I18n.tr("Next wallpaper", "SpotlightActions");
+    case "nyxuri:wallpaper:random": return I18n.tr("Random wallpaper", "SpotlightActions");
+    case "nyxuri:keystone:closeAllOthers": return I18n.tr("Close Keystone panels", "SpotlightActions");
+    case "nyxuri:keystone:dashboard": return I18n.tr("Keystone dashboard", "SpotlightActions");
+    case "nyxuri:keystone:hub": return I18n.tr("Keystone hub", "SpotlightActions");
+    case "nyxuri:keystone:lyrics": return I18n.tr("Lyrics", "SpotlightActions");
+    case "nyxuri:keystone:tools": return I18n.tr("Keystone tools", "SpotlightActions");
+    case "nyxuri:sidebar:open:dashboard": return I18n.tr("Notifications", "SpotlightActions");
+    case "nyxuri:sidebar:open:quicksettings": return I18n.tr("Quick settings", "SpotlightActions");
+    case "nyxuri:sidebar:toggle:weather": return I18n.tr("Weather sidebar", "SpotlightActions");
+    case "nyxuri:sidebar:toggle:drawer": return I18n.tr("Sidebar drawer", "SpotlightActions");
+    case "nyxuri:shortcut-map:open": return I18n.tr("Shortcut map", "SpotlightActions");
+    case "nyxuri:power-menu:open": return I18n.tr("Power menu", "SpotlightActions");
     default: return "";
     }
 }
 
 function description(id) {
     switch (id) {
-    case "clavis:lock:open": return I18n.tr("Lock the current session", "SpotlightActions");
-    case "clavis:spotlight:search": return I18n.tr("Open Spotlight Search", "SpotlightActions");
-    case "clavis:spotlight:web": return I18n.tr("Enter Spotlight Web search", "SpotlightActions");
-    case "clavis:spotlight:files": return I18n.tr("Open Spotlight Files", "SpotlightActions");
-    case "clavis:spotlight:openMode:apps": return I18n.tr("Open the application launcher", "SpotlightActions");
-    case "clavis:spotlight:openMode:clipboard": return I18n.tr("Open clipboard history", "SpotlightActions");
-    case "clavis:spotlight:openMode:wallpapers": return I18n.tr("Browse and apply wallpapers", "SpotlightActions");
-    case "clavis:wallpaper:clear": return I18n.tr("Clear the global wallpaper selection", "SpotlightActions");
-    case "clavis:wallpaper:previous": return I18n.tr("Apply the previous wallpaper", "SpotlightActions");
-    case "clavis:wallpaper:next": return I18n.tr("Apply the next wallpaper", "SpotlightActions");
-    case "clavis:wallpaper:random": return I18n.tr("Apply a random wallpaper", "SpotlightActions");
-    case "clavis:keystone:closeAllOthers": return I18n.tr("Dismiss open Keystone panels", "SpotlightActions");
-    case "clavis:keystone:dashboard": return I18n.tr("Toggle the Keystone dashboard", "SpotlightActions");
-    case "clavis:keystone:hub": return I18n.tr("Toggle the Keystone hub", "SpotlightActions");
-    case "clavis:keystone:lyrics": return I18n.tr("Toggle Keystone lyrics", "SpotlightActions");
-    case "clavis:keystone:tools": return I18n.tr("Toggle the Keystone tools panel", "SpotlightActions");
-    case "clavis:sidebar:open:dashboard": return I18n.tr("Open the notifications sidebar", "SpotlightActions");
-    case "clavis:sidebar:open:quicksettings": return I18n.tr("Open the Quick settings sidebar", "SpotlightActions");
-    case "clavis:sidebar:toggle:weather": return I18n.tr("Toggle the weather sidebar", "SpotlightActions");
-    case "clavis:sidebar:toggle:drawer": return I18n.tr("Toggle the sidebar drawer", "SpotlightActions");
-    case "clavis:shortcut-map:open": return I18n.tr("Show keyboard shortcuts", "SpotlightActions");
-    case "clavis:power-menu:open": return I18n.tr("Choose a session or power action", "SpotlightActions");
+    case "account": return I18n.tr("Profile name, avatar, and banner", "ControlCenterWindow");
+    case "theme": return I18n.tr("Colors, effects, and palettes", "ControlCenterWindow");
+    case "wallpaper": return I18n.tr("Sources, auto-cycle, and switching", "ControlCenterWindow");
+    case "bar": return I18n.tr("Position, modules, and indicators", "ControlCenterWindow");
+    case "dock": return I18n.tr("Position, size, and behavior", "ControlCenterWindow");
+    case "sidebar": return I18n.tr("Sides, cards, and monitoring", "ControlCenterWindow");
+    case "displays": return I18n.tr("Monitor layout and night light", "ControlCenterWindow");
+    case "keystone": return I18n.tr("Style, clock, and media controls", "ControlCenterWindow");
+    case "shortcuts": return I18n.tr("Global shortcuts and actions", "ControlCenterWindow");
+    case "spotlight": return I18n.tr("Search modes, layout, and order", "ControlCenterWindow");
+    case "network": return I18n.tr("Wi-Fi and wired connections", "ControlCenterWindow");
+    case "connected-devices": return I18n.tr("Bluetooth devices and pairing", "ControlCenterWindow");
+    case "autostart": return I18n.tr("Session startup applications", "ControlCenterWindow");
+    case "default-apps": return I18n.tr("Browser, terminal, and other defaults", "ControlCenterWindow");
+    case "language-region": return I18n.tr("Language, temperature, and clock", "ControlCenterWindow");
+    case "shell": return I18n.tr("Unit toggles and diagnostics", "ControlCenterWindow");
+    case "displays.configuration": return I18n.tr("Resolution, refresh, and layout", "DisplaysPage");
+    case "displays.gamma": return I18n.tr("Night light color temperature", "DisplaysPage");
+    case "keystone.horizontal-clock": return I18n.tr("Horizontal clock appearance", "KeystonePage");
+    case "connected-devices.bluetooth-pairing": return I18n.tr("Scan and pair nearby devices", "ConnectedDevicesPage");
+    case "about": return I18n.tr("System information and versions", "ControlCenterWindow");
+    case "nyxuri:lock:open": return I18n.tr("Lock the current session", "SpotlightActions");
+    case "nyxuri:spotlight:search": return I18n.tr("Open Spotlight Search", "SpotlightActions");
+    case "nyxuri:spotlight:web": return I18n.tr("Enter Spotlight Web search", "SpotlightActions");
+    case "nyxuri:spotlight:files": return I18n.tr("Open Spotlight Files", "SpotlightActions");
+    case "nyxuri:spotlight:openMode:apps": return I18n.tr("Open the application launcher", "SpotlightActions");
+    case "nyxuri:spotlight:openMode:clipboard": return I18n.tr("Open clipboard history", "SpotlightActions");
+    case "nyxuri:spotlight:openMode:wallpapers": return I18n.tr("Browse and apply wallpapers", "SpotlightActions");
+    case "nyxuri:wallpaper:clear": return I18n.tr("Clear the global wallpaper selection", "SpotlightActions");
+    case "nyxuri:wallpaper:previous": return I18n.tr("Apply the previous wallpaper", "SpotlightActions");
+    case "nyxuri:wallpaper:next": return I18n.tr("Apply the next wallpaper", "SpotlightActions");
+    case "nyxuri:wallpaper:random": return I18n.tr("Apply a random wallpaper", "SpotlightActions");
+    case "nyxuri:keystone:closeAllOthers": return I18n.tr("Dismiss open Keystone panels", "SpotlightActions");
+    case "nyxuri:keystone:dashboard": return I18n.tr("Toggle the Keystone dashboard", "SpotlightActions");
+    case "nyxuri:keystone:hub": return I18n.tr("Toggle the Keystone hub", "SpotlightActions");
+    case "nyxuri:keystone:lyrics": return I18n.tr("Toggle Keystone lyrics", "SpotlightActions");
+    case "nyxuri:keystone:tools": return I18n.tr("Toggle the Keystone tools panel", "SpotlightActions");
+    case "nyxuri:sidebar:open:dashboard": return I18n.tr("Open the notifications sidebar", "SpotlightActions");
+    case "nyxuri:sidebar:open:quicksettings": return I18n.tr("Open the Quick settings sidebar", "SpotlightActions");
+    case "nyxuri:sidebar:toggle:weather": return I18n.tr("Toggle the weather sidebar", "SpotlightActions");
+    case "nyxuri:sidebar:toggle:drawer": return I18n.tr("Toggle the sidebar drawer", "SpotlightActions");
+    case "nyxuri:shortcut-map:open": return I18n.tr("Show keyboard shortcuts", "SpotlightActions");
+    case "nyxuri:power-menu:open": return I18n.tr("Choose a session or power action", "SpotlightActions");
     default: return "";
     }
 }

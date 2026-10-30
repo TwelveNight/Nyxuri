@@ -5,6 +5,12 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import contextlib
+import io
+import subprocess
+import sys
+
 
 
 class TestOptionalAppPackageMapping(unittest.TestCase):
@@ -341,3 +347,26 @@ class TestAurHelperCacheInvalidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestDepsMenuReportsFailure(unittest.TestCase):
+
+    def test_failed_install_propagates(self):
+        import nyxuri.pkg.deps as deps
+        with TempEnv():
+            with patch.object(deps.CheckboxList, "run", return_value=["fish"]), \
+                 patch.object(deps, "install_selected_deps", return_value=False), \
+                 patch.object(deps.sys.stdin, "isatty", return_value=True):
+                self.assertFalse(_quiet(deps.run_dep_menu_loop))
+
+    def test_empty_selection_is_success(self):
+        import nyxuri.pkg.deps as deps
+        with TempEnv():
+            with patch.object(deps.CheckboxList, "run", return_value=[]), \
+                 patch.object(deps.sys.stdin, "isatty", return_value=True):
+                self.assertTrue(_quiet(deps.run_dep_menu_loop))

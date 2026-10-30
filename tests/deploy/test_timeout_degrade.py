@@ -16,6 +16,11 @@ from subprocess import CompletedProcess
 from unittest.mock import call, patch
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import contextlib
+import io
+import os
+
 
 
 def _cp(returncode=0, stdout=""):
@@ -31,12 +36,28 @@ class TestTimedRun(unittest.TestCase):
             self.assertIsNone(timed_run(["x"], 5, check=False))
 
     def test_passes_through_args_and_result(self):
+        import os
+
         from nyxuri.core import timed_run
 
         with patch("nyxuri.core.subprocess.run", return_value=_cp(0)) as m:
             r = timed_run(["x"], 7, check=False, capture_output=True)
-        m.assert_called_once_with(["x"], timeout=7, check=False, capture_output=True)
+        m.assert_called_once_with(["x"], timeout=7, check=False, capture_output=True,
+                                  env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
         self.assertEqual(r.returncode, 0)
+
+    def test_child_interpreters_never_write_bytecode(self):
+        """Blueprint-tree hook execution must not litter __pycache__ (unit-model §1)."""
+        import os
+
+        from nyxuri.core import timed_run
+
+        clean_env = {"PATH": "/usr/bin", "HOME": "/tmp"}
+        with patch("nyxuri.core.subprocess.run", return_value=_cp(0)) as m:
+            timed_run(["x"], 5, check=False, env=clean_env)
+        (env,) = (call.kwargs["env"] for call in m.call_args_list)
+        self.assertEqual(env["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertEqual(env["PATH"], "/usr/bin")
 
     def test_missing_binary_degrades_to_none(self):
         from nyxuri.core import timed_run
@@ -74,7 +95,8 @@ class TestPostInstallHooksIndependence(unittest.TestCase):
 
         with patch("nyxuri.desktop.theme.sync", side_effect=RuntimeError("theme failure")), \
              patch("builtins.print"):
-            _phase_post_install_services()
+            result = _phase_post_install_services()
+        self.assertIsNone(result, "a failing theme sync is absorbed, not propagated")
 
 
 class TestUserPostDeployHooks(unittest.TestCase):
@@ -226,3 +248,45 @@ class TestGtkThemeTimeout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _quiet(fn, *args, **kwargs):
+    with contextlib.redirect_stdout(io.StringIO()):
+        return fn(*args, **kwargs)
+
+
+class TestGitTimeoutDegrades(unittest.TestCase):
+
+    def _repo(self, ctx):
+        repo = ctx.home / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        (repo / ".git").mkdir(exist_ok=True)
+        return repo
+
+    def test_safe_git_pull_timeout_returns_falsy(self):
+        import nyxuri.pkg.net as net
+        with TempEnv() as ctx:
+            repo = self._repo(ctx)
+
+            def fake_run(cmd, **kwargs):
+                if "pull" in cmd or "fetch" in cmd:
+                    raise subprocess.TimeoutExpired(cmd, 120)
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch("shutil.which", return_value="/usr/bin/git"), \
+                 patch("subprocess.run", side_effect=fake_run):
+                self.assertFalse(_quiet(net.safe_git_pull, repo))
+
+    def test_safe_git_checkout_ref_timeout_returns_falsy(self):
+        import nyxuri.pkg.net as net
+        with TempEnv() as ctx:
+            repo = self._repo(ctx)
+
+            def fake_run(cmd, **kwargs):
+                if "fetch" in cmd or "checkout" in cmd:
+                    raise subprocess.TimeoutExpired(cmd, 120)
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with patch("shutil.which", return_value="/usr/bin/git"), \
+                 patch("subprocess.run", side_effect=fake_run):
+                self.assertFalse(_quiet(net.safe_git_checkout_ref, repo, "v1"))

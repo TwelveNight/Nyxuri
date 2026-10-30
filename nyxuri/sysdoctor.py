@@ -430,8 +430,6 @@ DOCTOR_SECTIONS = [
     ]),
 ]
 
-DOCTOR_CHECKS = [chk for _, checks in DOCTOR_SECTIONS for chk in checks]
-
 
 class _OutputTally:
     """Lightweight stdout proxy to count diagnostics results without altering check signatures."""

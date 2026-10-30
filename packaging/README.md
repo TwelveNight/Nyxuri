@@ -11,7 +11,7 @@
 | `gen-deps.py` | 依赖数组自动汇聚：加单元只动 `units/*/manifest.toml`，跑 `python3 packaging/gen-deps.py --update` 重写生成块。`ENGINE_OPTDEPENDS` 准入标准：仓库代码直接 spawn 它 |
 | `nyxuri-git.install` | libalpm 提示钩子：升级只换 `/usr/share/nyxuri` 蓝图，永不自动重部署用户配置 |
 
-## 发布流程（AUR 注册开放后执行）
+## 发布流程（nyxuri-git 已上架；以下为更新推送流程）
 
 1. **账号**：aur.archlinux.org 注册（arch 论坛账号不通用；注册关闭期可在
    aur-general 邮件列表请求管理员手动建号）。账号设置页 SSH Public Key 挂
@@ -27,7 +27,8 @@
    git add PKGBUILD .SRCINFO nyxuri-git.install && git commit -m "initial import" && git push
    ```
 
-4. **上架后回填门面**（本地面板内容，双语各一份）：
+4. **门面回填核对**（本地面板内容，双语各一份；README 已回填，
+   humans-wiki Home 顶部待补）：
 
    ````markdown
    ### 从 AUR 安装（Arch / CachyOS 推荐）

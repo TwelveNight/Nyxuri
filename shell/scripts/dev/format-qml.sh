@@ -34,12 +34,12 @@ fi
 cd "${repo_root}"
 # shellcheck source=scripts/dev/files.sh
 source "${script_dir}/files.sh"
-mapfile -d '' -t qml_files < <(clavis_qml_files "${scope}")
+mapfile -d '' -t qml_files < <(nyxuri_qml_files "${scope}")
 if [[ ${#qml_files[@]} -eq 0 ]]; then
     printf 'format-qml: no QML files in scope\n'
     exit 0
 fi
-qmlformat_bin=$(clavis_qt_tool qmlformat "${QMLFORMAT:-}")
+qmlformat_bin=$(nyxuri_qt_tool qmlformat "${QMLFORMAT:-}")
 printf 'format-qml: %s (%d files)\n' "$("${qmlformat_bin}" --version)" "${#qml_files[@]}"
 # Qt 6 keeps import/property order unless normalization/sorting is requested.
 if [[ "${mode}" == format ]]; then
@@ -49,7 +49,7 @@ if [[ "${mode}" == format ]]; then
     exit 0
 fi
 
-temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/clavis-qmlformat.XXXXXX")
+temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/nyxuri-qmlformat.XXXXXX")
 cleanup() {
     rm -rf -- "${temporary_dir}"
 }

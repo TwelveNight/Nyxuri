@@ -1,20 +1,45 @@
 """Atomic swap deployment + Dunder preservation + manifest-declared snapshots.
 
 The atomic_replace_item swap-then-preserve is the heart of Nyxuri's deploy
-(§7.1). Two preserve mechanisms live here and stay deliberately separate
-(§3.2): the Dunder __custom__ walk (magic filename) and the manifest
-``preserve`` snapshot (files referenced by name, e.g. niri/monitor.kdl).
+(§7.1). Three preservation layers live here and stay deliberately separate
+(§3.2): the Dunder __custom__ walk (magic filename), the manifest ``preserve``
+snapshot (files referenced by name, e.g. niri/monitor.kdl), and the ownership
+carry (#139): dest entries the engine cannot explain as its own template
+output are carried into the new directory verbatim — a swap never destroys
+what it cannot account for. The carry verdict is judged against the ledger
+baseline injected by the caller; this module never reads the ledger itself
+(star layering, unit-model.md §2).
 """
 
 import fnmatch
+import hashlib
 import os
 import re
 import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple
 
 from nyxuri.core import get_env, log_msg, register_temp_path, remove_path
 from nyxuri.core import msg
+
+
+@dataclass(frozen=True)
+class CarryPolicy:
+    """Ownership-carry directive threaded from the transaction layer (#139).
+
+    ``baselines`` maps unit id → the ledger ``files`` snapshot (hashes of what
+    the engine last laid) or None for units with no record (Ghost). ``unknown``
+    decides the baseline-absent case: True = carry (update — 宁可错保), False =
+    the engine claims its payload names (install/``on`` adoption). ``carried``
+    is the out-map: unit id → {rel path: "modified"|"user"|"unknown"} filled
+    by the swap ("unknown" = Ghost-era content whose provenance cannot be
+    judged; never counted as the user's edit in reports).
+    """
+
+    baselines: Dict[str, Optional[Dict[str, str]]] = field(default_factory=dict)
+    unknown: bool = False
+    carried: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
 
 _SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]\s*$")
@@ -206,6 +231,54 @@ def _deploy_ignore_factory(root_src: Path):
     return _ignore
 
 
+def _path_identity(path: Path) -> str:
+    """Content identity in the ledger snapshot's encoding (symlink → ``link:``).
+
+    Must stay byte-compatible with ``transaction._hash_file`` so carried
+    verdicts compare equal against ledger baselines.
+    """
+    try:
+        if path.is_symlink():
+            return "link:" + os.readlink(path)
+    except OSError:
+        return ""
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                digest.update(chunk)
+    except OSError:
+        return ""
+    return digest.hexdigest()
+
+
+def _walk_rels(root: Path) -> Iterator[Tuple[str, Path]]:
+    """Yield ``(rel_posix, path)`` for every file and symlink under ``root``.
+
+    Dunder entries are pruned (the dedicated walk owns them); ``__pycache__``
+    and ``*.pyc`` are pruned too — bytecode cache is neither template payload
+    nor user content, it must never be carried nor reported (#139 field
+    report). A symlinked directory is yielded as a leaf link instead of being
+    descended into.
+    """
+    for dirpath, dirs, files in os.walk(root):
+        keep = []
+        for d in dirs:
+            if "__custom__" in d or d == "__pycache__":
+                continue
+            p = Path(dirpath) / d
+            if p.is_symlink():
+                yield p.relative_to(root).as_posix(), p
+            else:
+                keep.append(d)
+        dirs[:] = keep
+        for name in files:
+            if "__custom__" in name or name.endswith(".pyc"):
+                continue
+            p = Path(dirpath) / name
+            yield p.relative_to(root).as_posix(), p
+
+
 def atomic_replace_item(
     src: Path, dest: Path, preserved_log: Optional[List[str]] = None,
     test_mode: bool = False, preserve: Optional[List[str]] = None,
@@ -214,6 +287,10 @@ def atomic_replace_item(
     base_src: Optional[Path] = None,
     base_include: Optional[List[str]] = None,
     base_exclude: Optional[List[str]] = None,
+    carry: bool = False,
+    carry_baseline: Optional[Dict[str, str]] = None,
+    carry_unknown: bool = False,
+    carried_out: Optional[Dict[str, str]] = None,
 ) -> bool:
     """Atomic swap deployment via sibling temp directories with Dunder Protocol preservation.
 
@@ -226,6 +303,19 @@ def atomic_replace_item(
     turned on and which the shipped default would otherwise reset). Values are
     read from the outgoing file and written into the staged copy, so the same
     no-restore-window property holds.
+
+    Ownership carry (#139): with ``carry=True``, dest entries outside the
+    dunder/preserve/preserve_values sets are judged against ``carry_baseline``
+    (the unit's ledger ``files`` map — hashes of what the engine last laid).
+    Untouched engine-laid files follow the new template; untouched engine-laid
+    files this deploy no longer lays (hook products) retire with the swap and
+    are re-laid by the hook replay; user-modified and user-placed files are
+    carried verbatim and reported via ``carried_out``
+    ({rel: "modified"|"user"|"unknown"}). ``carry_unknown`` rules the
+    baseline-absent case: True carries (update — 宁可错保), False lets the
+    engine claim its payload names (install / ``on`` adoption). Off by
+    default: bare calls keep the plain template-swap semantics; workflows
+    opt in explicitly.
     """
     pid = os.getpid()
     dest_parent = dest.parent
@@ -239,6 +329,39 @@ def atomic_replace_item(
             dest_parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, tmp_file)
             if dest.exists() or dest.is_symlink():
+                # Ownership carry (#139), single-file shape: the payload is the
+                # file itself, so the verdict table collapses to untouched /
+                # identical / user-modified / unknown.
+                keep_user = False
+                kind = "modified"
+                if carry:
+                    d_ident = _path_identity(dest)
+                    untouched = carry_baseline is not None and carry_baseline.get(dest.name) == d_ident
+                    if not untouched and _path_identity(tmp_file) != d_ident:
+                        if carry_baseline is not None and dest.name in carry_baseline:
+                            keep_user = True
+                        elif carry_unknown:
+                            # Ghost (no record): provenance unknowable — carry,
+                            # but report it honestly as unresolved.
+                            keep_user = True
+                            kind = "unknown"
+                if keep_user:
+                    try:
+                        rel_display = str(dest.relative_to(home / ".config"))
+                    except ValueError:
+                        rel_display = str(dest)
+                    print(msg(
+                        "log_keep_modified_file" if kind == "modified"
+                        else "log_keep_unresolved_file" if kind == "unknown"
+                        else "log_keep_user_file",
+                        rel_display,
+                    ))
+                    if preserved_log is not None:
+                        preserved_log.append(f"~/.config/{rel_display}")
+                    if carried_out is not None:
+                        carried_out[dest.name] = kind
+                    remove_path(tmp_file)
+                    return True
                 old_dest = dest.with_name(f"{dest.name}.old.{pid}")
                 dest.rename(old_dest)
                 tmp_file.rename(dest)
@@ -280,6 +403,14 @@ def atomic_replace_item(
             )
         else:
             shutil.copytree(src, tmp_new, symlinks=True, ignore=_deploy_ignore_factory(src))
+
+        # Payload truth: identities of the incoming template, judged against
+        # dest in the carry pass below. Computed before any injection so the
+        # dunder/preserve copies never count as "template content".
+        payload: Dict[str, str] = {}
+        if carry and dest.is_dir():
+            for rel, p in _walk_rels(tmp_new):
+                payload[rel] = _path_identity(p)
 
         # Dunder Protocol: Scan and inherit *__custom__* files and directories
         if preserve_custom and dest.is_dir():
@@ -341,6 +472,14 @@ def atomic_replace_item(
                     tgt_p.symlink_to(os.readlink(src_p))
                 elif src_p.is_file():
                     shutil.copy2(src_p, tgt_p)
+                elif src_p.is_dir():
+                    # Directory preserve (#139 field report): a whole runtime-
+                    # managed tree (e.g. fish/functions — Fisher's territory)
+                    # is carried as one unit, injected before the rename. The
+                    # declaration is a promise: the template lays NOTHING in
+                    # this directory (mixed payload would freeze forever).
+                    shutil.rmtree(tgt_p, ignore_errors=True)
+                    shutil.copytree(src_p, tgt_p, symlinks=True)
                 else:
                     continue
                 print(msg("log_keep_preserved_file", dest.name, rel))
@@ -367,6 +506,69 @@ def atomic_replace_item(
                 print(msg("log_keep_preserved_file", dest.name, rel))
                 if preserved_log is not None:
                     preserved_log.append(f"~/.config/{dest.name}/{rel}")
+
+        # Ownership carry (#139): a swap never destroys what the engine cannot
+        # explain as its own output. Dunder / preserve / preserve_values
+        # entries are exempt (their own mechanisms own them). The TENancy
+        # boundary is the LEDGER, not the payload: a baseline path the engine
+        # laid and the user never touched is engine-owned even when this
+        # deploy no longer lays it (hook products) — it vanishes with the
+        # swap and the hook replay re-lays it (KM3 restored).
+        if carry and dest.is_dir():
+            exempt = {rel for rel in (preserve or []) if rel and not os.path.isabs(rel)}
+            exempt.update(rel for rel in (preserve_values or {}) if rel)
+            exempt_prefixes = tuple(entry + "/" for entry in exempt)
+            for rel, src_p in _walk_rels(dest):
+                if rel in exempt or rel.startswith(exempt_prefixes):
+                    continue  # dunder/preserve (incl. directory trees) are theirs
+                d_ident = _path_identity(src_p)
+                in_baseline = carry_baseline is not None and rel in carry_baseline
+                untouched = in_baseline and carry_baseline.get(rel) == d_ident
+                if rel not in payload:
+                    if untouched:
+                        continue  # engine-laid, untouched, not laid this time: retire
+                    kind = "user" if not in_baseline else "modified"
+                    carry_it = True
+                elif untouched:
+                    continue  # untouched since the last lay: template wins
+                elif payload[rel] == d_ident:
+                    continue  # already at target content: nothing user-owned
+                elif in_baseline:
+                    kind, carry_it = "modified", True
+                elif carry_baseline is not None:
+                    # Enabled unit, engine never laid this name, dest has it:
+                    # the dest copy is not ours to explain.
+                    kind, carry_it = "unknown", carry_unknown
+                else:
+                    # Ghost dest: provenance unknowable (user edit OR last
+                    # era's template render). Carry, but say so honestly.
+                    kind, carry_it = "unknown", carry_unknown
+                if not carry_it:
+                    continue
+                target = tmp_new / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if src_p.is_symlink():
+                    remove_path(target)
+                    target.symlink_to(os.readlink(src_p))
+                elif src_p.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+                    shutil.copytree(src_p, target, symlinks=True)
+                else:
+                    shutil.copy2(src_p, target)
+                try:
+                    rel_display = str(dest.relative_to(home / ".config") / rel)
+                except ValueError:
+                    rel_display = str(dest / rel)
+                print(msg(
+                    "log_keep_modified_file" if kind == "modified"
+                    else "log_keep_unresolved_file" if kind == "unknown"
+                    else "log_keep_user_file",
+                    rel_display,
+                ))
+                if preserved_log is not None:
+                    preserved_log.append(f"~/.config/{rel_display}")
+                if carried_out is not None:
+                    carried_out[rel] = kind
 
         if dest.exists() or dest.is_symlink():
             old_dest = dest.with_name(f"{dest.name}.old.{pid}")

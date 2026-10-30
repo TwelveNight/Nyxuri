@@ -434,6 +434,127 @@ def ensure_compositor_gateway_scripts() -> None:
         pass
 
 
+def capture_active_theme_state(current_name: str) -> Tuple[Optional[str], Optional[str]]:
+    """Capture the runtime theme mode (dark/light) and wallpaper path from current shell."""
+    mode = None
+    wallpaper = None
+    norm = normalize_shell_name(current_name)
+
+    # 1. Capture theme mode
+    if norm == "noctalia" and shutil.which("noctalia"):
+        try:
+            res = subprocess.run(["noctalia", "msg", "theme-mode-get"], timeout=1.0, capture_output=True, text=True, check=False)
+            if res.returncode == 0 and res.stdout.strip() in ("dark", "light"):
+                mode = res.stdout.strip()
+        except Exception:
+            pass
+    elif norm == "nyxuri-shell":
+        try:
+            from nyxuri.desktop.theme import _nyxuri_shell_ipc
+            val = _nyxuri_shell_ipc(["theme", "status"], timeout=1.0)
+            if val in ("dark", "light"):
+                mode = val
+        except Exception:
+            pass
+
+    if mode is None:
+        try:
+            from nyxuri.core import get_env
+            cfg_file = get_env().config_dir / "nyxuri" / "config.json"
+            if cfg_file.is_file():
+                import json
+                with cfg_file.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    val = data.get("theme", {}).get("mode")
+                    if val in ("dark", "light"):
+                        mode = val
+        except Exception:
+            pass
+
+    if mode is None:
+        try:
+            from nyxuri.desktop.theme import _mode_from_system
+            mode = _mode_from_system()
+        except Exception:
+            mode = "dark"
+
+    # 2. Capture wallpaper
+    if norm == "noctalia" and shutil.which("noctalia"):
+        try:
+            res = subprocess.run(["noctalia", "msg", "wallpaper-get"], timeout=1.0, capture_output=True, text=True, check=False)
+            if res.returncode == 0 and res.stdout.strip():
+                wp = res.stdout.strip()
+                if os.path.exists(wp):
+                    wallpaper = wp
+        except Exception:
+            pass
+    elif norm == "nyxuri-shell":
+        try:
+            from nyxuri.core import get_env
+            cfg_file = get_env().config_dir / "nyxuri" / "config.json"
+            if cfg_file.is_file():
+                import json
+                with cfg_file.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    wp_data = data.get("wallpaper", {})
+                    wp = ""
+                    if mode == "dark":
+                        wp = wp_data.get("pathDark") or wp_data.get("path")
+                    elif mode == "light":
+                        wp = wp_data.get("pathLight") or wp_data.get("path")
+                    else:
+                        wp = wp_data.get("path")
+                    if wp and os.path.exists(wp):
+                        wallpaper = wp
+        except Exception:
+            pass
+
+    if not wallpaper:
+        try:
+            from nyxuri.core import get_env
+            env = get_env()
+            for candidate in (env.state_dir / "current_wallpaper",
+                              env.config_dir / "nyxuri" / "current_wallpaper",
+                              Path.home() / ".cache" / "current_wallpaper"):
+                if candidate.is_file():
+                    content = candidate.read_text(encoding="utf-8").strip()
+                    if content and os.path.exists(content):
+                        wallpaper = content
+                        break
+        except Exception:
+            pass
+
+    return mode, wallpaper
+
+
+def handoff_theme_state(target: str, mode: Optional[str], wallpaper: Optional[str]) -> None:
+    """Propagate the captured theme mode and wallpaper into the newly ready target shell."""
+    norm = normalize_shell_name(target)
+    if norm == "nyxuri-shell":
+        try:
+            from nyxuri.desktop.theme import _nyxuri_shell_ipc
+            if mode in ("dark", "light"):
+                _nyxuri_shell_ipc(["theme", "set", mode], timeout=2.0)
+            if wallpaper and os.path.exists(wallpaper):
+                _nyxuri_shell_ipc(["wallpaper", "set", wallpaper], timeout=2.0)
+        except Exception:
+            pass
+    elif norm == "noctalia" and shutil.which("noctalia"):
+        try:
+            if mode in ("dark", "light"):
+                subprocess.run(["noctalia", "msg", "theme-mode-set", mode], timeout=2.0, capture_output=True, check=False)
+            if wallpaper and os.path.exists(wallpaper):
+                subprocess.run(["noctalia", "msg", "wallpaper-set", wallpaper], timeout=2.0, capture_output=True, check=False)
+        except Exception:
+            pass
+
+    try:
+        from nyxuri.desktop.theme import sync
+        sync(mode or "sync")
+    except Exception:
+        pass
+
+
 def hot_switch_shell(target: str, custom_bin_override: Optional[str] = None) -> Tuple[bool, str]:
     """Execute end-to-end atomic hot-switch state machine between shells.
 
@@ -501,6 +622,9 @@ def hot_switch_shell(target: str, custom_bin_override: Optional[str] = None) -> 
     if is_shell_locked(current_name, old_bin):
         return False, "Cannot switch shell while screen is locked (security invariant violated)"
 
+    # Capture active theme mode and wallpaper before terminating current shell
+    captured_mode, captured_wallpaper = capture_active_theme_state(current_name)
+
     if current_pid:
         stop_shell_process(current_name, current_pid, old_bin, timeout=2.5)
 
@@ -552,11 +676,13 @@ def hot_switch_shell(target: str, custom_bin_override: Optional[str] = None) -> 
 
         fail_msg = f"Target shell {target} failed readiness probe within 4.0s."
         if restored:
+            handoff_theme_state(current_name, captured_mode, captured_wallpaper)
             fail_msg += f" Successfully recovered and rolled back to {current_name}."
         else:
             fail_msg += f" Critical: Failed to restore previous shell {current_name}!"
         return False, fail_msg
 
-    # Successfully verified: commit ledger state
+    # Successfully verified: commit ledger state and hand off theme state
     set_shell(target, target_bin if target == "nyxuri-shell" else None)
+    handoff_theme_state(target, captured_mode, captured_wallpaper)
     return True, f"Successfully switched to {target} (PID: {new_proc.pid})"

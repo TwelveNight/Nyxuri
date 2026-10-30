@@ -1,18 +1,31 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
+// Keystone page shell (T3 M4): overview renders as a NexusPageBase over the
+// M1 atom suite; the horizontal-clock subpage loads through the routed Loader
+// and renders its own subpage title + back arrow, so the pre-M4 external
+// subpage header is gone. Directory pickers and the long-bar drag overlay
+// ride inside the page content — a root-level child would break the
+// single-content-child contract of the Nexus scaffold.
 Item {
     id: root
 
+    readonly property bool rendersPageTitle: true
+
     property int searchRequestSerial: -1
-    readonly property var searchLeaf: currentSection === "overview" ? overviewFlickable : pageLoader.item ? (
-                                                                                                                pageLoader.item.searchLeaf
-                                                                                                                || pageLoader.item) :
-                                                                                                            root
+    readonly property var searchLeaf: currentSection === "overview" ? overviewPage.flickable :
+                                                                      pageLoader.item ? (
+                                                                                            pageLoader.item.searchLeaf
+                                                                                            || pageLoader.item) :
+                                                                                        root
     function openSearchPath(path, serial) {
         const section = path.length ? path[0] : "overview";
         if (searchRequestSerial !== serial) {
@@ -70,411 +83,465 @@ Item {
         directoryPicker.dismiss();
     }
 
-    GeneralSubpageHeader {
-        id: subpageHeader
-
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        visible: root.currentSection !== "overview"
-        title: SpotlightCatalog.title("keystone." + root.currentSection)
-        backAccessibleName: I18n.tr("Back to Keystone settings")
-        z: 2
-        onBackRequested: root.showOverview()
-    }
-
-    StyledFlickable {
-        id: overviewFlickable
+    NexusPageBase {
+        id: overviewPage
 
         anchors.fill: parent
         visible: root.currentSection === "overview"
-        contentWidth: width
-        contentHeight: contentColumn.y + contentColumn.implicitHeight + 24
+        title: SpotlightCatalog.title("keystone")
 
-        ColumnLayout {
-            id: contentColumn
+        Item {
+            id: overviewContent
 
-            width: Math.min(600, Math.max(1, overviewFlickable.width - 48))
-            x: Math.max(24, (overviewFlickable.width - width) / 2)
-            y: 28
-            spacing: 30
+            width: parent.width
+            implicitHeight: overviewColumn.implicitHeight
 
-            KeystoneSection {
-                id: searchSection0
-                title: searchAnchor0.title
-                SettingsSearchAnchor {
-                    id: searchAnchor0
-                    target: searchSection0
-                    declaration:
-                        '{"id":"keystone.section.keystone-style","route":"keystone","title":"Keystone style","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
+            ColumnLayout {
+                id: overviewColumn
+
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                width: overviewPage.cappedWidth
+                spacing: NexusStyle.padding.extraSmall / 2
+
+                // Keystone style
+                PreferenceHeader {
+                    first: true
+                    text: I18n.tr("Keystone style")
                 }
-                iconName: "toggle_off"
 
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Floating")
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneOverlay
-                        Accessible.name: I18n.tr("Floating")
-                        onToggled: PersonalizationConfig.setValue("keystoneOverlay", checked)
+                PreferenceToggle {
+                    id: floatingToggle
+
+                    first: true
+                    text: I18n.tr("Floating")
+                    checked: PersonalizationConfig.keystoneOverlay
+                    onToggled: PersonalizationConfig.setValue("keystoneOverlay", checked)
+
+                    SettingsSearchAnchor {
+                        id: searchAnchor0
+                        target: floatingToggle
+                        declaration:
+                            '{"id":"keystone.section.keystone-style","route":"keystone","title":"Keystone style","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
                     }
                 }
 
-                SearchSelectSettingRow {
-                    title: I18n.tr("Style")
-                    options: PersonalizationConfig.keystoneStyles
-                    value: PersonalizationConfig.keystoneStyle
-                    placeholder: I18n.tr("Choose Keystone style")
-                    onAccepted: value => {
-                        return PersonalizationConfig.setKeystoneStyle(value);
+                PreferenceSelect {
+                    label: I18n.tr("Style")
+                    model: PersonalizationConfig.keystoneStyles
+                    currentValue: PersonalizationConfig.keystoneStyle
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneStyle(value)
+                }
+
+                PreferenceSelect {
+                    last: true
+                    label: I18n.tr("Screen edge")
+                    model: PersonalizationConfig.edgePositions
+                    currentValue: PersonalizationConfig.keystonePosition
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystonePosition(String(value))
+                }
+
+                // Mouse actions
+                PreferenceHeader {
+                    text: I18n.tr("Mouse actions")
+                }
+
+                PreferenceSelect {
+                    id: hoverSelect
+
+                    first: true
+                    label: I18n.tr("Hover")
+                    model: PersonalizationConfig.availableKeystoneHoverActionOptions
+                    currentValue: PersonalizationConfig.effectiveKeystoneHoverAction
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneAction("hover", value)
+
+                    SettingsSearchAnchor {
+                        id: searchAnchor1
+                        target: hoverSelect
+                        declaration:
+                            '{"id":"keystone.section.mouse-actions","route":"keystone","title":"Mouse actions","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
                     }
                 }
 
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Screen edge")
-
-                    trailing: EdgePositionSelector {
-                        position: PersonalizationConfig.keystonePosition
-                        onPositionSelected: position => {
-                            return PersonalizationConfig.setKeystonePosition(position);
-                        }
-                    }
-                }
-            }
-
-            KeystoneSection {
-                id: searchSection1
-                title: searchAnchor1.title
-                SettingsSearchAnchor {
-                    id: searchAnchor1
-                    target: searchSection1
-                    declaration:
-                        '{"id":"keystone.section.mouse-actions","route":"keystone","title":"Mouse actions","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
-                }
-                iconName: "mouse"
-
-                SearchSelectSettingRow {
-                    title: I18n.tr("Hover")
-                    options: PersonalizationConfig.availableKeystoneHoverActionOptions
-                    value: PersonalizationConfig.effectiveKeystoneHoverAction
-                    onAccepted: value => PersonalizationConfig.setKeystoneAction("hover", value)
-                }
-
-                GeneralSliderSetting {
-                    title: I18n.tr("Hover open delay")
+                PreferenceSlider {
+                    label: I18n.tr("Hover open delay")
+                    enabled: PersonalizationConfig.effectiveKeystoneHoverAction !== "none"
+                    valueLabel: Math.round(PersonalizationConfig.keystoneHoverOpenDelay) + I18n.tr(" ms")
                     value: PersonalizationConfig.keystoneHoverOpenDelay
                     from: 0
                     to: 500
                     stepSize: 25
-                    suffix: I18n.tr(" ms")
-                    enabled: PersonalizationConfig.effectiveKeystoneHoverAction !== "none"
-                    onMoved: value => PersonalizationConfig.setKeystoneHoverOpenDelay(value)
+                    onMoved: value => PersonalizationConfig.setKeystoneHoverOpenDelay(Math.round(value))
                 }
 
-                GeneralSliderSetting {
-                    title: I18n.tr("Hover close delay")
+                PreferenceSlider {
+                    label: I18n.tr("Hover close delay")
+                    enabled: PersonalizationConfig.effectiveKeystoneHoverAction !== "none"
+                    valueLabel: Math.round(PersonalizationConfig.keystoneHoverCloseDelay) + I18n.tr(" ms")
                     value: PersonalizationConfig.keystoneHoverCloseDelay
                     from: 0
                     to: 600
                     stepSize: 25
-                    suffix: I18n.tr(" ms")
-                    enabled: PersonalizationConfig.effectiveKeystoneHoverAction !== "none"
-                    onMoved: value => PersonalizationConfig.setKeystoneHoverCloseDelay(value)
+                    onMoved: value => PersonalizationConfig.setKeystoneHoverCloseDelay(Math.round(value))
                 }
 
-                SearchSelectSettingRow {
-                    title: I18n.tr("Left click")
-                    options: PersonalizationConfig.keystoneActionOptions
-                    value: PersonalizationConfig.keystoneLeftClickAction
-                    onAccepted: value => PersonalizationConfig.setKeystoneAction("left", value)
+                PreferenceSelect {
+                    label: I18n.tr("Left click")
+                    model: PersonalizationConfig.keystoneActionOptions
+                    currentValue: PersonalizationConfig.keystoneLeftClickAction
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneAction("left", value)
                 }
 
-                SearchSelectSettingRow {
-                    title: I18n.tr("Middle click")
-                    options: PersonalizationConfig.keystoneActionOptions
-                    value: PersonalizationConfig.keystoneMiddleClickAction
-                    onAccepted: value => PersonalizationConfig.setKeystoneAction("middle", value)
-                }
-            }
-
-            KeystoneSection {
-                id: mediaSection
-                title: mediaSearchAnchor.title
-                iconName: "music_note"
-
-                SettingsSearchAnchor {
-                    id: mediaSearchAnchor
-                    target: mediaSection
-                    declaration:
-                        '{"id":"keystone.section.media-controls","route":"keystone","title":"Media controls","context":"KeystonePage","icon":"music_note","aliases":[]}'
+                PreferenceSelect {
+                    last: true
+                    label: I18n.tr("Middle click")
+                    model: PersonalizationConfig.keystoneActionOptions
+                    currentValue: PersonalizationConfig.keystoneMiddleClickAction
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneAction("middle", value)
                 }
 
-                SearchSelectSettingRow {
-                    title: I18n.tr("Progress bar")
-                    options: PersonalizationConfig.keystoneMediaProgressOptions
-                    value: PersonalizationConfig.keystoneMediaProgressStyle
-                    onAccepted: value => PersonalizationConfig.setKeystoneMediaProgressStyle(value)
+                // Media controls
+                PreferenceHeader {
+                    text: I18n.tr("Media controls")
                 }
 
-                SearchSelectSettingRow {
-                    title: I18n.tr("Cover style")
-                    options: PersonalizationConfig.keystoneMediaCoverOptions
-                    value: PersonalizationConfig.keystoneMediaCoverStyle
-                    onAccepted: value => PersonalizationConfig.setKeystoneMediaCoverStyle(value)
-                }
+                PreferenceSelect {
+                    id: progressSelect
 
-                SearchSelectSettingRow {
-                    title: I18n.tr("Colors")
-                    options: PersonalizationConfig.keystoneMediaColorOptions
-                    value: PersonalizationConfig.keystoneMediaColorStyle
-                    onAccepted: value => PersonalizationConfig.setKeystoneMediaColorStyle(value)
-                }
-            }
+                    first: true
+                    label: I18n.tr("Progress bar")
+                    model: PersonalizationConfig.keystoneMediaProgressOptions
+                    currentValue: PersonalizationConfig.keystoneMediaProgressStyle
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneMediaProgressStyle(value)
 
-            KeystoneSection {
-                visible: PersonalizationConfig.keystoneStyle === "long"
-                title: I18n.tr("Status items")
-                iconName: "view_week"
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Show device names")
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneLongShowNames
-                        Accessible.name: I18n.tr("Show device names")
-                        onToggled: PersonalizationConfig.setKeystoneLongShowNames(checked)
+                    SettingsSearchAnchor {
+                        id: mediaSearchAnchor
+                        target: progressSelect
+                        declaration:
+                            '{"id":"keystone.section.media-controls","route":"keystone","title":"Media controls","context":"KeystonePage","icon":"music_note","aliases":[]}'
                     }
                 }
 
-                SettingsRow {
+                PreferenceSelect {
+                    label: I18n.tr("Cover style")
+                    model: PersonalizationConfig.keystoneMediaCoverOptions
+                    currentValue: PersonalizationConfig.keystoneMediaCoverStyle
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneMediaCoverStyle(value)
+                }
+
+                PreferenceSelect {
+                    last: true
+                    label: I18n.tr("Colors")
+                    model: PersonalizationConfig.keystoneMediaColorOptions
+                    currentValue: PersonalizationConfig.keystoneMediaColorStyle
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneMediaColorStyle(value)
+                }
+
+                // Status items (long bar only)
+                PreferenceHeader {
+                    visible: PersonalizationConfig.keystoneStyle === "long"
+                    text: I18n.tr("Status items")
+                }
+
+                PreferenceToggle {
+                    id: longNamesToggle
+
+                    visible: PersonalizationConfig.keystoneStyle === "long"
+                    first: true
+                    text: I18n.tr("Show device names")
+                    checked: PersonalizationConfig.keystoneLongShowNames
+                    onToggled: PersonalizationConfig.setKeystoneLongShowNames(checked)
+                }
+
+                PreferenceToggle {
+                    visible: PersonalizationConfig.keystoneStyle === "long"
+                    text: I18n.tr("Show system monitor values")
+                    checked: PersonalizationConfig.keystoneLongShowMonitorValues
+                    onToggled: PersonalizationConfig.setKeystoneLongShowMonitorValues(checked)
+                }
+
+                PreferenceToggle {
+                    visible: PersonalizationConfig.keystoneStyle === "long"
+                    text: I18n.tr("Show numeric values")
+                    checked: PersonalizationConfig.keystoneLongShowValues
+                    onToggled: PersonalizationConfig.setKeystoneLongShowValues(checked)
+                }
+
+                ConnectedRect {
+                    id: longLeadingZoneRow
+
+                    visible: PersonalizationConfig.keystoneStyle === "long"
                     Layout.fillWidth: true
-                    title: I18n.tr("Show system monitor values")
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneLongShowMonitorValues
-                        Accessible.name: I18n.tr("Show system monitor values")
-                        onToggled: PersonalizationConfig.setKeystoneLongShowMonitorValues(checked)
-                    }
-                }
+                    implicitHeight: Math.max(longLeadingLabel.implicitHeight,
+                                             longLeadingField.implicitHeight) + NexusStyle.padding.medium * 2
 
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Show numeric values")
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneLongShowValues
-                        Accessible.name: I18n.tr("Show numeric values")
-                        onToggled: PersonalizationConfig.setKeystoneLongShowValues(checked)
-                    }
-                }
-
-                SettingsRow {
-                    id: longLeadingFieldRow
-                    Layout.fillWidth: true
-                    title: PersonalizationConfig.keystonePosition === "top"
-                           || PersonalizationConfig.keystonePosition === "bottom" ? I18n.tr("Left") : I18n.tr(
-                                                                                        "Top")
-                    trailing: SortableMultiSelectField {
-                        id: longLeadingField
-                        Layout.minimumWidth: 0
-                        Layout.preferredWidth: Math.max(0, longLeadingFieldRow.width - 96 - 3
-                                                        * Metrics.spacingS)
-                        values: PersonalizationConfig.keystoneLongLeading
-                        options: PersonalizationConfig.keystoneLongItemOptions
-                        zone: "leading"
-                        dragCoordinator: longDragCoordinator
-                        onToggled: itemId => PersonalizationConfig.toggleKeystoneLongItem(itemId, zone)
-                        onRemoved: itemId => PersonalizationConfig.removeKeystoneLongItem(itemId)
-                    }
-                }
-
-                SettingsRow {
-                    id: longTrailingFieldRow
-                    Layout.fillWidth: true
-                    title: PersonalizationConfig.keystonePosition === "top"
-                           || PersonalizationConfig.keystonePosition === "bottom" ? I18n.tr("Right") : I18n.tr(
-                                                                                        "Bottom")
-                    trailing: SortableMultiSelectField {
-                        id: longTrailingField
-                        Layout.minimumWidth: 0
-                        Layout.preferredWidth: Math.max(0, longTrailingFieldRow.width - 96 - 3
-                                                        * Metrics.spacingS)
-                        values: PersonalizationConfig.keystoneLongTrailing
-                        options: PersonalizationConfig.keystoneLongItemOptions
-                        zone: "trailing"
-                        dragCoordinator: longDragCoordinator
-                        onToggled: itemId => PersonalizationConfig.toggleKeystoneLongItem(itemId, zone)
-                        onRemoved: itemId => PersonalizationConfig.removeKeystoneLongItem(itemId)
-                    }
-                }
-            }
-
-            KeystoneSection {
-                id: extraSearchSection0
-                visible: KeyboardLockService.available
-                title: extraSearchAnchor0.title
-                SettingsSearchAnchor {
-                    id: extraSearchAnchor0
-                    target: extraSearchSection0
-                    declaration:
-                        '{"id":"keystone.section.keyboard-indicators","route":"keystone","title":"Keyboard indicators","context":"KeystonePage","icon":"settings","aliases":[],"availability":"keyboard-lock"}'
-                }
-                iconName: "keyboard"
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Caps Lock changes")
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneCapsLockOsd
-                        Accessible.name: I18n.tr("Caps Lock changes")
-                        onToggled: PersonalizationConfig.setKeystoneCapsLockOsd(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Num Lock changes")
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneNumLockOsd
-                        Accessible.name: I18n.tr("Num Lock changes")
-                        onToggled: PersonalizationConfig.setKeystoneNumLockOsd(checked)
-                    }
-                }
-            }
-
-            KeystoneSection {
-                id: extraSearchSection1
-                title: extraSearchAnchor1.title
-                SettingsSearchAnchor {
-                    id: extraSearchAnchor1
-                    target: extraSearchSection1
-                    declaration:
-                        '{"id":"keystone.section.keyhole","route":"keystone","title":"Keyhole","context":"KeystonePage","icon":"settings","aliases":[]}'
-                }
-                iconName: "dashboard"
-
-                SearchSelectSettingRow {
-                    title: I18n.tr("Card")
-                    closeOnAccept: true
-                    options: PersonalizationConfig.keystoneKeyholeCardOptions
-                    value: PersonalizationConfig.keystoneKeyholeCard
-                    onAccepted: value => PersonalizationConfig.setKeystoneKeyholeCard(value)
-                }
-            }
-
-            KeystoneSection {
-                id: searchSection2
-                title: searchAnchor2.title
-                SettingsSearchAnchor {
-                    id: searchAnchor2
-                    target: searchSection2
-                    declaration:
-                        '{"id":"keystone.section.horizontal-clock","route":"keystone","title":"Horizontal clock","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
-                }
-                iconName: "schedule"
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.max(66, (width - 8) * 42 / 220 + 12)
-
-                    HorizontalClockPreview {
+                    RowLayout {
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 4
-                        anchors.rightMargin: 4
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 6
-                        anchors.bottomMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: NexusStyle.padding.largeIncreased
+                        anchors.rightMargin: NexusStyle.padding.largeIncreased
+                        spacing: NexusStyle.padding.small
+
+                        StyledText {
+                            id: longLeadingLabel
+
+                            text: PersonalizationConfig.keystonePosition === "top"
+                                  || PersonalizationConfig.keystonePosition === "bottom" ? I18n.tr("Left") :
+                                                                                           I18n.tr("Top")
+                            color: Appearance.m3colors.m3onSurface
+                            font.pixelSize: NexusStyle.font.bodyMedium
+                        }
+
+                        SortableMultiSelectField {
+                            id: longLeadingField
+
+                            Layout.fillWidth: true
+                            values: PersonalizationConfig.keystoneLongLeading
+                            options: PersonalizationConfig.keystoneLongItemOptions
+                            zone: "leading"
+                            dragCoordinator: longDragCoordinator
+                            onToggled: itemId => PersonalizationConfig.toggleKeystoneLongItem(itemId, zone)
+                            onRemoved: itemId => PersonalizationConfig.removeKeystoneLongItem(itemId)
+                        }
                     }
                 }
 
-                SettingsRow {
-                    Layout.fillWidth: true
-                    title: I18n.tr("Hide date")
+                ConnectedRect {
+                    id: longTrailingZoneRow
 
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.keystoneHideDate
-                        Accessible.name: I18n.tr("Hide date")
-                        onToggled: PersonalizationConfig.setKeystoneHideDate(checked)
+                    visible: PersonalizationConfig.keystoneStyle === "long"
+                    last: true
+                    Layout.fillWidth: true
+                    implicitHeight: Math.max(longTrailingLabel.implicitHeight,
+                                             longTrailingField.implicitHeight) + NexusStyle.padding.medium * 2
+
+                    RowLayout {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: NexusStyle.padding.largeIncreased
+                        anchors.rightMargin: NexusStyle.padding.largeIncreased
+                        spacing: NexusStyle.padding.small
+
+                        StyledText {
+                            id: longTrailingLabel
+
+                            text: PersonalizationConfig.keystonePosition === "top"
+                                  || PersonalizationConfig.keystonePosition === "bottom" ? I18n.tr("Right") :
+                                                                                           I18n.tr("Bottom")
+                            color: Appearance.m3colors.m3onSurface
+                            font.pixelSize: NexusStyle.font.bodyMedium
+                        }
+
+                        SortableMultiSelectField {
+                            id: longTrailingField
+
+                            Layout.fillWidth: true
+                            values: PersonalizationConfig.keystoneLongTrailing
+                            options: PersonalizationConfig.keystoneLongItemOptions
+                            zone: "trailing"
+                            dragCoordinator: longDragCoordinator
+                            onToggled: itemId => PersonalizationConfig.toggleKeystoneLongItem(itemId, zone)
+                            onRemoved: itemId => PersonalizationConfig.removeKeystoneLongItem(itemId)
+                        }
                     }
                 }
 
-                SettingsActionRow {
+                // Keyboard indicators
+                PreferenceHeader {
+                    visible: KeyboardLockService.available
+                    text: I18n.tr("Keyboard indicators")
+                }
+
+                PreferenceToggle {
+                    id: capsLockToggle
+
+                    visible: KeyboardLockService.available
+                    first: true
+                    text: I18n.tr("Caps Lock changes")
+                    checked: PersonalizationConfig.keystoneCapsLockOsd
+                    onToggled: PersonalizationConfig.setKeystoneCapsLockOsd(checked)
+
+                    SettingsSearchAnchor {
+                        id: extraSearchAnchor0
+                        target: capsLockToggle
+                        declaration:
+                            '{"id":"keystone.section.keyboard-indicators","route":"keystone","title":"Keyboard indicators","context":"KeystonePage","icon":"settings","aliases":[],"availability":"keyboard-lock"}'
+                    }
+                }
+
+                PreferenceToggle {
+                    visible: KeyboardLockService.available
+                    last: true
+                    text: I18n.tr("Num Lock changes")
+                    checked: PersonalizationConfig.keystoneNumLockOsd
+                    onToggled: PersonalizationConfig.setKeystoneNumLockOsd(checked)
+                }
+
+                // Keyhole
+                PreferenceHeader {
+                    text: I18n.tr("Keyhole")
+                }
+
+                PreferenceSelect {
+                    id: keyholeCardSelect
+
+                    first: true
+                    last: true
+                    label: I18n.tr("Card")
+                    model: PersonalizationConfig.keystoneKeyholeCardOptions
+                    currentValue: PersonalizationConfig.keystoneKeyholeCard
+                    inputRegionService: PopupInputRegionService
+                    onSelected: value => PersonalizationConfig.setKeystoneKeyholeCard(value)
+
+                    SettingsSearchAnchor {
+                        id: extraSearchAnchor1
+                        target: keyholeCardSelect
+                        declaration:
+                            '{"id":"keystone.section.keyhole","route":"keystone","title":"Keyhole","context":"KeystonePage","icon":"settings","aliases":[]}'
+                    }
+                }
+
+                // Horizontal clock
+                PreferenceHeader {
+                    text: I18n.tr("Horizontal clock")
+                }
+
+                ConnectedRect {
+                    id: clockPreviewCard
+
+                    first: true
                     Layout.fillWidth: true
-                    iconName: "tune"
+                    implicitHeight: clockPreview.implicitHeight + NexusStyle.padding.medium * 2
+
+                    HorizontalClockPreview {
+                        id: clockPreview
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: NexusStyle.padding.small
+                        anchors.rightMargin: NexusStyle.padding.small
+                        implicitHeight: Math.max(42, width * 42 / 220)
+                    }
+
+                    SettingsSearchAnchor {
+                        id: searchAnchor2
+                        target: clockPreviewCard
+                        declaration:
+                            '{"id":"keystone.section.horizontal-clock","route":"keystone","title":"Horizontal clock","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
+                    }
+                }
+
+                PreferenceToggle {
+                    text: I18n.tr("Hide date")
+                    checked: PersonalizationConfig.keystoneHideDate
+                    onToggled: PersonalizationConfig.setKeystoneHideDate(checked)
+                }
+
+                PreferenceAction {
+                    last: true
+                    icon: "tune"
                     text: I18n.tr("Horizontal clock style")
-                    description: I18n.tr("Font, digit positions, and colors")
-                    trailingIconName: "chevron_right"
+                    subtext: I18n.tr("Font, digit positions, and colors")
                     onClicked: root.openSection("horizontal-clock")
                 }
+
+                // Recording
+                PreferenceHeader {
+                    text: I18n.tr("Recording")
+                }
+
+                ConnectedRect {
+                    id: recordingCard
+
+                    first: true
+                    last: true
+                    Layout.fillWidth: true
+                    implicitHeight: recordingColumn.implicitHeight + NexusStyle.padding.medium * 2
+
+                    ColumnLayout {
+                        id: recordingColumn
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.leftMargin: NexusStyle.padding.largeIncreased
+                        anchors.rightMargin: NexusStyle.padding.largeIncreased
+                        spacing: NexusStyle.padding.medium
+
+                        RecordingDirectoryField {
+                            settingTitle: I18n.tr("Video recording")
+                            settingKey: "recordingVideoDirectory"
+                            value: UiPreferences.recordingVideoDirectory
+                        }
+
+                        RecordingDirectoryField {
+                            settingTitle: I18n.tr("GIF recording")
+                            settingKey: "recordingGifDirectory"
+                            value: UiPreferences.recordingGifDirectory
+                        }
+
+                        RecordingDirectoryField {
+                            settingTitle: I18n.tr("Microphone recording")
+                            settingKey: "recordingMicrophoneDirectory"
+                            value: UiPreferences.recordingMicrophoneDirectory
+                        }
+
+                        RecordingDirectoryField {
+                            settingTitle: I18n.tr("System audio recording")
+                            settingKey: "recordingSystemAudioDirectory"
+                            value: UiPreferences.recordingSystemAudioDirectory
+                        }
+                    }
+
+                    SettingsSearchAnchor {
+                        id: searchAnchor3
+                        target: recordingCard
+                        declaration:
+                            '{"id":"keystone.section.recording","route":"keystone","title":"Recording","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
+                    }
+                }
             }
 
-            KeystoneSection {
-                id: searchSection3
-                title: searchAnchor3.title
-                SettingsSearchAnchor {
-                    id: searchAnchor3
-                    target: searchSection3
-                    declaration:
-                        '{"id":"keystone.section.recording","route":"keystone","title":"Recording","context":"KeystonePage","icon":"toggle_off","aliases":[]}'
-                }
-                iconName: "video_camera_front"
+            BarLayoutDragCoordinator {
+                id: longDragCoordinator
 
-                RecordingDirectoryField {
-                    settingTitle: I18n.tr("Video recording")
-                    settingKey: "recordingVideoDirectory"
-                    value: UiPreferences.recordingVideoDirectory
-                }
-
-                RecordingDirectoryField {
-                    settingTitle: I18n.tr("GIF recording")
-                    settingKey: "recordingGifDirectory"
-                    value: UiPreferences.recordingGifDirectory
-                }
-
-                RecordingDirectoryField {
-                    settingTitle: I18n.tr("Microphone recording")
-                    settingKey: "recordingMicrophoneDirectory"
-                    value: UiPreferences.recordingMicrophoneDirectory
-                }
-
-                RecordingDirectoryField {
-                    settingTitle: I18n.tr("System audio recording")
-                    settingKey: "recordingSystemAudioDirectory"
-                    value: UiPreferences.recordingSystemAudioDirectory
-                }
-            }
-
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 24
+                anchors.fill: parent
+                z: 1001
+                fields: [longLeadingField, longTrailingField]
+                onDropped: (itemId, targetZone, targetIndex) => PersonalizationConfig.moveKeystoneLongItem(
+                                                                    itemId, targetZone, targetIndex)
             }
         }
     }
 
     Loader {
         id: pageLoader
-        onLoaded: SettingsBackend.retrySearch()
 
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: subpageHeader.bottom
-        anchors.bottom: parent.bottom
+        onLoaded: {
+            SettingsBackend.retrySearch();
+            if (item && "parentModal" in item)
+                item.parentModal = Qt.binding(() => root.parentModal);
+            if (item && item.backRequested !== undefined)
+                item.backRequested.connect(root.showOverview);
+        }
+
+        anchors.fill: parent
         visible: root.currentSection !== "overview"
         source: {
             const route = SpotlightCatalog.route("keystone." + root.currentSection);
             return route ? Qt.resolvedUrl(route.source) : "";
         }
-    }
-
-    BarLayoutDragCoordinator {
-        id: longDragCoordinator
-        anchors.fill: parent
-        z: 1001
-        fields: [longLeadingField, longTrailingField]
-        onDropped: (itemId, targetZone, targetIndex) => PersonalizationConfig.moveKeystoneLongItem(itemId,
-                                                                                                   targetZone,
-                                                                                                   targetIndex)
     }
 
     FilePickerWindow {
@@ -513,17 +580,13 @@ Item {
         property string value: ""
 
         Layout.fillWidth: true
-        Layout.leftMargin: Metrics.spacingS
-        Layout.rightMargin: Metrics.spacingS
-        spacing: Metrics.spacingXS
+        spacing: NexusStyle.padding.extraSmall
 
-        Text {
+        StyledText {
             Layout.fillWidth: true
             text: directorySetting.settingTitle
-            color: Appearance.colors.colOnSurface
-            font.family: Typography.titleSmall.family
-            font.pixelSize: Typography.titleSmall.pixelSize
-            font.weight: Typography.titleSmall.weight
+            color: Appearance.m3colors.m3onSurface
+            font.pixelSize: NexusStyle.font.bodyMedium
             elide: Text.ElideRight
         }
 
@@ -533,7 +596,7 @@ Item {
             Layout.fillWidth: true
             labelText: I18n.tr("Save location")
             text: directorySetting.value
-            trailingContentWidth: Metrics.touchTarget
+            trailingContentWidth: NexusStyle.icon.medium + NexusStyle.padding.small * 2
             onAccepted: root.saveDirectory(directorySetting.settingKey, text, directoryField)
             onEditingFinished: root.saveDirectory(directorySetting.settingKey, text, directoryField)
 
@@ -543,72 +606,9 @@ Item {
                     iconName: "folder_open"
                     accessibleName: I18n.tr("Choose folder")
                     tooltipText: I18n.tr("Choose folder")
-                    controlSize: Metrics.touchTarget
+                    controlSize: NexusStyle.icon.medium + NexusStyle.padding.small * 2
+                    iconSize: NexusStyle.icon.medium
                     onClicked: root.openDirectoryPicker(directorySetting.settingKey, directoryField)
-                }
-            }
-        }
-    }
-
-    component SearchSelectSettingRow: Item {
-        id: selectRow
-
-        property string title: ""
-        property string description: ""
-        property var options: []
-        property string value: ""
-        property string placeholder: ""
-        property int fieldWidth: 240
-        property bool closeOnAccept: true
-
-        signal accepted(string value)
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: Math.max(58, selectLabelColumn.implicitHeight + 16)
-
-        RowLayout {
-            anchors.fill: parent
-            spacing: 16
-
-            Column {
-                id: selectLabelColumn
-
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 3
-
-                Text {
-                    width: parent.width
-                    text: selectRow.title
-                    color: Appearance.colors.colOnSurface
-                    font.family: Fonts.ui
-                    font.pixelSize: 15
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    width: parent.width
-                    text: selectRow.description
-                    color: Appearance.colors.colSubtext
-                    font.family: Fonts.ui
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
-                }
-            }
-
-            SearchSelectMenuField {
-                Layout.preferredWidth: selectRow.fieldWidth
-                Layout.preferredHeight: 40
-                Layout.alignment: Qt.AlignVCenter
-                options: selectRow.options
-                closeOnAccept: selectRow.closeOnAccept
-                value: selectRow.value
-                placeholder: selectRow.placeholder
-                textRole: "label"
-                valueRole: "value"
-                onAccepted: value => {
-                    return selectRow.accepted(value);
                 }
             }
         }

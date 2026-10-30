@@ -1,14 +1,30 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
-import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Sidebars page (T3 M4): NexusPageBase scaffold + M1 atom rows. The desktop
+// card layout block keeps its twin segmented pickers (mode + placement
+// presets share one backing value — a semantic picker the atom suite has no
+// shape for); the cookie clock sub-settings dim to 42% while the digital
+// clock is active, exactly like the pre-M4 block did. GPU/disk sampling rows
+// arm SystemMonitorService consumers for as long as this page is presented.
+NexusPageBase {
     id: root
 
+    title: SpotlightCatalog.title("sidebar")
+
+    // Window contract surface — consumed by ControlCenterWindow.
+    readonly property Item searchLeaf: root.flickable
+
+    property var parentModal: null
     property bool presentationActive: false
+
     readonly property bool cookieClockActive: UiPreferences.sidebarClockStyle === "cookie"
     readonly property var gpuOptions: buildGpuOptions()
     readonly property var capacityDiskOptions: buildCapacityDiskOptions()
@@ -105,621 +121,462 @@ StyledFlickable {
                                                                    root.presentationActive ? ["gpu", "disk"] :
                                                                                              [])
     Component.onDestruction: SystemMonitorService.clearConsumer("general-sidebar-settings")
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
 
     ColumnLayout {
-        id: contentColumn
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
-        spacing: Metrics.spacingXL
+        // Sidebars
+        PreferenceHeader {
+            first: true
+            text: I18n.tr("Sidebars")
+        }
 
-        SettingsSection {
-            id: searchSection0
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor0.title
+        PreferenceSelect {
+            id: dashboardSideSelect
+
+            first: true
+            label: I18n.tr("Dashboard sidebar position")
+            model: [
+                {
+                    "label": I18n.tr("Left"),
+                    "value": "left"
+                },
+                {
+                    "label": I18n.tr("Right"),
+                    "value": "right"
+                }
+            ]
+            currentValue: PersonalizationConfig.dashboardSidebarSide
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setDashboardSidebarSide(value)
+
             SettingsSearchAnchor {
                 id: searchAnchor0
-                target: searchSection0
+                target: dashboardSideSelect
                 declaration:
                     '{"id":"sidebar.section.sidebars","route":"sidebar","title":"Sidebars","context":"GeneralSidebarPage","icon":"side_navigation","aliases":["general.sidebar.section.sidebars"]}'
             }
-            iconName: "side_navigation"
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Dashboard sidebar position")
-                iconName: "dashboard"
-                trailing: StyledButtonGroup {
-                    model: [
-                        {
-                            value: "left",
-                            label: I18n.tr("Left")
-                        },
-                        {
-                            value: "right",
-                            label: I18n.tr("Right")
-                        }
-                    ]
-                    currentValue: PersonalizationConfig.dashboardSidebarSide
-                    onValueSelected: value => PersonalizationConfig.setDashboardSidebarSide(value)
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Quick settings sidebar position")
-                iconName: "tune"
-                trailing: StyledButtonGroup {
-                    model: [
-                        {
-                            value: "left",
-                            label: I18n.tr("Left")
-                        },
-                        {
-                            value: "right",
-                            label: I18n.tr("Right")
-                        }
-                    ]
-                    currentValue: PersonalizationConfig.quickSettingsSidebarSide
-                    onValueSelected: value => PersonalizationConfig.setQuickSettingsSidebarSide(value)
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "side_navigation"
-                title: I18n.tr("Keep sidebar loaded")
-                supportingText: I18n.tr("Opens faster next time, but uses more memory")
-
-                trailing: StyledSwitch {
-                    checked: PersonalizationConfig.keepSidebarsLoaded
-                    Accessible.name: I18n.tr("Keep sidebar loaded")
-                    onToggled: PersonalizationConfig.setKeepSidebarsLoaded(checked)
-                }
-            }
         }
 
-        SettingsSection {
-            id: searchSection1
+        PreferenceSelect {
+            label: I18n.tr("Quick settings sidebar position")
+            model: [
+                {
+                    "label": I18n.tr("Left"),
+                    "value": "left"
+                },
+                {
+                    "label": I18n.tr("Right"),
+                    "value": "right"
+                }
+            ]
+            currentValue: PersonalizationConfig.quickSettingsSidebarSide
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setQuickSettingsSidebarSide(value)
+        }
+
+        PreferenceToggle {
+            last: true
+            text: I18n.tr("Keep sidebar loaded")
+            subtext: I18n.tr("Opens faster next time, but uses more memory")
+            checked: PersonalizationConfig.keepSidebarsLoaded
+            onToggled: PersonalizationConfig.setKeepSidebarsLoaded(checked)
+        }
+
+        // Desktop card layout
+        PreferenceHeader {
+            text: I18n.tr("Desktop card layout")
+        }
+
+        ConnectedRect {
+            id: layoutBlock
+
+            first: true
+            last: true
             Layout.fillWidth: true
-            flat: true
-            title: searchAnchor1.title
+            implicitHeight: layoutColumn.implicitHeight + NexusStyle.padding.medium * 2
+
+            ColumnLayout {
+                id: layoutColumn
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.small
+
+                StyledButtonGroup {
+                    Layout.fillWidth: true
+                    model: [
+                        {
+                            "value": "free",
+                            "label": I18n.tr("Free drag")
+                        },
+                        {
+                            "value": "leastBusy",
+                            "label": I18n.tr("Least busy")
+                        },
+                        {
+                            "value": "mostBusy",
+                            "label": I18n.tr("Most busy")
+                        }
+                    ]
+                    currentValue: SystemCardService.globalDesktopLayoutMode
+                    onValueSelected: value => SystemCardService.setGlobalDesktopLayoutMode(value)
+                }
+
+                StyledButtonGroup {
+                    Layout.fillWidth: true
+                    model: [
+                        {
+                            "value": "screenTopLeft",
+                            "label": I18n.tr("Top left")
+                        },
+                        {
+                            "value": "screenTopRight",
+                            "label": I18n.tr("Top right")
+                        },
+                        {
+                            "value": "screenBottomLeft",
+                            "label": I18n.tr("Bottom left")
+                        },
+                        {
+                            "value": "screenBottomRight",
+                            "label": I18n.tr("Bottom right")
+                        },
+                        {
+                            "value": "screenCenter",
+                            "label": I18n.tr("Center")
+                        }
+                    ]
+                    currentValue: SystemCardService.globalDesktopLayoutMode
+                    buttonMinWidth: 0
+                    onValueSelected: value => SystemCardService.setGlobalDesktopLayoutMode(value)
+                }
+            }
+
             SettingsSearchAnchor {
                 id: searchAnchor1
-                target: searchSection1
+                target: layoutBlock
                 declaration:
                     '{"id":"sidebar.section.desktop-card-layout","route":"sidebar","title":"Desktop card layout","context":"GeneralSidebarPage","icon":"side_navigation","aliases":["general.sidebar.section.desktop-card-layout"]}'
             }
-            iconName: "dashboard_customize"
-
-            StyledButtonGroup {
-                Layout.fillWidth: true
-                model: [
-                    {
-                        "value": "free",
-                        "label": I18n.tr("Free drag")
-                    },
-                    {
-                        "value": "leastBusy",
-                        "label": I18n.tr("Least busy")
-                    },
-                    {
-                        "value": "mostBusy",
-                        "label": I18n.tr("Most busy")
-                    }
-                ]
-                currentValue: SystemCardService.globalDesktopLayoutMode
-                onValueSelected: value => {
-                    return SystemCardService.setGlobalDesktopLayoutMode(value);
-                }
-            }
-
-            StyledButtonGroup {
-                Layout.fillWidth: true
-                model: [
-                    {
-                        "value": "screenTopLeft",
-                        "label": I18n.tr("Top left")
-                    },
-                    {
-                        "value": "screenTopRight",
-                        "label": I18n.tr("Top right")
-                    },
-                    {
-                        "value": "screenBottomLeft",
-                        "label": I18n.tr("Bottom left")
-                    },
-                    {
-                        "value": "screenBottomRight",
-                        "label": I18n.tr("Bottom right")
-                    },
-                    {
-                        "value": "screenCenter",
-                        "label": I18n.tr("Center")
-                    }
-                ]
-                currentValue: SystemCardService.globalDesktopLayoutMode
-                buttonMinWidth: 0
-                onValueSelected: value => {
-                    return SystemCardService.setGlobalDesktopLayoutMode(value);
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "grid_4x4"
-                title: I18n.tr("Snap desktop cards to grid")
-
-                trailing: StyledSwitch {
-                    checked: PersonalizationConfig.desktopCardGridSnapEnabled
-                    Accessible.name: I18n.tr("Snap desktop cards to grid")
-                    onToggled: PersonalizationConfig.setDesktopCardGridSnapEnabled(checked)
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "grid_on"
-                title: I18n.tr("Show desktop grid while dragging")
-
-                trailing: StyledSwitch {
-                    checked: PersonalizationConfig.desktopCardGridVisibleWhileDragging
-                    Accessible.name: I18n.tr("Show desktop grid while dragging")
-                    onToggled: PersonalizationConfig.setDesktopCardGridVisibleWhileDragging(checked)
-                }
-            }
         }
 
-        SettingsSection {
-            id: searchSection2
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor2.title
+        PreferenceToggle {
+            first: true
+            text: I18n.tr("Snap desktop cards to grid")
+            checked: PersonalizationConfig.desktopCardGridSnapEnabled
+            onToggled: PersonalizationConfig.setDesktopCardGridSnapEnabled(checked)
+        }
+
+        PreferenceToggle {
+            last: true
+            text: I18n.tr("Show desktop grid while dragging")
+            checked: PersonalizationConfig.desktopCardGridVisibleWhileDragging
+            onToggled: PersonalizationConfig.setDesktopCardGridVisibleWhileDragging(checked)
+        }
+
+        // Clock style
+        PreferenceHeader {
+            text: I18n.tr("Clock style")
+        }
+
+        PreferenceSelect {
+            id: clockStyleSelect
+
+            first: true
+            label: I18n.tr("Style")
+            model: [
+                {
+                    "label": I18n.tr("Digital"),
+                    "value": "digital"
+                },
+                {
+                    "label": I18n.tr("Cookie"),
+                    "value": "cookie"
+                }
+            ]
+            currentValue: UiPreferences.sidebarClockStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSidebarClockStyle(value)
+
             SettingsSearchAnchor {
                 id: searchAnchor2
-                target: searchSection2
+                target: clockStyleSelect
                 declaration:
                     '{"id":"sidebar.section.clock-style","route":"sidebar","title":"Clock style","context":"GeneralSidebarPage","icon":"side_navigation","aliases":["general.sidebar.section.clock-style"]}'
             }
-            iconName: "schedule"
+        }
 
-            StyledButtonGroup {
-                Layout.fillWidth: true
-                model: [
-                    {
-                        "value": "digital",
-                        "label": I18n.tr("Digital"),
-                        "icon": "timer_10"
-                    },
-                    {
-                        "value": "cookie",
-                        "label": I18n.tr("Cookie"),
-                        "icon": "cookie"
-                    }
-                ]
-                currentValue: UiPreferences.sidebarClockStyle
-                buttonMinWidth: 120
-                onValueSelected: value => {
-                    return UiPreferences.setSidebarClockStyle(value);
+        // Cookie clock sub-settings — dimmed to 42% while digital is active.
+        PreferenceStepper {
+            label: I18n.tr("Sides")
+            subtext: I18n.tr("0 or 1 produces a circle; up to 40 sides")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            value: UiPreferences.sidebarCookieSides
+            from: 0
+            to: 40
+            stepSize: 1
+            onMoved: value => UiPreferences.setSidebarCookieSides(value)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Constantly rotate")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            checked: UiPreferences.sidebarCookieConstantlyRotate
+            onToggled: UiPreferences.setSidebarCookieConstantlyRotate(checked)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Hour marks")
+            subtext: I18n.tr("Available with Dots or Full dials")
+            enabled: root.cookieClockActive && (UiPreferences.sidebarCookieDialStyle === "dots"
+                                                || UiPreferences.sidebarCookieDialStyle === "full")
+            opacity: root.cookieClockActive ? 1 : 0.42
+            checked: UiPreferences.sidebarCookieHourMarks
+            onToggled: UiPreferences.setSidebarCookieHourMarks(checked)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Digits in the middle")
+            subtext: I18n.tr("Unavailable with the Numbers dial")
+            enabled: root.cookieClockActive && UiPreferences.sidebarCookieDialStyle !== "numbers"
+            opacity: root.cookieClockActive ? 1 : 0.42
+            checked: UiPreferences.sidebarCookieTimeIndicators
+            onToggled: UiPreferences.setSidebarCookieTimeIndicators(checked)
+        }
+
+        PreferenceSelect {
+            label: I18n.tr("Dial style")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            model: [
+                {
+                    "label": I18n.tr("None"),
+                    "value": "none"
+                },
+                {
+                    "label": I18n.tr("Dots"),
+                    "value": "dots"
+                },
+                {
+                    "label": I18n.tr("Full"),
+                    "value": "full"
+                },
+                {
+                    "label": I18n.tr("Digital"),
+                    "value": "numbers"
                 }
+            ]
+            currentValue: UiPreferences.sidebarCookieDialStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSidebarCookieDialStyle(value)
+        }
+
+        PreferenceSelect {
+            label: I18n.tr("Hour hand")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            model: [
+                {
+                    "label": I18n.tr("None"),
+                    "value": "hide"
+                },
+                {
+                    "label": I18n.tr("Classic"),
+                    "value": "classic"
+                },
+                {
+                    "label": I18n.tr("Hollow"),
+                    "value": "hollow"
+                },
+                {
+                    "label": I18n.tr("Fill"),
+                    "value": "fill"
+                }
+            ]
+            currentValue: UiPreferences.sidebarCookieHourHandStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSidebarCookieHourHandStyle(value)
+        }
+
+        PreferenceSelect {
+            label: I18n.tr("Minute hand")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            model: [
+                {
+                    "label": I18n.tr("None"),
+                    "value": "hide"
+                },
+                {
+                    "label": I18n.tr("Classic"),
+                    "value": "classic"
+                },
+                {
+                    "label": I18n.tr("Thin"),
+                    "value": "thin"
+                },
+                {
+                    "label": I18n.tr("Medium"),
+                    "value": "medium"
+                },
+                {
+                    "label": I18n.tr("Bold"),
+                    "value": "bold"
+                }
+            ]
+            currentValue: UiPreferences.sidebarCookieMinuteHandStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSidebarCookieMinuteHandStyle(value)
+        }
+
+        PreferenceSelect {
+            label: I18n.tr("Second hand")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            model: [
+                {
+                    "label": I18n.tr("None"),
+                    "value": "hide"
+                },
+                {
+                    "label": I18n.tr("Classic"),
+                    "value": "classic"
+                },
+                {
+                    "label": I18n.tr("Line"),
+                    "value": "line"
+                },
+                {
+                    "label": I18n.tr("Dots"),
+                    "value": "dot"
+                }
+            ]
+            currentValue: UiPreferences.sidebarCookieSecondHandStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSidebarCookieSecondHandStyle(value)
+        }
+
+        PreferenceSelect {
+            last: true
+            label: I18n.tr("Date style")
+            enabled: root.cookieClockActive
+            opacity: root.cookieClockActive ? 1 : 0.42
+            model: [
+                {
+                    "label": I18n.tr("None"),
+                    "value": "hide"
+                },
+                {
+                    "label": I18n.tr("Bubble"),
+                    "value": "bubble"
+                },
+                {
+                    "label": I18n.tr("Border"),
+                    "value": "border"
+                },
+                {
+                    "label": I18n.tr("Rect"),
+                    "value": "rect"
+                }
+            ]
+            currentValue: UiPreferences.sidebarCookieDateStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSidebarCookieDateStyle(value)
+        }
+
+        // System cards
+        PreferenceHeader {
+            text: I18n.tr("System cards")
+        }
+
+        GridLayout {
+            id: cardGrid
+
+            Layout.fillWidth: true
+            columns: 2
+            columnSpacing: NexusStyle.padding.small
+            rowSpacing: NexusStyle.padding.small
+
+            SettingsSearchAnchor {
+                id: searchAnchor3
+                target: cardGrid
+                declaration:
+                    '{"id":"sidebar.section.system-cards","route":"sidebar","title":"System cards","context":"GeneralSidebarPage","icon":"side_navigation","aliases":["general.sidebar.section.system-cards"]}'
             }
 
-            ColumnLayout {
-                id: cookieSettings
+            Repeater {
+                model: SystemCardService.cardIds
 
-                Layout.fillWidth: true
-                Layout.topMargin: Metrics.spacingM
-                spacing: Metrics.spacingS
-                enabled: root.cookieClockActive
-                opacity: root.cookieClockActive ? 1 : 0.42
+                delegate: PreferenceToggle {
+                    id: cardToggle
 
-                SettingsRow {
+                    required property string modelData
+
+                    first: true
+                    last: true
                     Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    iconName: "add_triangle"
-                    title: I18n.tr("Sides")
-                    supportingText: I18n.tr("0 or 1 produces a circle; up to 40 sides")
-
-                    trailing: MaterialStepper {
-                        enabled: root.cookieClockActive
-                        value: UiPreferences.sidebarCookieSides
-                        from: 0
-                        to: 40
-                        stepSize: 1
-                        onValueModified: value => {
-                            return UiPreferences.setSidebarCookieSides(value);
-                        }
+                    Layout.minimumWidth: 0
+                    text: SystemCardService.cardName(cardToggle.modelData)
+                    subtext: {
+                        const cards = SystemCardService.cards;
+                        const state = cards ? cards[cardToggle.modelData] : null;
+                        return state && state.container === "desktop" ? I18n.tr("Desktop") : I18n.tr(
+                                                                            "Sidebar");
                     }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    iconName: "autoplay"
-                    title: I18n.tr("Constantly rotate")
-
-                    trailing: StyledSwitch {
-                        enabled: root.cookieClockActive
-                        checked: UiPreferences.sidebarCookieConstantlyRotate
-                        Accessible.name: I18n.tr("Constantly rotate")
-                        onToggled: UiPreferences.setSidebarCookieConstantlyRotate(checked)
+                    checked: {
+                        const cards = SystemCardService.cards;
+                        const state = cards ? cards[cardToggle.modelData] : null;
+                        return state ? state.enabled : true;
                     }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive && (UiPreferences.sidebarCookieDialStyle === "dots"
-                                                        || UiPreferences.sidebarCookieDialStyle === "full")
-                    iconName: "brightness_7"
-                    title: I18n.tr("Hour marks")
-                    supportingText: I18n.tr("Available with Dots or Full dials")
-
-                    trailing: StyledSwitch {
-                        checked: UiPreferences.sidebarCookieHourMarks
-                        Accessible.name: I18n.tr("Hour marks")
-                        onToggled: UiPreferences.setSidebarCookieHourMarks(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive && UiPreferences.sidebarCookieDialStyle !== "numbers"
-                    iconName: "timer_10"
-                    title: I18n.tr("Digits in the middle")
-                    supportingText: I18n.tr("Unavailable with the Numbers dial")
-
-                    trailing: StyledSwitch {
-                        checked: UiPreferences.sidebarCookieTimeIndicators
-                        Accessible.name: I18n.tr("Digits in the middle")
-                        onToggled: UiPreferences.setSidebarCookieTimeIndicators(checked)
-                    }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    Layout.topMargin: Metrics.spacingXS
-                    text: I18n.tr("Dial style")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Typography.labelLarge.family
-                    font.pixelSize: Typography.labelLarge.pixelSize
-                    font.weight: Typography.labelLarge.weight
-                }
-
-                StyledButtonGroup {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    model: [
-                        {
-                            "value": "none",
-                            "label": I18n.tr("None"),
-                            "icon": "block"
-                        },
-                        {
-                            "value": "dots",
-                            "label": I18n.tr("Dots"),
-                            "icon": "graph_6"
-                        },
-                        {
-                            "value": "full",
-                            "label": I18n.tr("Full"),
-                            "icon": "history_toggle_off"
-                        },
-                        {
-                            "value": "numbers",
-                            "label": I18n.tr("Digital"),
-                            "icon": "counter_1"
-                        }
-                    ]
-                    currentValue: UiPreferences.sidebarCookieDialStyle
-                    horizontalPadding: Metrics.spacingXL
-                    onValueSelected: value => {
-                        return UiPreferences.setSidebarCookieDialStyle(value);
-                    }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    Layout.topMargin: Metrics.spacingXS
-                    text: I18n.tr("Hour hand")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Typography.labelLarge.family
-                    font.pixelSize: Typography.labelLarge.pixelSize
-                    font.weight: Typography.labelLarge.weight
-                }
-
-                StyledButtonGroup {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    model: [
-                        {
-                            "value": "hide",
-                            "label": I18n.tr("None"),
-                            "icon": "block"
-                        },
-                        {
-                            "value": "classic",
-                            "label": I18n.tr("Classic"),
-                            "icon": "radio"
-                        },
-                        {
-                            "value": "hollow",
-                            "label": I18n.tr("Hollow"),
-                            "icon": "circle"
-                        },
-                        {
-                            "value": "fill",
-                            "label": I18n.tr("Fill"),
-                            "icon": "eraser_size_5"
-                        }
-                    ]
-                    currentValue: UiPreferences.sidebarCookieHourHandStyle
-                    horizontalPadding: Metrics.spacingXL
-                    onValueSelected: value => {
-                        return UiPreferences.setSidebarCookieHourHandStyle(value);
-                    }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    Layout.topMargin: Metrics.spacingXS
-                    text: I18n.tr("Minute hand")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Typography.labelLarge.family
-                    font.pixelSize: Typography.labelLarge.pixelSize
-                    font.weight: Typography.labelLarge.weight
-                }
-
-                StyledButtonGroup {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    model: [
-                        {
-                            "value": "hide",
-                            "label": I18n.tr("None"),
-                            "icon": "block"
-                        },
-                        {
-                            "value": "classic",
-                            "label": I18n.tr("Classic"),
-                            "icon": "radio"
-                        },
-                        {
-                            "value": "thin",
-                            "label": I18n.tr("Thin"),
-                            "icon": "line_end"
-                        },
-                        {
-                            "value": "medium",
-                            "label": I18n.tr("Medium"),
-                            "icon": "eraser_size_2"
-                        },
-                        {
-                            "value": "bold",
-                            "label": I18n.tr("Bold"),
-                            "icon": "eraser_size_4"
-                        }
-                    ]
-                    currentValue: UiPreferences.sidebarCookieMinuteHandStyle
-                    horizontalPadding: Metrics.spacingM * 2
-                    contentSpacing: Metrics.spacingXS
-                    onValueSelected: value => {
-                        return UiPreferences.setSidebarCookieMinuteHandStyle(value);
-                    }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    Layout.topMargin: Metrics.spacingXS
-                    text: I18n.tr("Second hand")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Typography.labelLarge.family
-                    font.pixelSize: Typography.labelLarge.pixelSize
-                    font.weight: Typography.labelLarge.weight
-                }
-
-                StyledButtonGroup {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    model: [
-                        {
-                            "value": "hide",
-                            "label": I18n.tr("None"),
-                            "icon": "block"
-                        },
-                        {
-                            "value": "classic",
-                            "label": I18n.tr("Classic"),
-                            "icon": "radio"
-                        },
-                        {
-                            "value": "line",
-                            "label": I18n.tr("Line"),
-                            "icon": "line_end"
-                        },
-                        {
-                            "value": "dot",
-                            "label": I18n.tr("Dots"),
-                            "icon": "adjust"
-                        }
-                    ]
-                    currentValue: UiPreferences.sidebarCookieSecondHandStyle
-                    horizontalPadding: Metrics.spacingXL
-                    onValueSelected: value => {
-                        return UiPreferences.setSidebarCookieSecondHandStyle(value);
-                    }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    Layout.topMargin: Metrics.spacingXS
-                    text: I18n.tr("Date style")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Typography.labelLarge.family
-                    font.pixelSize: Typography.labelLarge.pixelSize
-                    font.weight: Typography.labelLarge.weight
-                }
-
-                StyledButtonGroup {
-                    Layout.fillWidth: true
-                    enabled: root.cookieClockActive
-                    model: [
-                        {
-                            "value": "hide",
-                            "label": I18n.tr("None"),
-                            "icon": "block"
-                        },
-                        {
-                            "value": "bubble",
-                            "label": I18n.tr("Bubble"),
-                            "icon": "bubble_chart"
-                        },
-                        {
-                            "value": "border",
-                            "label": I18n.tr("Border"),
-                            "icon": "rotate_right"
-                        },
-                        {
-                            "value": "rect",
-                            "label": I18n.tr("Rect"),
-                            "icon": "rectangle"
-                        }
-                    ]
-                    currentValue: UiPreferences.sidebarCookieDateStyle
-                    horizontalPadding: Metrics.spacingXL
-                    onValueSelected: value => {
-                        return UiPreferences.setSidebarCookieDateStyle(value);
-                    }
+                    onToggled: SystemCardService.setCardEnabled(cardToggle.modelData, checked)
                 }
             }
         }
 
-        SettingsSection {
-            id: searchSection3
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor3.title
-            SettingsSearchAnchor {
-                id: searchAnchor3
-                target: searchSection3
-                declaration:
-                    '{"id":"sidebar.section.system-cards","route":"sidebar","title":"System cards","context":"GeneralSidebarPage","icon":"side_navigation","aliases":["general.sidebar.section.system-cards"]}'
+        PreferenceSelect {
+            icon: "developer_board"
+            label: I18n.tr("GPU")
+            subtext: I18n.tr("Select the graphics device shown by the GPU card")
+            model: root.gpuOptions
+            currentValue: UiPreferences.systemMonitorGpuId
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSystemMonitorGpuId(value)
+        }
+
+        PreferenceInput {
+            id: intervalRow
+
+            label: I18n.tr("System monitor snapshot interval")
+            smallField: true
+            value: String(UiPreferences.systemMonitorIntervalMs)
+            validate: text => {
+                const parsed = Number(text);
+                return Number.isInteger(parsed) && parsed >= 100 && parsed <= 60000;
             }
-            iconName: "widgets"
-
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 2
-                columnSpacing: Metrics.spacingS
-                rowSpacing: Metrics.spacingS
-
-                Repeater {
-                    model: SystemCardService.cardIds
-
-                    delegate: SettingsRow {
-                        required property string modelData
-
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        iconName: SystemCardService.cardIcon(modelData)
-                        title: SystemCardService.cardName(modelData)
-                        supportingText: {
-                            const cards = SystemCardService.cards;
-                            const state = cards ? cards[modelData] : null;
-                            return state && state.container === "desktop" ? I18n.tr("Desktop") : I18n.tr(
-                                                                                "Sidebar");
-                        }
-
-                        trailing: StyledSwitch {
-                            checked: {
-                                const cards = SystemCardService.cards;
-                                const state = cards ? cards[modelData] : null;
-                                return state ? state.enabled : true;
-                            }
-                            Accessible.name: SystemCardService.cardName(modelData)
-                            onToggled: SystemCardService.setCardEnabled(modelData, checked)
-                        }
-                    }
-                }
+            onEditingFinished: value => {
+                UiPreferences.setSystemMonitorIntervalMs(Number(value));
+                intervalRow.field.text = String(UiPreferences.systemMonitorIntervalMs);
             }
+        }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "developer_board"
-                title: I18n.tr("GPU")
-                supportingText: I18n.tr("Select the graphics device shown by the GPU card")
-
-                trailing: SearchSelectMenuField {
-                    Layout.preferredWidth: 220
-                    options: root.gpuOptions
-                    value: UiPreferences.systemMonitorGpuId
-                    placeholder: I18n.tr("Auto")
-                    closeOnAccept: true
-                    onAccepted: value => {
-                        return UiPreferences.setSystemMonitorGpuId(value);
-                    }
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "speed"
-                title: I18n.tr("System monitor snapshot interval")
-
-                trailing: MaterialFilledTextField {
-                    id: intervalField
-
-                    Layout.preferredWidth: 150
-                    labelText: I18n.tr("Interval")
-                    text: String(UiPreferences.systemMonitorIntervalMs)
-                    error: text.length === 0 || !acceptableInput
-                    inputMethodHints: Qt.ImhDigitsOnly
-                    trailingContentWidth: 40
-                    onEditingFinished: {
-                        UiPreferences.setSystemMonitorIntervalMs(text);
-                        text = String(UiPreferences.systemMonitorIntervalMs);
-                    }
-
-                    validator: IntValidator {
-                        bottom: 100
-                        top: 60000
-                    }
-
-                    trailingContent: Component {
-                        Text {
-                            anchors.fill: parent
-                            text: I18n.tr("ms")
-                            color: Appearance.colors.colOnSurfaceVariant
-                            font.family: Typography.bodyMedium.family
-                            font.pixelSize: Typography.bodyMedium.pixelSize
-                            verticalAlignment: Text.AlignVCenter
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                    }
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "data_usage"
-                title: I18n.tr("Disk capacity")
-                supportingText: I18n.tr("Select the physical disk shown by the capacity card")
-
-                trailing: SearchSelectMenuField {
-                    Layout.preferredWidth: 260
-                    options: root.capacityDiskOptions
-                    value: UiPreferences.storageCapacityDiskDevice
-                    placeholder: I18n.tr("Follow Disk I/O card")
-                    closeOnAccept: true
-                    onAccepted: value => {
-                        return UiPreferences.setStorageCapacityDiskDevice(value);
-                    }
-                }
-            }
+        PreferenceSelect {
+            last: true
+            icon: "data_usage"
+            label: I18n.tr("Disk capacity")
+            subtext: I18n.tr("Select the physical disk shown by the capacity card")
+            model: root.capacityDiskOptions
+            currentValue: UiPreferences.storageCapacityDiskDevice
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setStorageCapacityDiskDevice(value)
         }
     }
 }

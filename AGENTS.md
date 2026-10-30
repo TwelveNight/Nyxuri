@@ -45,31 +45,32 @@
 
 ---
 
-## 3. 本地秒级验证命令
+## 3. 按需验证与拒绝盲目乱测试
 
-```bash
-# 1. 语法与静态检查（零网络秒级）
-python3 -m compileall nyxuri tests
-bash -n install.sh nyxuri/launcher.sh units/noctalia/*.sh units/niri/scripts/*.sh
-shellcheck install.sh nyxuri/launcher.sh
-
-# 2. 契约与行为测试（零依赖秒级，含文档契约一致性）
-python3 -m unittest discover -s tests -q
-
-# 3. 沙箱隔离部署测试（极速、不污染实机；KM5 起 install.sh 不透传参数）
-HOME=$(mktemp -d) python3 -m nyxuri test
-```
+**严禁盲目乱跑全量测试，禁止无谓耗时**：
+- **纯文档 / 路线图 / 方案交流（`*.md`, `notes/`）**：
+  **免测直接交付**。严禁跑全量单测、严禁跑沙箱部署。仅当修改涉及文档结构、索引（`llms.txt`）或相对链接时，按需运行秒级专项测试：
+  ```bash
+  python3 -m unittest tests/test_ai_specs.py   # 0.06 秒秒级文档契约
+  ```
+- **模块代码改动**：严格按第 1 节路由表**精准定向跑对应单测**（秒级），不默认跑全量测试。
+- **全量回归与沙箱部署**（仅在重大核心重构或用户明确要求全量验收时才跑）：
+  ```bash
+  python3 -m unittest discover -s tests -q     # 全量回归
+  HOME=$(mktemp -d) python3 -m nyxuri test     # 沙箱部署
+  ```
 
 ---
 
 ## 4. 协作工作流与完成定义 (Definition of Done)
 
-- **Session 启动**：`git status` 看工作区；跑本地单测确认基线绿再动工。
+- **Session 启动**：`git status` 看工作区净空即可；**严禁**开局盲目跑全量测试浪费时间（仅在将要大动核心代码时按需跑对应定向单测）。
 - **改动原则**：
   - 3 步以下直接做；涉及卸载/破坏性操作先确认。
   - 只动请求范围，不顺手重构无关代码；文字遵循 `writing-voice.md`（像人说话、去 AI 味）。
 - **测试规范**：所有新测试必须使用 `tests/utils.py:TempEnv`，严禁写入真实 `~/.config`；外部命令必须有参数形状断言。
 - **完成检查**：
-  1. 本地秒级验证（第 3 节命令）全绿；
-  2. 若改动涉及架构契约、命令或 manifest，对应 `llms-wiki/` 页面必须已同步事实；
-  3. 不主动 commit，除非用户明确要求。
+  1. 纯文档/文本：文本就绪、链接正确即完成（必要时 `test_ai_specs.py` 绿），零额外测试；
+  2. 代码改动：按第 1 节路由表定向单测绿即可交付；
+  3. 若改动涉及架构契约、命令或 manifest，对应 `llms-wiki/` 页面必须已同步事实；
+  4. 不主动 commit，除非用户明确要求。

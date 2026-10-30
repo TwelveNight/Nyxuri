@@ -13,12 +13,11 @@ test_root=$(mktemp -d)
 trap 'rm -rf -- "$test_root"' EXIT
 export HOME="$test_root/home with spaces"
 export XDG_CONFIG_HOME="$HOME/config"
-export CLAVIS_CONFIG_HOME="$XDG_CONFIG_HOME/clavis"
-export CLAVIS_RUNTIME_HOME="$test_root/runtime"
-export CLAVIS_GENERATED_HOME="$test_root/generated"
-# Hermetic: a developer session may carry NYXURI_SHELL_* overrides that would
-# redirect the generation target out of the sandbox.
-unset NYXURI_SHELL_GENERATED_HOME NYXURI_SHELL_CONFIG_HOME NYXURI_SHELL_DATA_HOME
+export NYXURI_SHELL_CONFIG_HOME="$XDG_CONFIG_HOME/nyxuri"
+export NYXURI_SHELL_RUNTIME_HOME="$test_root/runtime"
+export NYXURI_SHELL_GENERATED_HOME="$test_root/generated"
+# The sandbox exports explicit NYXURI_SHELL_* paths, so a developer session's
+# stray overrides cannot redirect the generation target.
 mkdir -p "$HOME" "$HOME/.config/nyxuri/templates"
 # The shared template pool is deployed to ~/.config/nyxuri/templates by the
 # `theme` unit (KM4/P5 neutral pool); the sandbox fakes it so the builtin
@@ -51,30 +50,30 @@ jq -e '.errors == [] and ([.templates[] | select(.origin == "builtin")] | length
     and any(.templates[]; .id == "fcitx5_theme" and (.inputPath | test("fcitx5/themes/nyxmellow/templates/theme\\.conf$")))
     and any(.templates[]; .id == "gtk3" and (.inputPath | test("nyxuri/templates/gtk-3\\.0\\.css$")))' \
     "$test_root/list.json" >/dev/null
-assert test ! -e "$CLAVIS_CONFIG_HOME/matugen"
+assert test ! -e "$NYXURI_SHELL_CONFIG_HOME/matugen"
 
 # One extraction writes both contract files; no application template is
 # rendered by the generator (the shell renders them from the palettes).
 generate > "$test_root/generated.jsonl"
 jq -se 'any(.[]; .event == "core-ready") and .[-1].event == "finished"' "$test_root/generated.jsonl" >/dev/null
-assert test -s "$CLAVIS_GENERATED_HOME/nyxuri/colors.json"
-assert test -s "$CLAVIS_GENERATED_HOME/nyxuri/palette-modes.json"
+assert test -s "$NYXURI_SHELL_GENERATED_HOME/nyxuri/colors.json"
+assert test -s "$NYXURI_SHELL_GENERATED_HOME/nyxuri/palette-modes.json"
 jq -e '(keys | length == 50) and (.primary | test("^#[0-9a-f]{6}$"))
     and (.source_color == "#6750a4")' \
-    "$CLAVIS_GENERATED_HOME/nyxuri/colors.json" >/dev/null
+    "$NYXURI_SHELL_GENERATED_HOME/nyxuri/colors.json" >/dev/null
 jq -e '.schemaVersion == 1 and .mode == "dark" and (.dark.primary | length == 7)
     and (.light.primary | length == 7) and (.source_color | length == 7)' \
-    "$CLAVIS_GENERATED_HOME/nyxuri/palette-modes.json" >/dev/null
+    "$NYXURI_SHELL_GENERATED_HOME/nyxuri/palette-modes.json" >/dev/null
 
 # Registration is structural; rendering belongs to the shell. The generator
 # must therefore never execute hooks or write template outputs.
 printf 'background = {{colors.primary.default.hex}}\n' > "$test_root/ghostty.conf"
 hook='printf "hook ran\n" >> "$HOME/hook-ran"'
 manage validate ghostty "$test_root/ghostty.conf" '~/ghostty/theme' "$hook" > /dev/null
-assert test ! -e "$CLAVIS_CONFIG_HOME/matugen"
+assert test ! -e "$NYXURI_SHELL_CONFIG_HOME/matugen"
 assert test ! -e "$HOME/hook-ran"
 manage add ghostty "$test_root/ghostty.conf" '~/ghostty/theme' "$hook" > /dev/null
-assert cmp "$test_root/ghostty.conf" "$CLAVIS_CONFIG_HOME/matugen/templates/ghostty.conf"
+assert cmp "$test_root/ghostty.conf" "$NYXURI_SHELL_CONFIG_HOME/matugen/templates/ghostty.conf"
 manage list | jq -e '.templates[] | select(.id == "ghostty") | .origin == "user" and .valid and .hasPostHook' >/dev/null
 assert test ! -e "$HOME/ghostty/theme"
 generate > /dev/null
@@ -83,7 +82,7 @@ assert test ! -e "$HOME/hook-ran"
 # The mode flip changes the active palette, not any template output.
 generate --mode light --scheme scheme-expressive > /dev/null
 jq -e '.mode == "light" and .scheme == "scheme-expressive"' \
-    "$CLAVIS_GENERATED_HOME/nyxuri/palette-modes.json" >/dev/null
+    "$NYXURI_SHELL_GENERATED_HOME/nyxuri/palette-modes.json" >/dev/null
 
 reject add kitty "$test_root/ghostty.conf" '~/another' ''
 reject add ghostty "$test_root/ghostty.conf" '~/another' ''
@@ -96,14 +95,14 @@ reject add directory "$test_root" '~/another' ''
 manage add editor.custom "$test_root/ghostty.conf" '$HOME/editor/theme' '' > /dev/null
 manage list | jq -e '.templates[] | select(.id == "editor.custom") | .valid' >/dev/null
 
-cat >> "$CLAVIS_CONFIG_HOME/matugen/config.toml" <<'TOML'
+cat >> "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" <<'TOML'
 [templates.missing]
 input_path = "templates/not-found"
 output_path = "~/missing/theme"
 TOML
 manage list | jq -e '.templates[] | select(.id == "missing") | .valid == false and (.error | length > 0)' >/dev/null
 # A fresh process sees a manually added registration immediately.
-cat >> "$CLAVIS_CONFIG_HOME/matugen/config.toml" <<'TOML'
+cat >> "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" <<'TOML'
 [templates.manual]
 input_path = "templates/ghostty.conf"
 output_path = "~/manual/theme"
@@ -111,20 +110,20 @@ TOML
 manage list | jq -e '.templates[] | select(.id == "manual") | .valid and .origin == "user"' >/dev/null
 
 # Unsupported registry syntax cannot silently become an active template.
-cp "$CLAVIS_CONFIG_HOME/matugen/config.toml" "$test_root/before"
-cat >> "$CLAVIS_CONFIG_HOME/matugen/config.toml" <<'TOML'
+cp "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" "$test_root/before"
+cat >> "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" <<'TOML'
 [templates.inline]
 foo = { input_path = "templates/ghostty.conf", output_path = "~/bad" }
 TOML
 manage list | jq -e '(.errors | length > 0) and any(.templates[]; .id == "inline" and .valid == false)' >/dev/null
-cp "$CLAVIS_CONFIG_HOME/matugen/config.toml" "$test_root/invalid"
+cp "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" "$test_root/invalid"
 reject add cannot-add "$test_root/ghostty.conf" '~/another' ''
-assert cmp "$CLAVIS_CONFIG_HOME/matugen/config.toml" "$test_root/invalid"
-cp "$test_root/before" "$CLAVIS_CONFIG_HOME/matugen/config.toml"
+assert cmp "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" "$test_root/invalid"
+cp "$test_root/before" "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml"
 
 manage remove manual > /dev/null
 manage remove ghostty > /dev/null
-assert test ! -e "$CLAVIS_CONFIG_HOME/matugen/templates/ghostty.conf"
+assert test ! -e "$NYXURI_SHELL_CONFIG_HOME/matugen/templates/ghostty.conf"
 manage list | jq -e 'all(.templates[]; .id != "ghostty" and .id != "manual")' >/dev/null
 reject remove kitty
 # An installed-style shell root locates its own package resources, independent
@@ -136,20 +135,20 @@ mkdir -p "$installed/app"
 cp -r "$repo_root/app/templates" "$installed/app/templates"
 bash "$installed/scripts/theme/manage-matugen-templates.sh" list | jq -e --arg prefix "$installed/app/templates/" 'all(.templates[] | select(.origin == "builtin" and (.id == "kitty" or .id == "btop" or .id == "starship")); .inputPath | startswith($prefix))' >/dev/null
 bash "$installed/scripts/theme/generate-matugen-colors.sh" --color '#aabbcc' --mode light > /dev/null
-assert test -s "$CLAVIS_GENERATED_HOME/nyxuri/colors.json"
+assert test -s "$NYXURI_SHELL_GENERATED_HOME/nyxuri/colors.json"
 
 # Arbitrary newly registered IDs scale without app-specific code paths.
 for number in $(seq 1 100); do
-    printf '\n[templates.application-%s]\ninput_path = "%s"\noutput_path = "~/application-%s/theme"\n' "$number" "$test_root/ghostty.conf" "$number" >> "$CLAVIS_CONFIG_HOME/matugen/config.toml"
+    printf '\n[templates.application-%s]\ninput_path = "%s"\noutput_path = "~/application-%s/theme"\n' "$number" "$test_root/ghostty.conf" "$number" >> "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml"
 done
 manage list | jq -e '[.templates[] | select(.id | startswith("application-"))] | length == 100 and all(.[]; .valid)' >/dev/null
 
 python3 -c "import base64, pathlib; pathlib.Path('$test_root/test.png').write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='))"
 bash "$generator" --image "$test_root/test.png" > /dev/null
-assert test -s "$CLAVIS_GENERATED_HOME/nyxuri/colors.json"
+assert test -s "$NYXURI_SHELL_GENERATED_HOME/nyxuri/colors.json"
 
 # A registration with no input can still be removed without touching output.
-cat >> "$CLAVIS_CONFIG_HOME/matugen/config.toml" <<'TOML'
+cat >> "$NYXURI_SHELL_CONFIG_HOME/matugen/config.toml" <<'TOML'
 [templates.no-input]
 output_path = "~/keep-this-output"
 TOML

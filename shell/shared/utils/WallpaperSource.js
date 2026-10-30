@@ -1,6 +1,6 @@
 .import "ZenPalette.js" as Zen
 
-var prefix = "clavis-palette:v1:";
+var prefix = "nyxuri-palette:v1:";
 function finiteRange(value, min, max) {
     return typeof value === "number" && isFinite(value) && value >= min && value <= max;
 }
@@ -37,7 +37,7 @@ function localPath(source) {
 }
 function kind(source) {
     if (typeof source !== "string" || source === "") return "empty";
-    if (source.startsWith("clavis-palette:")) return decode(source) ? "palette" : "invalid";
+    if (source.startsWith("nyxuri-palette:")) return decode(source) ? "palette" : "invalid";
     // Qt uses #AARRGGBB, not CSS #RRGGBBAA.
     if (/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(source)) return "solid";
     var path = localPath(source);

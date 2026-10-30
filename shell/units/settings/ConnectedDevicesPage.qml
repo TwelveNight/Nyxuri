@@ -6,7 +6,13 @@ import qs.shared.theme
 import qs.shared.controls
 import qs.app.services
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
+// Connected devices shell (T3 M4): overview on the Nexus scaffold, Bluetooth
+// subpages load through SettingsPageHost and render their own subpage titles
+// + back arrows (the pre-M4 external subpage header is retired). Discovery
+// and device leases stay with their owning pages.
 Item {
     id: root
 
@@ -17,10 +23,11 @@ Item {
     property bool presentationActive: false
     property var parentModal: null
 
-    readonly property var searchLeaf: currentView === "overview" ? overviewFlickable : subpageLoader.item ? (
-                                                                                                                subpageLoader.item.searchLeaf
-                                                                                                                || subpageLoader.item) :
-                                                                                                            root
+    readonly property var searchLeaf: currentView === "overview" ? overviewPage.flickable :
+                                                                   subpageLoader.item ? (
+                                                                                            subpageLoader.item.searchLeaf
+                                                                                            || subpageLoader.item) :
+                                                                                        root
 
     function openSearchPath(path, serial) {
         const section = path.length ? path[0] : "overview";
@@ -85,37 +92,10 @@ Item {
         return "";
     }
 
-    GeneralSubpageHeader {
-        id: subpageHeader
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        visible: root.currentView !== "overview"
-        z: 2
-        title: {
-            if (root.currentView === "pairing")
-                return I18n.tr("Pair new device");
-            if (root.currentView === "device")
-                return root.selectedDevice ? root.selectedDevice.name : I18n.tr("Bluetooth device");
-            return I18n.tr("Connected devices");
-        }
-        iconName: {
-            if (root.currentView === "pairing")
-                return "bluetooth_searching";
-            if (root.currentView === "device")
-                return BluetoothDeviceIcon.iconName(root.selectedDevice);
-            return "devices_other";
-        }
-        backAccessibleName: I18n.tr("Back to connected devices")
-        onBackRequested: root.currentView = "overview"
-    }
-
     SettingsPageHost {
         id: subpageLoader
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: subpageHeader.bottom
-        anchors.bottom: parent.bottom
+
+        anchors.fill: parent
         visible: root.currentView !== "overview"
         presentationActive: root.presentationActive && root.currentView !== "overview"
         source: {
@@ -146,21 +126,18 @@ Item {
         }
     }
 
-    StyledFlickable {
-        id: overviewFlickable
+    NexusPageBase {
+        id: overviewPage
+
         anchors.fill: parent
         visible: root.currentView === "overview"
-        clip: true
-        contentWidth: width
-        contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
+        title: SpotlightCatalog.title("connected-devices")
 
         ColumnLayout {
-            id: contentColumn
-
-            width: Math.min(640, Math.max(0, overviewFlickable.width - Metrics.pageMargin * 2))
-            x: Math.max(Metrics.pageMargin, (overviewFlickable.width - width) / 2)
-            y: Metrics.pageMargin
-            spacing: Metrics.spacingL
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            width: overviewPage.cappedWidth
+            spacing: NexusStyle.padding.extraSmall / 2
 
             InlineStatusBanner {
                 Layout.fillWidth: true
@@ -171,159 +148,140 @@ Item {
                 message: root.statusMessage
             }
 
-            SettingsSection {
-                Layout.fillWidth: true
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: BluetoothService.enabled ? "bluetooth" : "bluetooth_disabled"
-                    title: I18n.tr("Bluetooth")
-
-                    trailing: StyledSwitch {
-                        checked: BluetoothService.enabled
-                        enabled: BluetoothService.available && !BluetoothService.blocked &&
-                                 !BluetoothService.busy
-                        Accessible.name: I18n.tr("Bluetooth switch")
-                        onToggled: BluetoothService.setBluetoothEnabled(checked)
-                    }
-                }
+            // The Bluetooth master switch leads the page bare, exactly like
+            // the Caelestia Connected devices original.
+            PreferenceToggle {
+                first: true
+                last: true
+                icon: BluetoothService.enabled ? "bluetooth" : "bluetooth_disabled"
+                text: I18n.tr("Bluetooth")
+                checked: BluetoothService.enabled
+                enabled: BluetoothService.available && !BluetoothService.blocked && !BluetoothService.busy
+                onToggled: BluetoothService.setBluetoothEnabled(checked)
             }
 
-            SettingsSection {
-                id: searchSection0
-                Layout.fillWidth: true
-                title: searchAnchor0.title
+            // Saved devices
+            PreferenceHeader {
+                id: savedHeader
+
+                text: I18n.tr("Saved devices")
+
                 SettingsSearchAnchor {
                     id: searchAnchor0
-                    target: searchSection0
+                    target: savedHeader
                     declaration:
                         '{"id":"connected-devices.section.saved-devices","route":"connected-devices","title":"Saved devices","context":"ConnectedDevicesPage","icon":"devices_other","aliases":["general.connected-devices.section.saved-devices"]}'
                 }
-                iconName: "devices_other"
+            }
 
-                Repeater {
-                    model: root.savedDevices
+            Repeater {
+                id: savedList
 
-                    SettingsRow {
-                        id: savedDeviceRow
+                model: root.savedDevices
 
-                        required property var modelData
+                delegate: PreferenceAction {
+                    id: savedDeviceRow
 
-                        Layout.fillWidth: true
-                        iconName: BluetoothDeviceIcon.iconName(savedDeviceRow.modelData)
-                        title: savedDeviceRow.modelData.name
-                        supportingText: root.deviceStatus(savedDeviceRow.modelData)
-                        interactive: BluetoothService.enabled
-                        highlighted: savedDeviceRow.modelData.connected
-                        onClicked: {
-                            root.selectedAddress = savedDeviceRow.modelData.address;
-                            root.selectedAdapterId = savedDeviceRow.modelData.adapterId;
-                            root.currentView = "device";
-                        }
+                    required property var modelData
+                    required property int index
 
-                        trailing: MaterialSymbol {
-                            text: "chevron_right"
-                            iconSize: Metrics.iconS
-                            color: Appearance.colors.colOnSurfaceVariant
-                        }
+                    first: savedDeviceRow.index === 0
+                    icon: BluetoothDeviceIcon.iconName(savedDeviceRow.modelData)
+                    text: savedDeviceRow.modelData.name
+                    subtext: root.deviceStatus(savedDeviceRow.modelData)
+                    enabled: BluetoothService.enabled
+                    onClicked: {
+                        root.selectedAddress = savedDeviceRow.modelData.address;
+                        root.selectedAdapterId = savedDeviceRow.modelData.adapterId;
+                        root.currentView = "device";
                     }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    visible: root.savedDevices.length === 0
-                    iconName: "devices_other"
-                    title: I18n.tr("No saved devices")
-                }
-
-                SettingsActionRow {
-                    Layout.fillWidth: true
-                    enabled: BluetoothService.available && BluetoothService.enabled &&
-                             !BluetoothService.blocked && !BluetoothService.busy
-                    iconName: "add"
-                    text: I18n.tr("Pair new device")
-                    trailingIconName: "chevron_right"
-                    onClicked: root.currentView = "pairing"
                 }
             }
 
-            SettingsSection {
-                id: searchSection1
-                Layout.fillWidth: true
+            PreferenceInfo {
+                first: root.savedDevices.length === 0
+                icon: "devices_other"
+                label: I18n.tr("No saved devices")
+            }
+
+            PreferenceAction {
+                last: true
+                enabled: BluetoothService.available && BluetoothService.enabled && !BluetoothService.blocked
+                         && !BluetoothService.busy
+                icon: "add"
+                text: I18n.tr("Pair new device")
+                onClicked: root.currentView = "pairing"
+            }
+
+            // Bluetooth adapter
+            PreferenceHeader {
+                id: adapterHeader
+
                 visible: BluetoothService.adapters.length > 1
-                title: searchAnchor1.title
+                text: I18n.tr("Bluetooth adapter")
+
                 SettingsSearchAnchor {
                     id: searchAnchor1
-                    target: searchSection1
+                    target: adapterHeader
                     declaration:
                         '{"id":"connected-devices.section.bluetooth-adapter","route":"connected-devices","title":"Bluetooth adapter","context":"ConnectedDevicesPage","icon":"devices_other","aliases":["general.connected-devices.section.bluetooth-adapter"]}'
                 }
-                iconName: "settings_bluetooth"
+            }
 
-                Repeater {
-                    model: BluetoothService.adapters
+            Repeater {
+                id: adapterList
 
-                    SettingsRow {
-                        id: adapterRow
+                model: BluetoothService.adapters
 
-                        required property var modelData
+                delegate: PreferenceToggle {
+                    id: adapterRow
 
-                        Layout.fillWidth: true
-                        iconName: adapterRow.modelData.blocked ? "bluetooth_disabled" : "settings_bluetooth"
-                        title: adapterRow.modelData.name || adapterRow.modelData.id || I18n.tr(
-                                   "Bluetooth adapter")
-                        supportingText: adapterRow.modelData.blocked ? I18n.tr("%1 · Blocked by rfkill").arg(
-                                                                           adapterRow.modelData.id) :
-                                                                       adapterRow.modelData.id
+                    required property var modelData
+                    required property int index
 
-                        trailing: StyledSwitch {
-                            checked: adapterRow.modelData.enabled
-                            enabled: !adapterRow.modelData.blocked && !BluetoothService.busy
-                            Accessible.name: I18n.tr("Toggle adapter %1").arg(adapterRow.modelData.name
-                                                                              || adapterRow.modelData.id)
-                            onToggled: BluetoothService.setAdapterEnabled(adapterRow.modelData, checked)
-                        }
-                    }
+                    first: adapterRow.index === 0
+                    last: adapterRow.index === adapterList.count - 1
+                    icon: adapterRow.modelData.blocked ? "bluetooth_disabled" : "settings_bluetooth"
+                    text: adapterRow.modelData.name || adapterRow.modelData.id || I18n.tr("Bluetooth adapter")
+                    subtext: adapterRow.modelData.blocked ? I18n.tr("%1 · Blocked by rfkill").arg(
+                                                                adapterRow.modelData.id) :
+                                                            adapterRow.modelData.id
+                    checked: adapterRow.modelData.enabled
+                    enabled: !adapterRow.modelData.blocked && !BluetoothService.busy
+                    onToggled: BluetoothService.setAdapterEnabled(adapterRow.modelData, checked)
                 }
             }
 
-            SettingsSection {
-                id: searchSection2
-                Layout.fillWidth: true
-                title: searchAnchor2.title
+            // Advanced settings
+            PreferenceHeader {
+                id: advancedHeader
+
+                text: I18n.tr("Advanced settings")
+
                 SettingsSearchAnchor {
                     id: searchAnchor2
-                    target: searchSection2
+                    target: advancedHeader
                     declaration:
                         '{"id":"connected-devices.section.advanced-settings","route":"connected-devices","title":"Advanced settings","context":"ConnectedDevicesPage","icon":"devices_other","aliases":["general.connected-devices.section.advanced-settings"]}'
                 }
-                iconName: "tune"
+            }
 
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "visibility"
-                    title: I18n.tr("Allow discovery")
+            PreferenceToggle {
+                first: true
+                icon: "visibility"
+                text: I18n.tr("Allow discovery")
+                checked: BluetoothService.discoverable
+                enabled: BluetoothService.enabled && !BluetoothService.busy
+                onToggled: BluetoothService.setDiscoverable(checked)
+            }
 
-                    trailing: StyledSwitch {
-                        checked: BluetoothService.discoverable
-                        enabled: BluetoothService.enabled && !BluetoothService.busy
-                        Accessible.name: I18n.tr("Allow discovery")
-                        onToggled: BluetoothService.setDiscoverable(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "handshake"
-                    title: I18n.tr("Allow pairing")
-
-                    trailing: StyledSwitch {
-                        checked: BluetoothService.pairable
-                        enabled: BluetoothService.enabled && !BluetoothService.busy
-                        Accessible.name: I18n.tr("Allow pairing")
-                        onToggled: BluetoothService.setPairable(checked)
-                    }
-                }
+            PreferenceToggle {
+                last: true
+                icon: "handshake"
+                text: I18n.tr("Allow pairing")
+                checked: BluetoothService.pairable
+                enabled: BluetoothService.enabled && !BluetoothService.busy
+                onToggled: BluetoothService.setPairable(checked)
             }
         }
     }

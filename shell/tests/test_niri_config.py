@@ -22,7 +22,7 @@ class ConfigurationContracts(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
         os.environ.pop('NIRI_SOCKET', None)
-        self.temp = tempfile.TemporaryDirectory(prefix='clavis-config-test-')
+        self.temp = tempfile.TemporaryDirectory(prefix='nyxuri-config-test-')
         self.addCleanup(self.temp.cleanup)
         self.main = Path(self.temp.name) / 'config.kdl'
         self.main.write_text('// User configuration\ninput {}\n')
@@ -31,7 +31,7 @@ class ConfigurationContracts(unittest.TestCase):
         return config.run(dict(main=str(self.main), operation=operation, feature=feature, **kwargs))
 
     def fragment(self, feature='binds'):
-        return self.main.parent / 'clavis' / (feature + '.kdl')
+        return self.main.parent / 'nyxuri' / (feature + '.kdl')
 
     def setup_binds(self):
         # Editing contracts start from an explicitly empty user fragment.
@@ -58,7 +58,7 @@ class ConfigurationContracts(unittest.TestCase):
         self.assertTrue(state['hotCorners']['disabled'])
         self.assertFalse(state['diagnostics']['invalid'])
         self.assertTrue(self.main.read_text().startswith(original))
-        self.assertEqual(len(list(self.main.parent.glob('config.kdl.clavis-backup-*'))), 1)
+        self.assertEqual(len(list(self.main.parent.glob('config.kdl.nyxuri-backup-*'))), 1)
         saved = self.fragment('hot-corners').read_bytes()
         connected = self.main.read_bytes()
         self.run_config('setup', feature='hot-corners')
@@ -97,7 +97,7 @@ class ConfigurationContracts(unittest.TestCase):
         self.assertEqual(self.main.read_bytes(), original)
         self.assertEqual(included.read_text(), external)
         self.assertFalse(self.fragment('hot-corners').exists())
-        self.assertEqual(list(self.main.parent.glob('config.kdl.clavis-backup-*')), [])
+        self.assertEqual(list(self.main.parent.glob('config.kdl.nyxuri-backup-*')), [])
 
     def test_hot_corners_external_edits_revoke_readiness(self):
         self.run_config('setup', feature='hot-corners')
@@ -110,7 +110,7 @@ class ConfigurationContracts(unittest.TestCase):
         self.assertEqual(state['fragments']['hot-corners']['state'], 'conflict')
         self.assertFalse(state['hotCorners']['globalDisabled'])
         self.assertEqual(state['hotCorners']['globalSource'], str(included))
-        with self.assertRaisesRegex(ValueError, 'move the Clavis'):
+        with self.assertRaisesRegex(ValueError, 'move the Nyxuri'):
             self.run_config('setup', feature='hot-corners')
         self.assertEqual(self.main.read_bytes(), connected)
         self.assertEqual(self.fragment('hot-corners').read_bytes(), saved)
@@ -138,7 +138,7 @@ class ConfigurationContracts(unittest.TestCase):
         state = self.run_config()
         self.assertEqual(state['fragments']['hot-corners']['state'], 'error')
         self.assertTrue(state['diagnostics']['invalid'])
-        self.main.write_text(connected + 'include "clavis/cursor.kdl"\n')
+        self.main.write_text(connected + 'include "nyxuri/cursor.kdl"\n')
         self.assertEqual(self.run_config()['fragments']['hot-corners']['state'], 'error')
         self.main.write_text(connected + 'include "optional.kdl" optional=true\n')
         self.assertEqual(self.run_config()['fragments']['hot-corners']['state'], 'ready')
@@ -208,7 +208,7 @@ class ConfigurationContracts(unittest.TestCase):
     def test_files_catalog_action_starts_unbound_and_round_trips(self):
         with mock.patch.object(config.subprocess, 'run', return_value=mock.Mock(returncode=0, stderr='')):
             catalog = self.run_config('catalog')['catalog']
-        action = next(item for item in catalog if item['id'] == 'clavis:spotlight:files')
+        action = next(item for item in catalog if item['id'] == 'nyxuri:spotlight:files')
         self.assertTrue(action['supported'])
         self.assertFalse(action['parameters'])
         state = self.run_config('setup')
@@ -223,10 +223,10 @@ class ConfigurationContracts(unittest.TestCase):
     def test_palette_shortcuts_remain_available_without_default_bindings(self):
         with mock.patch.object(config.subprocess, 'run', return_value=mock.Mock(returncode=0, stderr='')):
             catalog = self.run_config('catalog')['catalog']
-        ids = ['clavis:spotlight:commands'] + [
-            'clavis:spotlight:command:' + name for name in
+        ids = ['nyxuri:spotlight:commands'] + [
+            'nyxuri:spotlight:command:' + name for name in
             ['calc', 'fx', 'time', 'light', 'dark', 'find-settings', 'actions', 'map']] + [
-            'clavis:sidebar:toggle:weather', 'clavis:sidebar:toggle:drawer']
+            'nyxuri:sidebar:toggle:weather', 'nyxuri:sidebar:toggle:drawer']
         actions = {entry['id']: entry for entry in catalog}
         state = self.run_config('setup')
         for action_id in ids:
@@ -235,7 +235,7 @@ class ConfigurationContracts(unittest.TestCase):
                 self.assertTrue(action['supported'])
                 self.assertFalse(action['parameters'])
                 argv = config.parse(action['expression']).nodes[0].args
-                self.assertEqual(argv[:6], ['qs', '-c', 'clavis', 'ipc', 'call', action['target']])
+                self.assertEqual(argv[:3], ['nyxuri-shell', '--ipc', action['target']])
                 self.assertNotIn('<', action['expression'])
                 self.assertFalse(any(row['action'].rstrip(';') == action['expression'] for row in state['bindings']))
                 self.run_config('save', key='Mod+F12', action=action['expression'])
@@ -267,7 +267,7 @@ class ConfigurationContracts(unittest.TestCase):
         for row in rows:
             action = config.parse(row['action']).nodes[0]
             self.assertEqual(action.name, 'spawn')
-            self.assertEqual(action.args[:5], ['qs', '-c', 'clavis', 'ipc', 'call'])
+            self.assertEqual(action.args[:2], ['nyxuri-shell', '--ipc'])
             self.assertIs(row['props']['repeat'], False)
         self.run_config('delete', id=rows[0]['id'])
         remaining = self.fragment().read_bytes()
@@ -353,21 +353,21 @@ class ConfigurationContracts(unittest.TestCase):
     def test_sidebar_content_targets_preserve_legacy_shortcuts(self):
         for old, role in [('left', 'dashboard'), ('right', 'quicksettings')]:
             for method in ['open', 'close', 'toggle']:
-                modern = f'spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "{method}" "{role}"'
+                modern = f'spawn "nyxuri-shell" "--ipc" "sidebar" "{method}" "{role}"'
                 expected = config.action_identity(config.parse(modern).nodes[0])
                 for prefix in ['"qs" "-c" "clavis" "ipc" "call"', '"key" "ipc" "call"']:
                     legacy = f'spawn {prefix} "sidebar" "{method}" "{old}"'
                     self.assertEqual(config.action_identity(config.parse(legacy).nodes[0]), expected)
         self.assertNotEqual(
-            config.action_identity(config.parse('spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "dashboard"').nodes[0]),
-            config.action_identity(config.parse('spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "quicksettings"').nodes[0]))
+            config.action_identity(config.parse('spawn "nyxuri-shell" "--ipc" "sidebar" "toggle" "dashboard"').nodes[0]),
+            config.action_identity(config.parse('spawn "nyxuri-shell" "--ipc" "sidebar" "toggle" "quicksettings"').nodes[0]))
 
     def test_setup_preserves_crlf_and_unrelated_missing_include(self):
         original = b'// user formatting\r\ninput { }\r\n'
         self.main.write_bytes(original)
         self.setup_binds()
         self.assertTrue(self.main.read_bytes().startswith(original))
-        self.main.write_text('include "unrelated-missing.kdl"\ninclude "clavis/effects.kdl"\n')
+        self.main.write_text('include "unrelated-missing.kdl"\ninclude "nyxuri/effects.kdl"\n')
         before = self.main.read_bytes()
         with self.assertRaises(ValueError):
             self.run_config('setup', 'effects')
@@ -459,13 +459,13 @@ class ConfigurationContracts(unittest.TestCase):
                 self.assertFalse(path.exists())
                 self.run_config('setup', feature)
                 self.assertEqual(text, self.main.read_bytes())
-        self.assertTrue(list(self.main.parent.glob('config.kdl.clavis-backup-*')))
+        self.assertTrue(list(self.main.parent.glob('config.kdl.nyxuri-backup-*')))
 
     def test_include_graph_comments_optional_and_equivalent_paths(self):
         self.fragment().parent.mkdir()
         self.fragment().write_text('')
         other = self.main.parent / 'other.kdl'
-        other.write_text('include optional=true "./clavis/../clavis/binds.kdl"\n')
+        other.write_text('include optional=true "./nyxuri/../nyxuri/binds.kdl"\n')
         self.main.write_text('/* include "missing.kdl" */\n/- include "missing.kdl"\ninclude "other.kdl"\n')
         self.assertEqual(self.run_config()['fragments']['binds']['state'], 'ready')
         before = self.main.read_bytes()

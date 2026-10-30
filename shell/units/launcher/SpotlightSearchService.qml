@@ -38,7 +38,7 @@ Singleton {
     function openUrl(url) {
         root.cancelActivation();
         root.pendingUrl = url;
-        // Query the HTTPS handler per submission, including changes made outside Clavis.
+        // Query the HTTPS handler per submission, including changes made outside the shell.
         if (!browserQuery.running) {
             browserQuery.running = true;
             queryTimeout.restart();

@@ -13,7 +13,7 @@ import qs.shared.i18n
 Singleton {
     id: root
 
-    readonly property string configOverride: Quickshell.env("CLAVIS_PERSONALIZATION_CONFIG") || ""
+    readonly property string configOverride: Quickshell.env("NYXURI_PERSONALIZATION_CONFIG") || ""
     readonly property string filePath: root.configOverride !== "" ? root.configOverride : Paths.configHome
                                                                     + "/config.json"
 
@@ -228,10 +228,6 @@ Singleton {
         {
             "value": "default",
             "label": I18n.tr("Default")
-        },
-        {
-            "value": "minimal",
-            "label": I18n.tr("Minimal")
         },
         {
             "value": "dashboard",

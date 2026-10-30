@@ -26,14 +26,12 @@ class NyxuriPaths:
         runtime = Path(os.environ.get("XDG_RUNTIME_DIR", cache / "nyxuri/runtime"))
         return cls(
             home=home,
-            config_home=Path(os.environ.get("NYXURI_SHELL_CONFIG_HOME", os.environ.get("CLAVIS_CONFIG_HOME", config / "nyxuri"))),
-            data_home=Path(os.environ.get("NYXURI_SHELL_DATA_HOME", os.environ.get("CLAVIS_DATA_HOME", data / "nyxuri"))),
-            state_home=Path(os.environ.get("NYXURI_SHELL_STATE_HOME", os.environ.get("CLAVIS_STATE_HOME", state / "nyxuri"))),
-            cache_home=Path(os.environ.get("NYXURI_SHELL_CACHE_HOME", os.environ.get("CLAVIS_CACHE_HOME", cache / "nyxuri"))),
-            runtime_home=Path(os.environ.get("NYXURI_SHELL_RUNTIME_HOME", os.environ.get("CLAVIS_RUNTIME_HOME", runtime / "nyxuri"))),
+            config_home=Path(os.environ.get("NYXURI_SHELL_CONFIG_HOME", config / "nyxuri")),
+            data_home=Path(os.environ.get("NYXURI_SHELL_DATA_HOME", data / "nyxuri")),
+            state_home=Path(os.environ.get("NYXURI_SHELL_STATE_HOME", state / "nyxuri")),
+            cache_home=Path(os.environ.get("NYXURI_SHELL_CACHE_HOME", cache / "nyxuri")),
+            runtime_home=Path(os.environ.get("NYXURI_SHELL_RUNTIME_HOME", runtime / "nyxuri")),
         )
 
 
-ClavisPaths = NyxuriPaths
-
-__all__ = ["NyxuriPaths", "ClavisPaths"]
+__all__ = ["NyxuriPaths"]

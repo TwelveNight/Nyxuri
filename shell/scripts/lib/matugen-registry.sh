@@ -4,11 +4,11 @@
 matugen_registry_init() {
     local library_dir
     library_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-    # shellcheck source=scripts/lib/clavis-paths.sh
-    source "$library_dir/clavis-paths.sh"
-    clavis_paths_init
+    # shellcheck source=scripts/lib/nyxuri-paths.sh
+    source "$library_dir/nyxuri-paths.sh"
+    nyxuri_paths_init
     matugen_builtin_dir=$(cd -- "$library_dir/../.." && pwd)/app/templates
-    matugen_user_dir="$CLAVIS_CONFIG_HOME/matugen"
+    matugen_user_dir="$NYXURI_SHELL_CONFIG_HOME/matugen"
     matugen_parser="$library_dir/../theme/matugen-registry.jq"
 }
 

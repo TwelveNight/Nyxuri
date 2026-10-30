@@ -3,7 +3,7 @@
 import shutil
 import subprocess
 import sys
-from typing import List
+from typing import Dict, List, Optional
 
 from nyxuri.core import SUPPORTED_WMS, detect_preferred_wm
 from nyxuri.core import get_env, log_msg
@@ -25,6 +25,7 @@ from nyxuri.kernel import transaction
 from nyxuri.core import msg
 from nyxuri.tui import MenuItem, Menu, prompt_confirm
 from nyxuri.installer.menus import run_master_component_menu
+from nyxuri.deploy.atomic import CarryPolicy
 
 def _phase_preflight_check(
     mode: str,
@@ -65,6 +66,58 @@ def _finish_successful_deploy(mode: str, **completion_args) -> None:
     """Run user hooks once, then render the matching completion screen."""
     completion_args["hook_diagnostics"] = run_user_hooks()
     render_completion_screen(mode, **completion_args)
+
+
+def _update_carry_policy(items: List[str]) -> "CarryPolicy":
+    """Update-grade ownership carry (#139): ledger baselines, 宁可错保.
+
+    ``unknown=True``: a unit without an enabled record (Ghost) has every
+    dest entry carried — the update must never guess wrong about files it
+    cannot attribute. Adoption paths (install/``on``) use ``unknown=False``.
+    """
+    return CarryPolicy(baselines=transaction.carry_baselines(items), unknown=True)
+
+
+def _resnapshot_after_deploy(items: List[str], policy: Optional[CarryPolicy]) -> None:
+    """Re-baseline enabled units after an out-of-band deploy + hook replay."""
+    if policy is None:
+        transaction.resnapshot_units(items, carried={})
+    else:
+        transaction.resnapshot_units(items, carried=policy.carried)
+
+
+def _ghost_notices(items: List[str], policy: Optional[CarryPolicy]) -> List[str]:
+    """Per-unit notices for deployed-but-unregistered (Ghost) units (#139)."""
+    baselines = policy.baselines if policy is not None else transaction.carry_baselines(items)
+    notices = []
+    for item in items:
+        if baselines.get(item) is not None:
+            continue
+        try:
+            dest = config_item_dest(item)
+        except Exception:
+            continue
+        if dest.exists() or dest.is_symlink():
+            notices.append(msg("update_ghost_hint", item))
+    return notices
+
+
+def _carried_groups(items: List[str], policy: Optional[CarryPolicy]) -> Dict[str, List[str]]:
+    """Carried display paths grouped by kind, for the completion screen.
+
+    Report credibility (#139 field report): "your changes", "your files" and
+    "unknown origin" are different verdicts — they must not share one bucket.
+    """
+    if policy is None:
+        return {}
+    config_dir = get_env().config_dir
+    groups: Dict[str, List[str]] = {}
+    for item in items:
+        for rel, kind in policy.carried.get(item, {}).items():
+            dest = config_item_dest(item)
+            disp = rel if dest == config_dir / rel else f"{item}/{rel}"
+            groups.setdefault(kind, []).append(f"~/.config/{disp}")
+    return groups
 
 
 def install_configs_workflow(mode: str = "full") -> bool:
@@ -124,7 +177,18 @@ def install_configs_workflow(mode: str = "full") -> bool:
     print(msg("install_step_configs", f"{cur_step}/{steps}"))
     preserved_log: List[str] = []
     if chosen_configs:
-        failed_items = deploy_selected_configs(do_backup=do_backup, items_to_deploy=chosen_configs, preserved_log=preserved_log)
+        # Install is adoption (#139): payload names are claimed, user-placed
+        # extras are carried. An already-enabled unit's ledger record acts as
+        # the drift baseline so a re-install never eats edits.
+        carry_policy = CarryPolicy(
+            baselines=transaction.carry_baselines(chosen_configs), unknown=False
+        )
+        failed_items = deploy_selected_configs(
+            do_backup=do_backup,
+            items_to_deploy=chosen_configs,
+            preserved_log=preserved_log,
+            carry_policy=carry_policy,
+        )
         if failed_items:
             render_completion_screen(
                 mode=mode,
@@ -156,6 +220,11 @@ def install_configs_workflow(mode: str = "full") -> bool:
         if not step.ok:
             log_msg("WARN", f"unit hook replay failed for {step.unit}: {step.detail}")
 
+    # Hook products and template renders changed the laid truth under any
+    # already-enabled unit: re-baseline so the next audit stays honest (#139).
+    if chosen_configs:
+        _resnapshot_after_deploy(chosen_configs, carry_policy)
+
     # Completion
     _finish_successful_deploy(
         mode=mode,
@@ -167,16 +236,30 @@ def install_configs_workflow(mode: str = "full") -> bool:
 
 
 def offer_overwrite_upgrade(flag: str = "") -> bool:
-    """Handle update flow: ask to deploy changes, view diff, or code update only."""
-    env = get_env()
+    """Handle update flow: ask to deploy changes, view diff, or code update only.
+
+    Every deploy path rides the ownership carry (#139): user-modified and
+    user-placed files are carried, never clobbered. ``--force`` is the one
+    template-wins verb for DRIFT — the template claims its payload names and
+    re-baselines the ledger ("I reviewed the drift, adopt the template side")
+    — but it is not a purge: user-placed extras are still carried.
+    """
     if flag in ("--force", "--deploy"):
-        failed_items = deploy_selected_configs(do_backup=True)
+        # Force = adopt: no baselines, payload names claimed, extras carried.
+        items = discover_config_items()
+        force_policy = CarryPolicy(baselines={}, unknown=False, carried={})
+        failed_items = deploy_selected_configs(
+            do_backup=True, items_to_deploy=items, carry_policy=force_policy
+        )
         if failed_items:
             render_completion_screen("update", failed_items=failed_items)
             return False
         wallpaper_ok = _enable_wallpapers()
         _enable_theme()
         transaction.replay_enabled_hooks()
+        # Re-baseline every deployed unit so the drift the user just
+        # reviewed clears instead of haunting doctor forever.
+        _resnapshot_after_deploy(items, force_policy)
         _finish_successful_deploy("update", wallpaper_ok=wallpaper_ok)
         return True
     elif flag == "--no-deploy":
@@ -185,14 +268,26 @@ def offer_overwrite_upgrade(flag: str = "") -> bool:
     if not sys.stdin.isatty():
         # Updates must always create a protected snapshot before replacing
         # configuration; a failed update must have a concrete rollback point.
-        failed_items = deploy_selected_configs(do_backup=True)
+        items = discover_config_items()
+        carry_policy = _update_carry_policy(items)
+        preserved: List[str] = []
+        failed_items = deploy_selected_configs(
+            do_backup=True, preserved_log=preserved, carry_policy=carry_policy
+        )
         if failed_items:
             render_completion_screen("update", failed_items=failed_items)
             return False
         wallpaper_ok = _enable_wallpapers()
         _enable_theme()
         transaction.replay_enabled_hooks()
-        _finish_successful_deploy("update", wallpaper_ok=wallpaper_ok)
+        _resnapshot_after_deploy(items, carry_policy)
+        _finish_successful_deploy(
+            "update",
+            preserved_lines=preserved,
+            wallpaper_ok=wallpaper_ok,
+            notice_lines=_ghost_notices(items, carry_policy),
+            carried_groups=_carried_groups(items, carry_policy),
+        )
         return True
 
     # Interactive choice menu
@@ -211,9 +306,15 @@ def offer_overwrite_upgrade(flag: str = "") -> bool:
                 print(msg("log_no_components_selected"))
                 return True
             print(msg("upgrading_selected"))
+            carry_policy = _update_carry_policy(chosen["configs"])
             preserved: List[str] = []
             if chosen["configs"]:
-                failed_items = deploy_selected_configs(do_backup=chosen["backup"], items_to_deploy=chosen["configs"], preserved_log=preserved)
+                failed_items = deploy_selected_configs(
+                    do_backup=chosen["backup"],
+                    items_to_deploy=chosen["configs"],
+                    preserved_log=preserved,
+                    carry_policy=carry_policy,
+                )
                 if failed_items:
                     render_completion_screen("update", chosen_items=chosen["configs"], preserved_lines=preserved, failed_items=failed_items)
                     return False
@@ -221,11 +322,14 @@ def offer_overwrite_upgrade(flag: str = "") -> bool:
             if chosen["wallpapers"]:
                 wallpaper_ok = _enable_wallpapers()
             transaction.replay_enabled_hooks()
+            _resnapshot_after_deploy(chosen["configs"], carry_policy)
             _finish_successful_deploy(
                 "update",
                 chosen_items=chosen["configs"],
                 preserved_lines=preserved,
                 wallpaper_ok=wallpaper_ok,
+                notice_lines=_ghost_notices(chosen["configs"], carry_policy),
+                carried_groups=_carried_groups(chosen["configs"], carry_policy),
             )
             return True
     elif choice == 1:

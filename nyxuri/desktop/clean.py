@@ -21,10 +21,10 @@ from nyxuri.tui import CheckboxEntry, CheckboxList, display_width, pad_display, 
 
 VERSION = "4.1"
 
-TASK_KEYS = ("cache", "flatpak-cache", "steam", "thumbnails", "npm", "cargo",
+TASK_KEYS = ("cache", "nv", "flatpak-cache", "steam", "thumbnails", "npm", "cargo",
              "trash", "scc", "orphans", "journal", "coredump", "var-tmp",
              "flatpak", "drop-caches", "trim")
-DEFAULT_OFF = ("trim",)  # TRIM 慢且日常非必需，默认不勾
+DEFAULT_OFF = ("trim", "nv")  # TRIM 慢且日常非必需，nv 重编译耗性能，默认不勾
 
 try:
     HOME = Path.home()
@@ -72,7 +72,7 @@ HELP = f"""{PROJECT_NAME} — {t("缓存清理", "Cache sweeper")}
 
 {t("交互模式：↑/↓/j/k 移动，Space 勾选，a 全选，n 清空，Enter 执行，Esc/q 取消。",
    "Interactive: ↑/↓/j/k move, Space toggle, a all, n none, Enter run, Esc/q cancel.")}
-{t("默认全选（TRIM 除外）。", "All on by default (except TRIM).")}
+{t("默认全选（TRIM 与 NVIDIA 着色器缓存除外）。", "All on by default (except TRIM and NVIDIA shader cache).")}
 
 {t("任务 key：", "Task keys:")} {", ".join(TASK_KEYS)}
 
@@ -152,7 +152,7 @@ def _fenced(child, root):
     return True
 
 
-def fence_clear(root):
+def fence_clear(root, exclude=None):
     """清空 root 的内容（目录本身保留）。本地删除的唯一原语。"""
     if root.is_symlink():
         warn(t(f"跳过符号链接 {tilde(root)}", f"skip symlinked {tilde(root)}"))
@@ -165,11 +165,14 @@ def fence_clear(root):
         warn(f"{tilde(root)}: {exc}")
         return
     if DRY:
-        print(t(f"  [干跑] 将清空 {tilde(root)}（{len(entries)} 项）",
-                f"  [dry-run] would clear {tilde(root)} ({len(entries)} items)"))
+        count = len([e for e in entries if not (exclude and (e.name in exclude or Path(e.path) in exclude))])
+        print(t(f"  [干跑] 将清空 {tilde(root)}（{count} 项）",
+                f"  [dry-run] would clear {tilde(root)} ({count} items)"))
         return
     for entry in entries:
         p = Path(entry.path)
+        if exclude and (entry.name in exclude or p in exclude):
+            continue
         if p.is_symlink():
             warn(t(f"跳过符号链接: {p}", f"skip symlink: {p}"))
             continue
@@ -183,6 +186,11 @@ def fence_clear(root):
                 p.unlink()
         except OSError as exc:
             warn(f"{p}: {exc}")
+    if not DRY and root == HOME / ".cache":
+        try:
+            (root / "nv").mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
 
 
 def flatpak_cache_roots():
@@ -223,7 +231,7 @@ def du(path):
 
 def _measured_roots(flat_roots):
     roots = [HOME / r for r in (
-        ".cache", ".thumbnails", ".npm",
+        ".cache", ".cache/nv", ".thumbnails", ".npm",
         ".cargo/registry/cache", ".cargo/registry/src", ".cargo/git/db",
         ".local/share/Trash",
         ".local/share/Steam/steamapps/shadercache",
@@ -250,6 +258,8 @@ def build_tasks(sizes, flat_roots):
 
     groups = [
         ("cache", t("清空用户缓存", "Clear user cache"), "~/.cache", [HOME / ".cache"]),
+        ("nv", t("清空 NVIDIA 着色器缓存", "Clear NVIDIA shader cache"),
+         "~/.cache/nv", [HOME / ".cache/nv"]),
         ("flatpak-cache", t("清空 Flatpak 应用缓存", "Clear Flatpak app caches"),
          "~/.var/app/*/cache", flat_roots),
         ("steam", t("清空 Steam 着色器缓存", "Clear Steam shader caches"),
@@ -272,8 +282,11 @@ def build_tasks(sizes, flat_roots):
         live = [r for r in roots if not r.is_symlink() and r.is_dir()]
         if not live:
             continue
-        add(key, label, target, group_size(live), False,
-            lambda live=live: [fence_clear(r) for r in live])
+        if key == "cache":
+            fn = lambda live=live: [fence_clear(r, exclude={"nv"}) for r in live]
+        else:
+            fn = lambda live=live: [fence_clear(r) for r in live]
+        add(key, label, target, group_size(live), False, fn)
 
     orphans = []
     if shutil.which("pacman"):
@@ -283,9 +296,18 @@ def build_tasks(sizes, flat_roots):
 
     if shutil.which("pacman"):
         # --noconfirm 会按默认值答 N，包缓存反而清不掉；两问都必须显式喂 y。
+        def _scc():
+            pkg_cache = Path("/var/cache/pacman/pkg")
+            db_lock = Path("/var/lib/pacman/db.lck")
+            if pkg_cache.is_dir() and not pkg_cache.is_symlink() and not db_lock.exists():
+                act(["find", str(pkg_cache), "-mindepth", "1", "-maxdepth", "1",
+                     "-type", "d", "-name", "download-*", "-exec", "rm", "-rf", "--", "{}", "+"],
+                    sudo=True)
+            act(["pacman", "-Scc"], sudo=True, input_text="y\ny\n")
+
         add("scc", t("清空 pacman 包缓存", "Wipe pacman package cache"),
             "/var/cache/pacman/pkg (-Scc)", sizes.get(Path("/var/cache/pacman/pkg")),
-            True, lambda: act(["pacman", "-Scc"], sudo=True, input_text="y\ny\n"))
+            True, _scc)
     if orphans:
         names = " ".join(orphans[:6]) + (" …" if len(orphans) > 6 else "")
         add("orphans", t(f"移除 {len(orphans)} 个孤立包", f"Remove {len(orphans)} orphan package(s)"),
@@ -315,11 +337,10 @@ def build_tasks(sizes, flat_roots):
             if (HOME / ".local/share/flatpak").is_dir():
                 act(["flatpak", "uninstall", "--unused", "--delete-data", "-y", "--user"])
             if Path("/var/lib/flatpak").is_dir():
-                act(["flatpak", "uninstall", "--unused", "--delete-data", "-y", "--system"],
-                    sudo=True)
+                act(["flatpak", "uninstall", "--unused", "--delete-data", "-y", "--system"])
         add("flatpak", t("移除未用 Flatpak 运行时与数据", "Remove unused Flatpak runtimes and data"),
             "flatpak --unused --delete-data",
-            sizes.get(HOME / ".local/share/flatpak"), True, _flatpak)
+            sizes.get(HOME / ".local/share/flatpak"), False, _flatpak)
 
     def _drop_caches():
         act(["sync"])

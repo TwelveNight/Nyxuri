@@ -39,7 +39,7 @@
 | **shared** | `shell/shared/` | 纯净原子复用层：`controls/`（原子按钮/卡片/滑动条/指示器）、`cards/`（纯展示系统卡片：cookieclock 指针组、布局几何 JS、日历/存储/网络/可视化卡）、`theme/`（调色板与字体代币）、`utils/`（数学/时间/格式化/TOML 解析纯算法）、`i18n/`（纯 QML/JS 国际化单例与内存字典） | Qt 原语、`qs.shared.theme`、`qs.shared.controls`、`qs.shared.utils`、`qs.shared.i18n` | **绝对零副作用**：严禁 `import qs.app.*`、`import qs.units.*`、`Quickshell.Io`、`Process`、`FileView`、`Socket`、`Quickshell.env`、`XMLHttpRequest`、文件写操作或 DBus 发送 |
 | *(已退役)* | `shell/modules/`、`shell/native/` | `modules/` 已于 KM4.5 整体正名为 `units/`（支撑模块就地裁决：hotcorners/filepicker → app/services，quicksettings → sidebars，systemcards → shared/cards + app/services）；`native/` 已于 R4-C-05 彻底物理删除 | - | 全库严禁任何 `import qs.modules.*` 与 `import Clavis.*` 导入 |
 
-**支撑代码归宿（KM4.5 裁决）**：单元之外的复用代码不设第四棵树——宿主能力面归 `app/services/`（`HotCorners.qml`、`FilePickerWindow.qml`、`IdleInhibitorSurface.qml` 同类）；单消费者组件并入唯一消费单元（`sidebars/quicksettings/`）；跨单元纯展示卡片归 `shared/cards/`（布局几何 JS、cookieclock 指针组、日历/存储/网络/可视化卡等）；凡直读 app 单例的 UI 渲染件归 `app/cards/`（KM4.6：`SystemCardContent`、`SystemWeatherCard`、`SystemBatteryTank`、`SystemClockCard`、`SidebarCookieClock`——`services/` 只留真服务与配置存储，`NetworkInterfaceHistoryService` 在列）；单元自有 shader 归 `units/<domain>/shaders/`（frag 源 + qsb 产物同迁，`compile-launcher-shaders.sh` 归 `scripts/dev/`）；`assets/`、`fallback/`、`packaging/` 已于 KM4.6 处决（M3Shapes 具名模块桩迁 `shared/controls/shapes/M3Shapes/`，lottieqt 死桩删除，第三方许可证折入 `LICENSE` 第三方附录，独立发行管线退役）。
+**支撑代码归宿（KM4.5 裁决）**：单元之外的复用代码不设第四棵树——宿主能力面归 `app/services/`（`HotCorners.qml`、`FilePickerWindow.qml`、`IdleInhibitorSurface.qml` 同类）；单消费者组件并入唯一消费单元（`sidebars/quicksettings/`）；跨单元纯展示卡片归 `shared/cards/`（布局几何 JS、cookieclock 指针组、日历/存储/网络/可视化卡等）；凡直读 app 单例的 UI 渲染件归 `app/cards/`（KM4.6：`SystemCardContent`、`SystemWeatherCard`、`SystemBatteryTank`、`SystemClockCard`、`SidebarCookieClock`——`services/` 只留真服务与配置存储，`NetworkInterfaceHistoryService` 在列）；单元自有 shader 归 `units/<domain>/shaders/`（frag 源 + qsb 产物同迁，`compile-shaders.sh` 全量重编 11 个 qsb，归 `scripts/dev/`）；`assets/`、`fallback/`、`packaging/` 已于 KM4.6 处决（M3Shapes 具名模块桩迁 `shared/controls/shapes/M3Shapes/`，lottieqt 死桩删除，第三方许可证折入 `LICENSE` 第三方附录，独立发行管线退役）。
 
 ---
 
@@ -79,8 +79,9 @@
 6. **主题模式单一真值（R10 / P4 收口）**：
    - Shell 主题模式唯一业务入口为 `ThemeService.setThemeMode/toggleThemeMode`（同值短路防回环）；对外经 `theme` IPC target（`set dark|light`/`toggle`/`status`）暴露。
    - 深浅切换的系统级写入（gsettings、GTK INI、Kvantum、kitty 信号、glow 布局、Noctalia IPC）唯一归 `nyxuri/desktop/theme.py`（`nyxuri theme` CLI）：Shell 切内部模式后代调 `nyxuri theme`，CLI 缺失时内部照切并经 `UiPreferences.systemThemeLastError` 明示；Shell 自带的 `set-system-color-scheme.sh` 与部署侧 `theme-sync.sh` 已清算。
-   - 系统色彩方案变化经 `UiPreferences.systemThemeModeObserved` 信号闭环回写 `PersonalizationConfig.themeMode` 并再生色板（同值 no-op 防回环）；60s 轮询仅为无 IPC 环境的兜底通道。
-   - 生成产物位于 `<generated>/nyxuri/`：`colors.json`（50 token 内部热载契约，读取侧保留旧 `clavis/` 一次性回退）、`palette-modes.json`（dark+light 双 mode，镜像与渲染的输入）、`scheme-previews.json`（scheme 画廊缓存）。
+   - 系统色彩方案变化经 `UiPreferences.systemThemeModeObserved` 信号闭环回写 `PersonalizationConfig.themeMode` 并再生色板（同值 no-op 防回环，且传 `syncExternal=false` 杜绝反向写回引发的 flock 竞争）；`UiPreferences.themePoller` 引入冷启动对齐门控（`startupAligned`），首次轮询以 `PersonalizationConfig` 为准，防止宿主陈旧 gsettings 冲刷覆盖 `config.json`；60s 轮询仅为无 IPC 环境的兜底通道。
+   - `nyxuri/desktop/theme.py` 中的 `_mode_from_system` 与 `_propagate` 严格依 `active_shell()` 决定查询与广播优先级；`gsettings` 仅在显式出现 `prefer-light` 时判定为 `"light"`，GNOME 默认值 `'default'` 回退到 `DEFAULT_MODE`（dark），杜绝误判为 light。
+   - 生成产物位于 `<generated>/nyxuri/`：`colors.json`（50 token 内部热载契约）、`palette-modes.json`（dark+light 双 mode，镜像与渲染的输入）、`scheme-previews.json`（scheme 画廊缓存）。
    - **取色与渲染分层（P4）**：matugen 仅作取色位（`--json` 纯 stdout，一次输出全 mode）；模板渲染由 `app/services/TemplateService.qml` 经 `shared/utils/TemplateExpr.js`（Noctalia 兼容表达式子集，块/过滤器/`palettes.*` 显式拒绝）完成，matugen 不再渲染任何应用模板。
    - **模板归属**：内置注册表 `shell/app/templates/config.toml`（kitty/btop/starship vendor 自 Noctalia 5.2.1 MIT + 共享池 `~/.config/nyxuri/templates/` 的 gtk/glow/palette.toml + Fcitx5 NyxMellow 皮肤三模板 `fcitx5_theme/panel/highlight`——随 `fcitx5-rime` 单元激活）；用户注册表机制不变。kitty include 管理脚本 `kitty-apply.sh` 双向剥离 `noctalia.conf` 与 `current-theme.conf` 并置于 `__custom__.conf` 之前，彻底解决双 Shell include 顺序覆盖导致的配色失效。每次生成双写 16 角色 palette JSON 到 `~/.config/noctalia/palettes/nyxuri.json`（受管生成物，原子写）供 Noctalia `source = custom` 对齐选用；双 Shell 默认各自独立取色，谁 active 谁写全部输出。
    - **派生契约**：terminal 22 token 与 16 角色映射单点实现在 `shared/utils/ThemePalette.js`（HCT 数学 vendor 自 material-color-utilities，Apache-2.0）；golden master 契约测试见 `shell/tests/qml/tst_ThemeContract.qml`，分歧矩阵（Noctalia 对 `on_*_container` 的 tone 重锚定）钉在 `tests/shell/test_shell.py::TestP4ThemeEngineContract`。
@@ -89,3 +90,4 @@
    - spawn 前后双清场：`stop_all_shell_instances` 按类全量清扫（SIGTERM → 有界等待 → SIGKILL → 补等观察），`stop_shell_process` 返回真实死亡状态。
    - readiness 探针必须指向真实存在的 IPC 子命令（noctalia 用 `theme-mode-get`）；"进程存活超时"不作为就绪证据，杜绝双 Shell 假成功。
    - 回滚前全场清扫，恢复后必须单 Shell；清场失败向上返回失败而非假装成功。
+   - **双轨状态继承契约（State Handoff）**：关停旧 Shell 前由 `capture_active_theme_state` 捕获内存运行态的 `mode`（dark/light）与壁纸路径；目标 Shell 就绪（或回滚恢复旧 Shell）后由 `handoff_theme_state` 注入（Nyxuri Shell 走 `theme.set` / `wallpaper.set` IPC；Noctalia 走 `theme-mode-set` / `wallpaper-set`）并触发全系统同步（`theme.sync`），杜绝切换后深浅模式与壁纸丢失。

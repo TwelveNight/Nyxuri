@@ -325,8 +325,10 @@ class TestRemovePath(unittest.TestCase):
             self.assertFalse(d.exists())
 
     def test_missing_path_is_noop(self):
-        # Must not raise on a path that does not exist.
-        core.remove_path(Path("/nonexistent/nyxuri-does-not-exist"))
+        # Must not raise on a path that does not exist, and must not create it.
+        target = Path("/nonexistent/nyxuri-does-not-exist")
+        core.remove_path(target)
+        self.assertFalse(target.exists())
 
 
 class TestRawInputMode(unittest.TestCase):

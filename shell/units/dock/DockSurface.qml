@@ -717,7 +717,7 @@ PanelWindow {
             DropArea {
                 anchors.fill: parent
                 onEntered: drag => {
-                    if (drag.formats.indexOf("application/x-clavis-dock") >= 0 || drag.hasUrls) {
+                    if (drag.formats.indexOf("application/x-nyxuri-dock") >= 0 || drag.hasUrls) {
                         root.revealed = true;
                         drag.accepted = true;
                     } else {

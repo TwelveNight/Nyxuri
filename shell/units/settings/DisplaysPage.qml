@@ -1,11 +1,20 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import qs.app.services
 import qs.shared.theme
 import qs.shared.controls
+import qs.units.settings
 
+// Displays page shell (M3): keeps the section switch and the routed Loader
+// that hosts the two subpages (configuration / gamma). The subpages render
+// their own NexusPageBase titles, so the shell claims rendersPageTitle and
+// the hosting window's interim route-title shim stays hidden.
 ColumnLayout {
     id: root
+
+    readonly property bool rendersPageTitle: true
 
     property int searchRequestSerial: -1
     readonly property var searchLeaf: pageLoader.item ? (pageLoader.item.searchLeaf || pageLoader.item) : root
@@ -49,9 +58,10 @@ ColumnLayout {
     }
     Component.onDestruction: DisplayConfigService.clearCompletionNotice()
     spacing: 0
+
     StyledButtonGroup {
         Layout.alignment: Qt.AlignHCenter
-        Layout.topMargin: Metrics.pageMargin
+        Layout.topMargin: NexusStyle.padding.small
         currentValue: root.section
         model: [
             {
@@ -65,6 +75,7 @@ ColumnLayout {
         ]
         onValueSelected: value => root.section = value
     }
+
     Loader {
         id: pageLoader
         onLoaded: {

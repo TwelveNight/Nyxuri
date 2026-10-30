@@ -64,6 +64,7 @@ Singleton {
     property bool savePending: false
     property bool systemThemeWriteQueued: false
     property bool requestedDarkMode: false
+    property bool startupAligned: false
     property string systemThemeLastError: ""
     property var drawerGridLayout: ({})
     property var systemCards: ({})
@@ -688,6 +689,16 @@ Singleton {
                 const prefersLight = observed.includes("prefer-light");
                 if (!prefersDark && !prefersLight)
                     return;
+                if (!root.startupAligned) {
+                    root.startupAligned = true;
+                    if (PersonalizationConfig.loaded) {
+                        const userDark = PersonalizationConfig.themeMode === "dark";
+                        if (userDark !== prefersDark) {
+                            root.setDarkMode(userDark);
+                            return;
+                        }
+                    }
+                }
                 root.darkMode = prefersDark;
                 root.systemThemeModeObserved(prefersDark ? "dark" : "light");
             }

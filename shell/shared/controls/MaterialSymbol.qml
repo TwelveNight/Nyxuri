@@ -5,8 +5,10 @@ Text {
 
     property real iconSize: 22
     property real fill: 0
+    property real grade: 0
     property string symbolFamily: "Material Symbols Rounded"
     readonly property real roundedFill: Number(fill).toFixed(1)
+    readonly property real roundedGrade: Number(grade).toFixed(1)
     readonly property int renderedIconSize: Math.max(1, Math.round(root.iconSize))
     readonly property int opticalSize: {
         if (root.renderedIconSize <= 20)
@@ -29,6 +31,7 @@ Text {
         weight: Font.Normal + (Font.DemiBold - Font.Normal) * root.roundedFill
         variableAxes: {
             "FILL": root.roundedFill,
+            "GRAD": root.roundedGrade,
             "opsz": root.opticalSize
         }
     }

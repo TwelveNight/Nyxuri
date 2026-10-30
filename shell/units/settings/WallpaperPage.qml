@@ -1,26 +1,35 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Controls.Material
 import QtQuick.Effects
 import QtQuick.Layouts
-import QtQuick.Window
 import Quickshell
 import qs.shared.theme
 import qs.app.services
 import qs.units.wallpaper
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Wallpaper page (M3 rebuild): NexusPageBase scaffold. The preview heroes,
+// cycle/fill/transition button groups and the Bézier easing editor stay
+// custom (visual assets); every standard row — per-monitor toggles, output
+// selectors, parallax switches and sliders, overview image-effect sliders —
+// is an M1 atom. Wallpaper truth stays with WallpaperService +
+// PersonalizationConfig; nothing here writes config directly.
+NexusPageBase {
     id: root
 
-    property var parentModal: null
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.y + contentColumn.implicitHeight + 20
+    title: I18n.tr("Wallpaper")
 
+    readonly property Item searchLeaf: root.flickable
+
+    property var parentModal: null
     property string selectedDesktopOutput: ""
     property string selectedOverviewOutput: ""
+    property real fillModeGroupRestingWidth: 0
+
     readonly property bool sharedTransitionParametersEnabled: PersonalizationConfig.wallpaperTransitionType
                                                               !== "none"
     readonly property var outputOptions: {
@@ -55,8 +64,6 @@ StyledFlickable {
         "label": option.label,
         "enabled": true
     }))
-    readonly property real pageContentWidth: 600
-    property real fillModeGroupRestingWidth: 0
 
     Component.onCompleted: WallpaperService.refreshOverviewBackdropRule()
 
@@ -87,59 +94,6 @@ StyledFlickable {
 
     function chooseOverviewColor() {
         overviewColorPicker.showFor("overview", root.selectedOverviewOutput);
-    }
-
-    component Section: ColumnLayout {
-        id: section
-
-        property string title: ""
-        property string iconName: "settings"
-        property alias headerTrailing: headerTrailingSlot.data
-        default property alias content: body.data
-
-        Layout.fillWidth: true
-        spacing: 12
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            MaterialSymbol {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                text: section.iconName
-                iconSize: 26
-                fill: 1
-                color: Appearance.colors.colOnSecondaryContainer
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: section.title
-                color: Appearance.colors.colOnSecondaryContainer
-                font.family: Fonts.ui
-                font.pixelSize: 18
-                font.weight: Font.Medium
-            }
-
-            RowLayout {
-                id: headerTrailingSlot
-
-                Layout.alignment: Qt.AlignVCenter
-                spacing: Metrics.spacingS
-            }
-        }
-
-        ColumnLayout {
-            id: body
-            Layout.fillWidth: true
-            spacing: 12
-        }
-    }
-
-    component FlatSettingsSection: SettingsSection {
-        color: "transparent"
-        radius: 0
     }
 
     component WallpaperPreview: Item {
@@ -180,6 +134,7 @@ StyledFlickable {
 
         Rectangle {
             id: previewMask
+
             anchors.fill: parent
             anchors.margins: 1
             radius: Appearance.rounding.normal - 1
@@ -246,11 +201,10 @@ StyledFlickable {
     }
 
     ColumnLayout {
-        id: contentColumn
-        width: root.pageContentWidth
-        x: Math.max(24, (root.width - width) / 2)
-        y: 24
-        spacing: 30
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
         NiriSetupPrompt {
             Layout.fillWidth: true
@@ -268,160 +222,177 @@ StyledFlickable {
             Layout.fillWidth: true
             visible: NiriConfigService.snapshot.overviewSatisfied === true && !NiriConfigService.ready(
                          "layer-rules")
-            message: I18n.tr("Overview is already configured outside Clavis")
+            message: I18n.tr("Overview is already configured outside Nyxuri")
         }
 
-        Section {
-            id: searchSection1
-            title: searchAnchor1.title
+        // Current wallpaper
+        PreferenceHeader {
+            text: I18n.tr("Current wallpaper")
+        }
+
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: WallpaperService.lastDesktopError !== ""
+            tone: "error"
+            message: WallpaperService.lastDesktopError
+        }
+
+        ConnectedRect {
+            id: currentWallpaperCard
+
+            first: true
+            Layout.fillWidth: true
+            implicitHeight: currentWallpaperColumn.implicitHeight + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor1
-                target: searchSection1
+                target: currentWallpaperCard
                 declaration:
                     '{"id":"wallpaper.section.current-wallpaper","route":"wallpaper","title":"Current wallpaper","context":"WallpaperPage","icon":"wallpaper","aliases":[]}'
             }
-            iconName: "wallpaper"
 
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: WallpaperService.lastDesktopError !== ""
-                tone: "error"
-                message: WallpaperService.lastDesktopError
-            }
+            ColumnLayout {
+                id: currentWallpaperColumn
 
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: 24
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.medium
 
-                WallpaperPreview {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: 340
-                    Layout.preferredHeight: 200
-                    sourcePath: root.currentWallpaperPath
-                    paletteEnabled: true
-                    previewSource: WallpaperPaletteSession.previewForScreen("desktop",
-                                                                            root.selectedDesktopOutput)
-                    onChooseFile: root.chooseWallpaperFile()
-                    onChooseColor: root.chooseWallpaperColor()
-                    onClearWallpaper: WallpaperService.clearWallpaper(root.selectedDesktopOutput)
-                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: NexusStyle.padding.large
 
-                ColumnLayout {
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: Math.min(450, Math.max(330, root.width - 420))
-                    spacing: 12
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: root.currentWallpaperPath !== "" ? WallpaperService.basename(
-                                                                     root.currentWallpaperPath) : I18n.tr(
-                                                                     "No wallpaper selected")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: 22
-                        font.weight: Font.Medium
-                        horizontalAlignment: Text.AlignLeft
-                        elide: Text.ElideMiddle
+                    WallpaperPreview {
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 340
+                        Layout.preferredHeight: 200
+                        sourcePath: root.currentWallpaperPath
+                        paletteEnabled: true
+                        previewSource: WallpaperPaletteSession.previewForScreen("desktop",
+                                                                                root.selectedDesktopOutput)
+                        onChooseFile: root.chooseWallpaperFile()
+                        onChooseColor: root.chooseWallpaperColor()
+                        onClearWallpaper: WallpaperService.clearWallpaper(root.selectedDesktopOutput)
                     }
 
-                    Text {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        text: WallpaperService.sourceKind(root.currentWallpaperPath) === "palette"
-                              ? WallpaperService.primaryColor(root.currentWallpaperPath) :
-                                root.currentWallpaperPath
-                        color: Appearance.colors.colSubtext
-                        font.family: Fonts.mono
-                        font.pixelSize: 14
-                        horizontalAlignment: Text.AlignLeft
-                        elide: Text.ElideMiddle
-                        visible: root.currentWallpaperPath !== ""
-                    }
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: NexusStyle.padding.medium
 
-                    StyledButtonGroup {
-                        Layout.alignment: Qt.AlignLeft
-                        model: [({
-                                     "value": "previous",
-                                     "label": I18n.tr("Previous")
-                                 }), ({
-                                          "value": "random",
-                                          "label": I18n.tr("Random")
-                                      }), ({
-                                               "value": "next",
-                                               "label": I18n.tr("Next")
-                                           })]
-                        currentValue: ""
-                        onValueSelected: value => {
-                            if (value === "previous")
-                                WallpaperService.cyclePrevious();
-                            else if (value === "random")
-                                WallpaperService.cycleRandom();
-                            else
-                                WallpaperService.cycleNext();
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: root.currentWallpaperPath !== "" ? WallpaperService.basename(
+                                                                         root.currentWallpaperPath) : I18n.tr(
+                                                                         "No wallpaper selected")
+                            color: Appearance.m3colors.m3onSurface
+                            font.pixelSize: NexusStyle.font.titleLarge
+                            font.weight: NexusStyle.font.titleWeight
+                            horizontalAlignment: Text.AlignLeft
+                            elide: Text.ElideMiddle
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: WallpaperService.sourceKind(root.currentWallpaperPath) === "palette"
+                                  ? WallpaperService.primaryColor(root.currentWallpaperPath) :
+                                    root.currentWallpaperPath
+                            color: Appearance.m3colors.m3outline
+                            font.family: Fonts.mono
+                            font.pixelSize: NexusStyle.font.bodyMedium
+                            horizontalAlignment: Text.AlignLeft
+                            elide: Text.ElideMiddle
+                            visible: root.currentWallpaperPath !== ""
+                        }
+
+                        StyledButtonGroup {
+                            Layout.alignment: Qt.AlignLeft
+                            model: [({
+                                         "value": "previous",
+                                         "label": I18n.tr("Previous")
+                                     }), ({
+                                              "value": "random",
+                                              "label": I18n.tr("Random")
+                                          }), ({
+                                                   "value": "next",
+                                                   "label": I18n.tr("Next")
+                                               })]
+                            currentValue: ""
+                            onValueSelected: value => {
+                                if (value === "previous")
+                                    WallpaperService.cyclePrevious();
+                                else if (value === "random")
+                                    WallpaperService.cycleRandom();
+                                else
+                                    WallpaperService.cycleNext();
+                            }
                         }
                     }
                 }
-            }
 
-            StyledButtonGroup {
-                id: fillModeButtonGroup
+                StyledButtonGroup {
+                    id: fillModeButtonGroup
 
-                Layout.alignment: Qt.AlignHCenter
-                model: root.desktopFillModeOptions
-                currentValue: root.currentDesktopFillMode
-                Component.onCompleted: root.fillModeGroupRestingWidth = implicitWidth
-                onValueSelected: value => WallpaperService.setWallpaperFillModeForScreen(
-                                              root.selectedDesktopOutput, value)
-            }
-
-            FlatSettingsSection {
-                Layout.fillWidth: true
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "splitscreen"
-                    title: I18n.tr("Per-monitor wallpapers")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.perMonitorWallpaper
-                        Accessible.name: I18n.tr("Per-monitor wallpapers")
-                        onToggled: PersonalizationConfig.setPerMonitorWallpaper(checked)
-                    }
-                }
-
-                SearchSelectMenuField {
-                    closeOnAccept: true
-                    Layout.fillWidth: true
-                    options: root.outputOptions
-                    value: root.selectedDesktopOutput
-                    placeholder: I18n.tr("Select output")
-                    Accessible.name: I18n.tr("Desktop wallpaper output")
-                    onAccepted: value => root.selectedDesktopOutput = value
+                    Layout.alignment: Qt.AlignHCenter
+                    model: root.desktopFillModeOptions
+                    currentValue: root.currentDesktopFillMode
+                    Component.onCompleted: root.fillModeGroupRestingWidth = implicitWidth
+                    onValueSelected: value => WallpaperService.setWallpaperFillModeForScreen(
+                                                  root.selectedDesktopOutput, value)
                 }
             }
         }
 
-        Section {
-            id: searchSection2
-            title: searchAnchor2.title
+        PreferenceToggle {
+            text: I18n.tr("Per-monitor wallpapers")
+            checked: PersonalizationConfig.perMonitorWallpaper
+            onToggled: PersonalizationConfig.setPerMonitorWallpaper(checked)
+        }
+
+        PreferenceSelect {
+            last: true
+            label: I18n.tr("Output")
+            model: root.outputOptions
+            currentValue: root.selectedDesktopOutput
+            inputRegionService: PopupInputRegionService
+            onSelected: value => root.selectedDesktopOutput = value
+        }
+
+        // Transition
+        PreferenceHeader {
+            text: I18n.tr("Transition")
+        }
+
+        ConnectedRect {
+            id: transitionTypeCard
+
+            first: true
+            Layout.fillWidth: true
+            implicitHeight: transitionTypeColumn.implicitHeight + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor2
-                target: searchSection2
+                target: transitionTypeCard
                 declaration:
                     '{"id":"wallpaper.section.transition","route":"wallpaper","title":"Transition","context":"WallpaperPage","icon":"wallpaper","aliases":[]}'
             }
-            iconName: "animation"
 
             ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 10
+                id: transitionTypeColumn
 
-                Text {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.small
+
+                StyledText {
                     Layout.fillWidth: true
                     text: I18n.tr("Transition type")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Fonts.ui
-                    font.pixelSize: 15
-                    font.weight: Font.Medium
+                    color: Appearance.m3colors.m3onSurface
+                    font.pixelSize: NexusStyle.font.bodyMedium
                 }
 
                 Item {
@@ -434,7 +405,7 @@ StyledFlickable {
                         id: transitionButtonColumn
 
                         anchors.horizontalCenter: parent.horizontalCenter
-                        spacing: 4
+                        spacing: NexusStyle.padding.extraSmall
 
                         StyledButtonGroup {
                             Layout.alignment: Qt.AlignHCenter
@@ -454,92 +425,54 @@ StyledFlickable {
                     }
                 }
             }
+        }
+
+        PreferenceSlider {
+            label: I18n.tr("Transition duration")
+            valueLabel: Math.round(PersonalizationConfig.transitionDurationMs) + " ms"
+            value: PersonalizationConfig.transitionDurationMs
+            from: 0
+            to: 5000
+            stepSize: 50
+            enabled: root.sharedTransitionParametersEnabled
+            onMoved: value => WallpaperService.setTransitionDurationMs(Math.round(value))
+        }
+
+        ConnectedRect {
+            id: easingCard
+
+            last: true
+            Layout.fillWidth: true
+            implicitHeight: easingColumn.implicitHeight + NexusStyle.padding.medium * 2
 
             ColumnLayout {
-                id: durationSetting
+                id: easingColumn
 
-                Layout.fillWidth: true
-                spacing: 6
-                opacity: root.sharedTransitionParametersEnabled ? 1 : 0.45
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.medium
 
-                HoverHandler {
-                    id: durationHover
-                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: I18n.tr("Transition duration")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                    }
-
-                    Text {
-                        text: PersonalizationConfig.transitionDurationMs + " ms"
-                        color: Appearance.colors.colOnSurfaceVariant
-                        font.family: Fonts.numeric
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                        font.weight: Font.Medium
-                    }
-                }
-
-                MaterialSlider {
-                    id: transitionDurationSlider
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 72
-                    from: 0
-                    to: 5000
-                    stepSize: 50
-                    value: PersonalizationConfig.transitionDurationMs
-                    enabled: root.sharedTransitionParametersEnabled
-                    accessibleName: I18n.tr("Wallpaper transition duration")
-                    valueFormatter: sliderValue => Math.round(sliderValue).toString()
-                    onMoved: value => WallpaperService.setTransitionDurationMs(Math.round(value))
-                }
-
-                StyledToolTip {
-                    extraVisibleCondition: durationHover.hovered && !root.sharedTransitionParametersEnabled
-                    text: I18n.tr("The current transition does not use duration.")
-                }
-            }
-
-            ColumnLayout {
-                id: bezierSetting
-
-                Layout.fillWidth: true
-                spacing: 10
-                opacity: root.sharedTransitionParametersEnabled ? 1 : 0.45
-
-                HoverHandler {
-                    id: bezierHover
-                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                }
-
-                Text {
+                StyledText {
                     Layout.fillWidth: true
                     text: I18n.tr("Easing curve")
-                    color: Appearance.colors.colOnSurface
-                    font.family: Fonts.ui
-                    font.pixelSize: 15
-                    font.weight: Font.Medium
+                    color: Appearance.m3colors.m3onSurface
+                    font.pixelSize: NexusStyle.font.bodyMedium
                 }
 
                 RowLayout {
                     id: bezierControls
 
                     Layout.fillWidth: true
-                    spacing: 20
+                    spacing: NexusStyle.padding.large
                     enabled: root.sharedTransitionParametersEnabled
 
-                    property real controlsWidth: 172
-                    property real chartSide: Math.min(420, Math.max(360, root.pageContentWidth
-                                                                    - controlsWidth - spacing))
+                    readonly property real controlsWidth: 172
+                    readonly property real chartSide: Math.min(420, Math.max(240, root.cappedWidth
+                                                                             - NexusStyle.padding.largeIncreased
+                                                                             * 2 - controlsWidth - spacing))
 
                     BezierCurveEditor {
                         id: easingCurveEditor
@@ -556,9 +489,9 @@ StyledFlickable {
                     }
 
                     ColumnLayout {
-                        Layout.preferredWidth: parent.controlsWidth
+                        Layout.preferredWidth: bezierControls.controlsWidth
                         Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-                        spacing: 12
+                        spacing: NexusStyle.padding.medium
 
                         EasingActionGroup {
                             Layout.alignment: Qt.AlignLeft
@@ -608,164 +541,97 @@ StyledFlickable {
                         }
                     }
                 }
-
-                StyledToolTip {
-                    extraVisibleCondition: bezierHover.hovered && !root.sharedTransitionParametersEnabled
-                    text: I18n.tr("The current transition does not use an easing curve.")
-                }
             }
         }
 
-        Section {
-            id: searchSection3
-            title: searchAnchor3.title
+        // Parallax effects
+        PreferenceHeader {
+            text: I18n.tr("Parallax effects")
+        }
+
+        PreferenceToggle {
+            id: verticalParallaxToggle
+
+            first: true
+            text: I18n.tr("Vertical parallax")
+            checked: PersonalizationConfig.parallaxVerticalEnabled
+            onToggled: PersonalizationConfig.setParallaxVerticalEnabled(checked)
+
             SettingsSearchAnchor {
-                id: searchAnchor3
-                target: searchSection3
+                target: verticalParallaxToggle
                 declaration:
                     '{"id":"wallpaper.section.parallax-effects","route":"wallpaper","title":"Parallax effects","context":"WallpaperPage","icon":"wallpaper","aliases":[]}'
             }
-            iconName: "view_in_ar"
-
-            FlatSettingsSection {
-                id: parallaxSection
-
-                Layout.fillWidth: true
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "swap_vert"
-                    title: I18n.tr("Vertical parallax")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.parallaxVerticalEnabled
-                        Accessible.name: I18n.tr("Vertical parallax")
-                        onToggled: PersonalizationConfig.setParallaxVerticalEnabled(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "workspaces"
-                    title: I18n.tr("Follow workspaces")
-
-                    trailing: Item {
-                        Layout.preferredWidth: workspaceParallaxSwitch.implicitWidth
-                        Layout.preferredHeight: workspaceParallaxSwitch.implicitHeight
-
-                        HoverHandler {
-                            id: workspaceParallaxHover
-                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                        }
-
-                        StyledSwitch {
-                            id: workspaceParallaxSwitch
-
-                            anchors.centerIn: parent
-                            enabled: PersonalizationConfig.parallaxVerticalEnabled
-                            checked: PersonalizationConfig.parallaxFollowWorkspaces
-                            Accessible.name: I18n.tr("Follow workspaces")
-                            onToggled: PersonalizationConfig.setParallaxFollowWorkspaces(checked)
-                        }
-
-                        StyledToolTip {
-                            extraVisibleCondition: workspaceParallaxHover.hovered &&
-                                                   !PersonalizationConfig.parallaxVerticalEnabled
-                            text: I18n.tr("Enable vertical parallax first.")
-                        }
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "dock_to_left"
-                    title: I18n.tr("Follow sidebars")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.parallaxFollowSidebars
-                        Accessible.name: I18n.tr("Follow sidebars")
-                        onToggled: PersonalizationConfig.setParallaxFollowSidebars(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "view_column"
-                    title: I18n.tr("Follow tiled-window focus")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.parallaxFollowTiledColumns
-                        Accessible.name: I18n.tr("Follow tiled-window focus")
-                        onToggled: PersonalizationConfig.setParallaxFollowTiledColumns(checked)
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: I18n.tr("Wallpaper scale")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                        font.weight: Font.Medium
-                    }
-
-                    MaterialSlider {
-                        Layout.fillWidth: true
-                        enabled: root.preferredScaleControlEnabled
-                        from: 1
-                        to: 1.35
-                        stepSize: 0.01
-                        value: root.effectivePreferredScale
-                        accessibleName: I18n.tr("Wallpaper scale")
-                        valueFormatter: sliderValue => Number(sliderValue).toFixed(2)
-                        onMoved: PersonalizationConfig.setParallaxPreferredScale(value)
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: I18n.tr("Horizontal travel columns")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                        font.weight: Font.Medium
-                    }
-
-                    MaterialSlider {
-                        Layout.fillWidth: true
-                        from: 2
-                        to: 12
-                        stepSize: 1
-                        value: PersonalizationConfig.parallaxTiledColumnSpan
-                        accessibleName: I18n.tr("Horizontal travel columns")
-                        valueFormatter: sliderValue => Math.round(sliderValue).toString()
-                        onMoved: PersonalizationConfig.setParallaxTiledColumnSpan(Math.round(value))
-                    }
-                }
-            }
         }
 
-        Section {
-            id: searchSection4
-            title: searchAnchor4.title
+        PreferenceToggle {
+            text: I18n.tr("Follow workspaces")
+            enabled: PersonalizationConfig.parallaxVerticalEnabled
+            checked: PersonalizationConfig.parallaxFollowWorkspaces
+            onToggled: PersonalizationConfig.setParallaxFollowWorkspaces(checked)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Follow sidebars")
+            checked: PersonalizationConfig.parallaxFollowSidebars
+            onToggled: PersonalizationConfig.setParallaxFollowSidebars(checked)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Follow tiled-window focus")
+            checked: PersonalizationConfig.parallaxFollowTiledColumns
+            onToggled: PersonalizationConfig.setParallaxFollowTiledColumns(checked)
+        }
+
+        PreferenceSlider {
+            enabled: root.preferredScaleControlEnabled
+            label: I18n.tr("Wallpaper scale")
+            valueLabel: Number(root.effectivePreferredScale).toFixed(2)
+            value: root.effectivePreferredScale
+            from: 1
+            to: 1.35
+            stepSize: 0.01
+            onMoved: value => PersonalizationConfig.setParallaxPreferredScale(value)
+        }
+
+        PreferenceSlider {
+            last: true
+            label: I18n.tr("Horizontal travel columns")
+            valueLabel: Math.round(PersonalizationConfig.parallaxTiledColumnSpan).toString()
+            value: PersonalizationConfig.parallaxTiledColumnSpan
+            from: 2
+            to: 12
+            stepSize: 1
+            onMoved: value => PersonalizationConfig.setParallaxTiledColumnSpan(Math.round(value))
+        }
+
+        // Overview background
+        PreferenceHeader {
+            text: I18n.tr("Overview background")
+        }
+
+        ConnectedRect {
+            id: overviewPreviewCard
+
+            first: true
+            Layout.fillWidth: true
+            implicitHeight: overviewPreviewColumn.implicitHeight + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor4
-                target: searchSection4
+                target: overviewPreviewCard
                 declaration:
                     '{"id":"wallpaper.section.overview-background","route":"wallpaper","title":"Overview background","context":"WallpaperPage","icon":"wallpaper","aliases":[]}'
             }
-            iconName: "overview"
 
-            FlatSettingsSection {
-                Layout.fillWidth: true
+            ColumnLayout {
+                id: overviewPreviewColumn
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.medium
 
                 WallpaperPreview {
                     Layout.alignment: Qt.AlignHCenter
@@ -790,57 +656,55 @@ StyledFlickable {
                     onValueSelected: value => WallpaperService.setOverviewFillModeForScreen(
                                                   root.selectedOverviewOutput, value)
                 }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "visibility"
-                    title: I18n.tr("Enable background")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.overviewEnabled
-                        Accessible.name: I18n.tr("Enable background")
-                        onToggled: PersonalizationConfig.setOverviewEnabled(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "sync"
-                    title: I18n.tr("Use desktop wallpaper")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.overviewUseDesktopWallpaper
-                        Accessible.name: I18n.tr("Use desktop wallpaper")
-                        onToggled: PersonalizationConfig.setOverviewUseDesktopWallpaper(checked)
-                    }
-                }
-
-                SettingsRow {
-                    Layout.fillWidth: true
-                    iconName: "splitscreen"
-                    title: I18n.tr("Per-monitor wallpapers")
-
-                    trailing: StyledSwitch {
-                        checked: PersonalizationConfig.overviewPerMonitorWallpaper
-                        Accessible.name: I18n.tr("Per-monitor wallpapers")
-                        onToggled: PersonalizationConfig.setOverviewPerMonitorWallpaper(checked)
-                    }
-                }
-
-                SearchSelectMenuField {
-                    closeOnAccept: true
-                    Layout.fillWidth: true
-                    options: root.outputOptions
-                    value: root.selectedOverviewOutput
-                    placeholder: I18n.tr("Select output")
-                    Accessible.name: I18n.tr("Overview wallpaper output")
-                    onAccepted: value => root.selectedOverviewOutput = value
-                }
             }
+        }
 
-            FlatSettingsSection {
-                Layout.fillWidth: true
-                title: I18n.tr("Transition type")
+        PreferenceToggle {
+            text: I18n.tr("Enable background")
+            checked: PersonalizationConfig.overviewEnabled
+            onToggled: PersonalizationConfig.setOverviewEnabled(checked)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Use desktop wallpaper")
+            checked: PersonalizationConfig.overviewUseDesktopWallpaper
+            onToggled: PersonalizationConfig.setOverviewUseDesktopWallpaper(checked)
+        }
+
+        PreferenceToggle {
+            text: I18n.tr("Per-monitor wallpapers")
+            checked: PersonalizationConfig.overviewPerMonitorWallpaper
+            onToggled: PersonalizationConfig.setOverviewPerMonitorWallpaper(checked)
+        }
+
+        PreferenceSelect {
+            last: true
+            label: I18n.tr("Output")
+            model: root.outputOptions
+            currentValue: root.selectedOverviewOutput
+            inputRegionService: PopupInputRegionService
+            onSelected: value => root.selectedOverviewOutput = value
+        }
+
+        PreferenceHeader {
+            text: I18n.tr("Transition type")
+        }
+
+        ConnectedRect {
+            first: true
+            last: true
+            Layout.fillWidth: true
+            implicitHeight: overviewTransitionColumn.implicitHeight + NexusStyle.padding.medium * 2
+
+            ColumnLayout {
+                id: overviewTransitionColumn
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.extraSmall
 
                 StyledButtonGroup {
                     Layout.alignment: Qt.AlignHCenter
@@ -856,155 +720,106 @@ StyledFlickable {
                     onValueSelected: value => PersonalizationConfig.setOverviewTransitionType(value)
                 }
             }
+        }
 
-            FlatSettingsSection {
-                Layout.fillWidth: true
-                title: I18n.tr("Image effects")
-                opacity: PersonalizationConfig.overviewEnabled ? 1 : 0.45
+        PreferenceHeader {
+            text: I18n.tr("Image effects")
+        }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
+        PreferenceSlider {
+            first: true
+            enabled: PersonalizationConfig.overviewEnabled
+            label: I18n.tr("Blur")
+            valueLabel: Math.round(PersonalizationConfig.overviewBlurRadius) + "%"
+            value: PersonalizationConfig.overviewBlurRadius
+            from: 0
+            to: 100
+            stepSize: 1
+            onMoved: value => PersonalizationConfig.setOverviewBlurRadius(value)
+        }
 
-                    Text {
-                        text: I18n.tr("Blur")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                    }
+        PreferenceSlider {
+            enabled: PersonalizationConfig.overviewEnabled
+            label: I18n.tr("Dim")
+            valueLabel: Math.round(PersonalizationConfig.overviewDim * 100) + "%"
+            value: PersonalizationConfig.overviewDim
+            from: 0
+            to: 1
+            stepSize: 0.01
+            onMoved: value => PersonalizationConfig.setOverviewDim(value)
+        }
 
-                    MaterialSlider {
-                        Layout.fillWidth: true
-                        enabled: PersonalizationConfig.overviewEnabled
-                        from: 0
-                        to: 100
-                        stepSize: 1
-                        value: PersonalizationConfig.overviewBlurRadius
-                        accessibleName: I18n.tr("Overview blur")
-                        valueFormatter: value => Math.round(value) + "%"
-                        onMoved: PersonalizationConfig.setOverviewBlurRadius(value)
-                    }
-                }
+        PreferenceSlider {
+            enabled: PersonalizationConfig.overviewEnabled
+            label: I18n.tr("Saturation")
+            valueLabel: Number(PersonalizationConfig.overviewSaturation).toFixed(2)
+            value: PersonalizationConfig.overviewSaturation
+            from: 0
+            to: 2
+            stepSize: 0.05
+            onMoved: value => PersonalizationConfig.setOverviewSaturation(value)
+        }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
+        PreferenceSlider {
+            last: true
+            enabled: PersonalizationConfig.overviewEnabled
+            label: I18n.tr("Contrast")
+            valueLabel: Number(PersonalizationConfig.overviewContrast).toFixed(2)
+            value: PersonalizationConfig.overviewContrast
+            from: 0.5
+            to: 2
+            stepSize: 0.05
+            onMoved: value => PersonalizationConfig.setOverviewContrast(value)
+        }
 
-                    Text {
-                        text: I18n.tr("Dim")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                    }
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: WallpaperService.lastOverviewError !== ""
+            tone: "error"
+            message: WallpaperService.lastOverviewError
+        }
 
-                    MaterialSlider {
-                        Layout.fillWidth: true
-                        enabled: PersonalizationConfig.overviewEnabled
-                        from: 0
-                        to: 1
-                        stepSize: 0.01
-                        value: PersonalizationConfig.overviewDim
-                        accessibleName: I18n.tr("Overview dimming")
-                        valueFormatter: value => Math.round(value * 100) + "%"
-                        onMoved: PersonalizationConfig.setOverviewDim(value)
-                    }
-                }
+        // Non-visual children live inside the content column (NexusPageBase
+        // takes a single Item; children on the page root are a type error
+        // that kills the whole page — 2026-10-25 lesson).
+        WallpaperFileBrowser {
+            id: wallpaperFileBrowser
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Text {
-                        text: I18n.tr("Saturation")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                    }
-
-                    MaterialSlider {
-                        Layout.fillWidth: true
-                        enabled: PersonalizationConfig.overviewEnabled
-                        from: 0
-                        to: 2
-                        stepSize: 0.05
-                        value: PersonalizationConfig.overviewSaturation
-                        accessibleName: I18n.tr("Overview saturation")
-                        valueFormatter: value => Number(value).toFixed(2)
-                        onMoved: PersonalizationConfig.setOverviewSaturation(value)
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Text {
-                        text: I18n.tr("Contrast")
-                        color: Appearance.colors.colOnSurface
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                    }
-
-                    MaterialSlider {
-                        Layout.fillWidth: true
-                        enabled: PersonalizationConfig.overviewEnabled
-                        from: 0.5
-                        to: 2
-                        stepSize: 0.05
-                        value: PersonalizationConfig.overviewContrast
-                        accessibleName: I18n.tr("Overview contrast")
-                        valueFormatter: value => Number(value).toFixed(2)
-                        onMoved: PersonalizationConfig.setOverviewContrast(value)
-                    }
-                }
-
-                InlineStatusBanner {
-                    Layout.fillWidth: true
-                    visible: WallpaperService.lastOverviewError !== ""
-                    tone: "error"
-                    message: WallpaperService.lastOverviewError
-                }
+            parentModal: root.parentModal
+            startPath: PersonalizationConfig.wallpaperFolder
+            onFolderSelected: path => {
+                WallpaperService.setWallpaperFolder(path);
+            }
+            onFileSelected: path => {
+                WallpaperService.setWallpaperFromFile(path, root.selectedDesktopOutput);
             }
         }
 
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 20
+        WallpaperColorPicker {
+            id: wallpaperColorPicker
+
+            parentModal: root.parentModal
         }
-    }
 
-    WallpaperFileBrowser {
-        id: wallpaperFileBrowser
-        parentModal: root.parentModal
-        startPath: PersonalizationConfig.wallpaperFolder
-        onFolderSelected: path => {
-            WallpaperService.setWallpaperFolder(path);
+        WallpaperFileBrowser {
+            id: overviewFileBrowser
+
+            parentModal: root.parentModal
+            startPath: PersonalizationConfig.wallpaperFolder
+            onFileSelected: path => WallpaperService.setOverviewWallpaper(path, root.selectedOverviewOutput)
         }
-        onFileSelected: path => {
-            WallpaperService.setWallpaperFromFile(path, root.selectedDesktopOutput);
+
+        WallpaperColorPicker {
+            id: overviewColorPicker
+
+            parentModal: root.parentModal
         }
-    }
 
-    WallpaperColorPicker {
-        id: wallpaperColorPicker
-        parentModal: root.parentModal
-    }
+        BezierCurveLayerEditor {
+            id: bezierCurveLayerEditor
 
-    WallpaperFileBrowser {
-        id: overviewFileBrowser
-        parentModal: root.parentModal
-        startPath: PersonalizationConfig.wallpaperFolder
-        onFileSelected: path => WallpaperService.setOverviewWallpaper(path, root.selectedOverviewOutput)
-    }
-
-    WallpaperColorPicker {
-        id: overviewColorPicker
-        parentModal: root.parentModal
-    }
-
-    BezierCurveLayerEditor {
-        id: bezierCurveLayerEditor
-        parentModal: root.parentModal
-        onCurveEdited: nextCurve => WallpaperService.setTransitionBezierCurve(nextCurve)
+            parentModal: root.parentModal
+            onCurveEdited: nextCurve => WallpaperService.setTransitionBezierCurve(nextCurve)
+        }
     }
 }

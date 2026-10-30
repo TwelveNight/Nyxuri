@@ -23,11 +23,11 @@ fi
 template_id=${1:-}
 [[ "$template_id" =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ ]] || fail 'Use letters, numbers, dots, hyphens or underscores for the template ID'
 
-# Serialize Clavis writers without creating the user registry just to inspect it.
-mkdir -p -- "$CLAVIS_RUNTIME_HOME/temporary"
-exec 9>"$CLAVIS_RUNTIME_HOME/temporary/matugen-registry.lock"
+# Serialize registry writers without creating the user registry just to inspect it.
+mkdir -p -- "$NYXURI_SHELL_RUNTIME_HOME/temporary"
+exec 9>"$NYXURI_SHELL_RUNTIME_HOME/temporary/matugen-registry.lock"
 flock -x 9
-work_dir=$(mktemp -d "$CLAVIS_RUNTIME_HOME/temporary/matugen-manage.XXXXXX")
+work_dir=$(mktemp -d "$NYXURI_SHELL_RUNTIME_HOME/temporary/matugen-manage.XXXXXX")
 config_temp=''
 copied_path=''
 cleanup() {

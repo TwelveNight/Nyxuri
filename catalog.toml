@@ -1,6 +1,7 @@
 # 包目录清单 — 声明「装但不部署」的软件。这不是单元（unit-model §2）：
-# 目录条目不携带配置文件、没有账本生命周期，只服务两处同源消费：
-# `nyxuri deps apps` 菜单与 packaging/gen-deps.py 的 optdepends。
+# 目录条目不携带配置文件、没有账本生命周期，只服务一处消费：
+# `nyxuri deps apps` 菜单。packaging/gen-deps.py 有意不读这份清单
+# （T1 依赖按需化后 optdepends 与菜单脱钩，见 PKGBUILD 头注释）。
 # 显示名（双语）住 nyxuri/translations.toml 的 app_* 键，此处不重复。
 
 [brave-origin]

@@ -98,15 +98,31 @@ cd ~/Nyxuri && ./install.sh
 ```
 </details>
 
+### 从 AUR 安装
+
+```bash
+paru -S nyxuri-git
+```
+
+若系统未安装 AUR 助手，可手动构建并安装 `nyxuri-git` 软件包：
+
+```bash
+# 克隆 PKGBUILD 仓库
+git clone https://aur.archlinux.org/nyxuri-git.git
+
+# 构建并安装
+cd nyxuri-git && makepkg -si
+```
+
 ## 架构与单元
 
 ```text
 Nyxuri
 ├── install.sh                  # 极简引导入口
-├── catalog.toml                # 软件目录清单（17 款日常软件同源依赖）
+├── catalog.toml                # 软件目录清单（18 款日常软件同源依赖）
 ├── nyxuri/                     # Python 核心引擎（零 pip 依赖）
 ├── shell/                      # Nyxuri Shell（自研 QML/Qt6 桌面外壳，实验性）
-└── units/                      # 12 个独立原子桌面能力单元
+└── units/                      # 13 个独立原子桌面能力单元
     ├── fastfetch/              # 系统信息展示
     ├── fcitx5-rime/            # 动态 Material You 输入法皮肤与配置
     ├── fish/                   # Shell 别名与实用函数
@@ -116,6 +132,7 @@ Nyxuri
     ├── niri/                   # 窗口管理器与动作调度脚本
     ├── noctalia/               # 桌面外壳、主题同步、Orbit 星环与壁纸选择器
     ├── starship/               # 终端提示符
+    ├── theme/                  # 共享 matugen 主题模板池
     ├── wallpapers/             # 配套壁纸与动态视频包下载钩子
     ├── xdg-desktop-portal/     # Portal 路由（主题与录屏分流）
     └── zed/                    # 代码编辑器配置

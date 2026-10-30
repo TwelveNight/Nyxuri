@@ -8,7 +8,7 @@
 # effects_normal.kdl stores active effects part variant across deploys.
 # glow.kdl stores active glow/focus-ring part variant across deploys.
 # colors.kdl stores dynamic Material You palette rendered by Noctalia.
-preserve = ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "eyecare_temp"]
+preserve = ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "noctalia.kdl", "eyecare_temp"]
 chmod = ["scripts/*.sh", "scripts/*.py"]
 
 [parts.effects]

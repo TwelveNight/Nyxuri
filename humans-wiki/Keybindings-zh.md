@@ -14,8 +14,6 @@
 | <kbd>Super</kbd> + <kbd>F</kbd> | 最大化当前列 |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | 全屏 |
 | <kbd>Super</kbd> + <kbd>Tab</kbd> | 工作区总览 |
-| <kbd>Alt</kbd> + <kbd>Tab</kbd> / <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>Tab</kbd> | 在当前输出跨窗口切换焦点 |
-| <kbd>Alt</kbd> + <kbd>`</kbd> | 在同应用窗口间切换焦点 |
 | <kbd>Super</kbd> + <kbd>Z</kbd> / <kbd>C</kbd> | 聚焦左/右列 |
 | <kbd>Super</kbd> + <kbd>方向键</kbd> | 焦点移动（跨列 / 跨屏 / 跨工作区） |
 | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>方向键</kbd> | 移动窗口（跨列 / 跨屏 / 跨工作区） |

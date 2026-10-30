@@ -15,6 +15,12 @@ import unittest
 from pathlib import Path
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import os
+import re
+import subprocess
+import tempfile
+
 
 _GENDEPS = Path(__file__).resolve().parents[2] / "packaging" / "gen-deps.py"
 
@@ -125,3 +131,29 @@ class TestGenDeps(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGenDepsQuoting(unittest.TestCase):
+
+    def _load(self):
+        import importlib.util
+        path = Path(__file__).resolve().parents[2] / "packaging" / "gen-deps.py"
+        spec = importlib.util.spec_from_file_location("gen_deps_under_test", path)
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except SystemExit:
+            pass
+        return mod
+
+    def test_apostrophe_in_label_is_shell_quoted(self):
+        mod = self._load()
+        rendered = mod._render(["kitty"], [("mpvpaper", "Foo's App")])
+        with tempfile.NamedTemporaryFile("w", suffix=".bash", delete=False) as handle:
+            handle.write(rendered)
+            script = handle.name
+        try:
+            result = subprocess.run(["bash", "-n", script], capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        finally:
+            os.unlink(script)

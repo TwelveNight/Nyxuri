@@ -71,4 +71,7 @@ cursor {
 // 将自定义的自启项或窗口规则写在 __custom__.kdl 中，更新时自动保留。
 // 你也可以在当前目录创建 __custom__/ 文件夹放置个人脚本。
 // ==========================================================
+// 动态引入 Noctalia 生成的主题配色 (受 Manifest preserve 保护)
+include optional=true "noctalia.kdl"
+
 include "__custom__.kdl"

@@ -1,23 +1,28 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Material
 import QtQuick.Layouts
-import QtQuick.Window
 import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Theme page (M3 rebuild): NexusPageBase scaffold + theme-mode preview cards,
+// then panel style / color scheme / transparency / super key / lock screen /
+// cursor / icon theme / fonts / matugen templates groups. Every standard row
+// is an M1 atom; the preview pair, panel-style card, scheme button groups,
+// keycap picker, cursor theme selector and the template list stay custom —
+// they are semantic pickers the atom suite deliberately has no shape for.
+NexusPageBase {
     id: root
 
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.y + contentColumn.implicitHeight + 24
+    title: I18n.tr("Theme")
 
-    Component.onCompleted: NiriConfigService.refresh()
+    readonly property Item searchLeaf: root.flickable
 
-    readonly property real pageContentWidth: 600
     property var parentModal: null
     property var pendingDeleteTemplate: null
 
@@ -31,46 +36,7 @@ StyledFlickable {
         templateDialog.close();
     }
 
-    component Section: ColumnLayout {
-        id: section
-
-        property string title: ""
-        property string iconName: "palette"
-        default property alias content: body.data
-
-        Layout.fillWidth: true
-        spacing: 12
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            MaterialSymbol {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                text: section.iconName
-                iconSize: 26
-                fill: 1
-                color: Appearance.colors.colOnSecondaryContainer
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: section.title
-                color: Appearance.colors.colOnSecondaryContainer
-                font.family: Fonts.ui
-                font.pixelSize: 18
-                font.weight: Font.Medium
-            }
-        }
-
-        ColumnLayout {
-            id: body
-
-            Layout.fillWidth: true
-            spacing: 10
-        }
-    }
+    Component.onCompleted: NiriConfigService.refresh()
 
     component PreviewSegmentGroup: Item {
         id: previewGroup
@@ -158,6 +124,7 @@ StyledFlickable {
 
         Layout.preferredWidth: 288
         Layout.preferredHeight: 180
+        Layout.fillWidth: true
         scale: cardMouse.pressed ? 0.985 : 1
 
         Behavior on scale {
@@ -268,6 +235,7 @@ StyledFlickable {
 
         MouseArea {
             id: cardMouse
+
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
@@ -275,205 +243,17 @@ StyledFlickable {
         }
     }
 
-    component SearchSelectSettingRow: Item {
-        id: selectRow
-
-        property string title: ""
-        property string description: ""
-        property var options: []
-        property string value: ""
-        property string placeholder: ""
-        property string textRole: "label"
-        property string valueRole: "value"
-        property int fieldWidth: 240
-
-        signal accepted(string value)
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: Math.max(58, selectLabelColumn.implicitHeight + 16)
-
-        RowLayout {
-            anchors.fill: parent
-            spacing: 16
-
-            Column {
-                id: selectLabelColumn
-
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 3
-
-                Text {
-                    width: parent.width
-                    text: selectRow.title
-                    color: Appearance.colors.colOnSurface
-                    font.family: Fonts.ui
-                    font.pixelSize: 15
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    width: parent.width
-                    text: selectRow.description
-                    color: Appearance.colors.colSubtext
-                    font.family: Fonts.ui
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
-                    visible: text !== ""
-                }
-            }
-
-            SearchSelectMenuField {
-                closeOnAccept: false
-                Layout.preferredWidth: selectRow.fieldWidth
-                Layout.preferredHeight: 40
-                Layout.alignment: Qt.AlignVCenter
-                options: selectRow.options
-                value: selectRow.value
-                placeholder: selectRow.placeholder
-                textRole: selectRow.textRole
-                valueRole: selectRow.valueRole
-                onAccepted: value => selectRow.accepted(value)
-            }
-        }
-    }
-
-    component ToggleSettingRow: Item {
-        id: toggleRow
-
-        property string title: ""
-        property string description: ""
-        property bool checked: false
-        property bool enabled: true
-
-        signal toggled(bool checked)
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: Math.max(58, toggleLabelColumn.implicitHeight + 16)
-        opacity: toggleRow.enabled ? 1 : 0.45
-
-        RowLayout {
-            anchors.fill: parent
-            spacing: 16
-
-            Column {
-                id: toggleLabelColumn
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 3
-
-                Text {
-                    width: parent.width
-                    text: toggleRow.title
-                    color: Appearance.colors.colOnSurface
-                    font.family: Fonts.ui
-                    font.pixelSize: 15
-                    font.weight: Font.Medium
-                }
-
-                Text {
-                    width: parent.width
-                    text: toggleRow.description
-                    color: Appearance.colors.colSubtext
-                    font.family: Fonts.ui
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
-                    visible: text !== ""
-                }
-            }
-
-            StyledSwitch {
-                Layout.alignment: Qt.AlignVCenter
-                enabled: toggleRow.enabled
-                checked: toggleRow.checked
-                onToggled: toggleRow.toggled(checked)
-            }
-        }
-    }
-
-    component SliderSettingRow: ColumnLayout {
-        id: sliderRow
-
-        property string title: ""
-        property string description: ""
-        property real value: 0
-        property real from: 0
-        property real to: 1
-        property real stepSize: 1
-        property string suffix: ""
-
-        signal moved(real value)
-
-        Layout.fillWidth: true
-        spacing: 6
-
-        function formatValue(displayValue) {
-            return Math.round(displayValue).toString() + (suffix !== "" ? " " + suffix : "");
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 16
-
-            Text {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                text: sliderRow.title
-                color: Appearance.colors.colOnSurface
-                font.family: Fonts.ui
-                font.pixelSize: 15
-                font.weight: Font.Medium
-            }
-
-            Text {
-                Layout.alignment: Qt.AlignVCenter
-                text: sliderRow.formatValue(sliderRow.value)
-                color: Appearance.colors.colOnSurfaceVariant
-                font.family: Fonts.numeric
-                font.pixelSize: Typography.bodyMedium.pixelSize
-                font.weight: Font.Medium
-                horizontalAlignment: Text.AlignRight
-                verticalAlignment: Text.AlignVCenter
-            }
-        }
-
-        Text {
-            Layout.fillWidth: true
-            text: sliderRow.description
-            color: Appearance.colors.colSubtext
-            font.family: Fonts.ui
-            font.pixelSize: 12
-            wrapMode: Text.WordWrap
-            visible: text !== ""
-        }
-
-        MaterialSlider {
-            id: settingSlider
-
-            Layout.fillWidth: true
-            Layout.preferredHeight: 72
-            from: sliderRow.from
-            to: sliderRow.to
-            stepSize: sliderRow.stepSize
-            value: sliderRow.value
-            accessibleName: sliderRow.title
-            valueFormatter: sliderValue => Math.round(sliderValue).toString() + sliderRow.suffix
-            onMoved: value => sliderRow.moved(Math.round(value))
-        }
-    }
-
     ColumnLayout {
-        id: contentColumn
-        width: root.pageContentWidth
-        x: Math.max(24, (root.width - width) / 2)
-        y: 28
-        spacing: 30
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
+        // Cursor integration gate (Niri config setup).
         NiriSetupPrompt {
             Layout.fillWidth: true
             title: I18n.tr("Cursor integration")
-            description: I18n.tr("Create or connect the Clavis cursor configuration.")
+            description: I18n.tr("Create or connect the Nyxuri cursor configuration.")
             integrationState: NiriConfigService.state("cursor")
             busy: NiriConfigService.busy && NiriConfigService.activeFeature === "cursor"
             blocked: NiriConfigService.busy
@@ -481,9 +261,11 @@ StyledFlickable {
             onSetupRequested: NiriConfigService.setup("cursor")
         }
 
+        // Theme mode preview pair — the page's visual anchor.
         RowLayout {
+            Layout.topMargin: NexusStyle.padding.small
             Layout.fillWidth: true
-            spacing: 16
+            spacing: NexusStyle.padding.medium
 
             ThemePreviewCard {
                 title: I18n.tr("Light")
@@ -500,36 +282,51 @@ StyledFlickable {
             }
         }
 
-        Section {
-            id: searchSectionPanelStyle
-            title: searchAnchorPanelStyle.title
+        // Settings panel style
+        PreferenceHeader {
+            text: I18n.tr("Settings panel style")
+        }
+
+        SettingsPanelStyleCard {
+            id: panelStyleCard
+
+            Layout.fillWidth: true
+
             SettingsSearchAnchor {
-                id: searchAnchorPanelStyle
-                target: searchSectionPanelStyle
+                target: panelStyleCard
                 declaration:
                     '{"id":"theme.section.settings-panel-style","route":"theme","title":"Settings panel style","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "dashboard_customize"
-
-            SettingsPanelStyleCard {
-                Layout.fillWidth: true
-            }
         }
 
-        Section {
-            id: searchSection0
-            title: searchAnchor0.title
+        // matugen color scheme
+        PreferenceHeader {
+            text: I18n.tr("Color scheme")
+        }
+
+        ConnectedRect {
+            id: schemeRow
+
+            first: true
+            last: true
+            Layout.fillWidth: true
+            implicitHeight: schemeColumn.implicitHeight + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor0
-                target: searchSection0
+                target: schemeRow
                 declaration:
                     '{"id":"theme.section.matugen-color-scheme","route":"theme","title":"matugen color scheme","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "colors"
 
             ColumnLayout {
-                Layout.alignment: Qt.AlignLeft
-                spacing: 4
+                id: schemeColumn
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.extraSmall
 
                 StyledButtonGroup {
                     Layout.alignment: Qt.AlignLeft
@@ -549,87 +346,109 @@ StyledFlickable {
             }
         }
 
-        Section {
-            id: searchSectionEffects
-            title: searchAnchorEffects.title
+        // Transparency and blur
+        PreferenceHeader {
+            text: I18n.tr("Transparency and blur")
+        }
+
+        NiriSetupPrompt {
+            Layout.fillWidth: true
+            title: I18n.tr("Background effects")
+            description: I18n.tr("Create or connect the Nyxuri X-Ray rules.")
+            integrationState: NiriConfigService.state("effects")
+            busy: NiriConfigService.busy && NiriConfigService.activeFeature === "effects"
+            blocked: NiriConfigService.busy
+            error: NiriConfigService.error
+            onSetupRequested: NiriConfigService.setup("effects")
+        }
+
+        PreferenceSlider {
+            id: opacitySlider
+
+            first: true
+            label: I18n.tr("Background opacity")
+            valueLabel: Math.round(PersonalizationConfig.shellBackgroundOpacity * 100) + " %"
+            value: PersonalizationConfig.shellBackgroundOpacity * 100
+            from: 0
+            to: 100
+            stepSize: 1
+            onMoved: value => PersonalizationConfig.setShellBackgroundOpacity(value / 100)
+
             SettingsSearchAnchor {
-                id: searchAnchorEffects
-                target: searchSectionEffects
+                target: opacitySlider
                 declaration:
                     '{"id":"theme.section.transparency-and-blur","route":"theme","title":"Transparency and blur","context":"ThemePage","icon":"blur_on","aliases":["effects.section.background","general.effects.section.background","effects","general.effects"]}'
             }
-            iconName: "blur_on"
-
-            NiriSetupPrompt {
-                Layout.fillWidth: true
-                title: I18n.tr("Background effects")
-                description: I18n.tr("Create or connect the Clavis X-Ray rules.")
-                integrationState: NiriConfigService.state("effects")
-                busy: NiriConfigService.busy && NiriConfigService.activeFeature === "effects"
-                blocked: NiriConfigService.busy
-                error: NiriConfigService.error
-                onSetupRequested: NiriConfigService.setup("effects")
-            }
-
-            SliderSettingRow {
-                title: I18n.tr("Background opacity")
-                from: 0
-                to: 100
-                stepSize: 1
-                suffix: "%"
-                value: PersonalizationConfig.shellBackgroundOpacity * 100
-                onMoved: value => PersonalizationConfig.setShellBackgroundOpacity(value / 100)
-            }
-
-            ToggleSettingRow {
-                title: I18n.tr("Background blur")
-                enabled: BlurService.available
-                checked: PersonalizationConfig.shellBlurEnabled
-                onToggled: checked => PersonalizationConfig.setShellBlurEnabled(checked)
-            }
-
-            ToggleSettingRow {
-                title: I18n.tr("Blur wallpaper only")
-                description: BlurService.niriIntegrationReady ? I18n.tr(
-                                                                    "Turning this off also blurs windows and uses more resources") :
-                                                                I18n.tr("Configure Niri blur integration first")
-                enabled: BlurService.available && BlurService.niriIntegrationReady
-                checked: PersonalizationConfig.shellBlurXray
-                onToggled: checked => PersonalizationConfig.setShellBlurXray(checked)
-            }
-
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: BlurService.lastError !== ""
-                tone: "error"
-                message: BlurService.lastError
-            }
         }
 
-        Section {
-            id: searchSection1
-            title: searchAnchor1.title
+        PreferenceToggle {
+            text: I18n.tr("Background blur")
+            enabled: BlurService.available
+            checked: PersonalizationConfig.shellBlurEnabled
+            onToggled: PersonalizationConfig.setShellBlurEnabled(checked)
+        }
+
+        PreferenceToggle {
+            last: true
+            text: I18n.tr("Blur wallpaper only")
+            subtext: BlurService.niriIntegrationReady ? I18n.tr(
+                                                            "Turning this off also blurs windows and uses more resources") :
+                                                        I18n.tr("Configure Niri blur integration first")
+            enabled: BlurService.available && BlurService.niriIntegrationReady
+            checked: PersonalizationConfig.shellBlurXray
+            onToggled: PersonalizationConfig.setShellBlurXray(checked)
+        }
+
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: BlurService.lastError !== ""
+            tone: "error"
+            message: BlurService.lastError
+        }
+
+        // Super key appearance
+        PreferenceHeader {
+            text: I18n.tr("Super key appearance")
+        }
+
+        ConnectedRect {
+            id: superKeyRow
+
+            first: true
+            last: true
+            Layout.fillWidth: true
+            implicitHeight: superKeyFlow.implicitHeight + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor1
-                target: searchSection1
+                target: superKeyRow
                 declaration:
                     '{"id":"theme.section.super-key-appearance","route":"theme","title":"Super key appearance","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "keyboard"
+
             Flow {
-                Layout.fillWidth: true
-                spacing: Metrics.spacingS
+                id: superKeyFlow
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.small
+
                 Repeater {
                     model: PersonalizationConfig.superKeyStyles
+
                     delegate: RippleButton {
                         id: superChoice
+
                         required property var modelData
+
                         implicitWidth: 84
                         implicitHeight: 56
-                        buttonRadius: Appearance.rounding.small
+                        buttonRadius: NexusStyle.rounding.small
                         containerColor: PersonalizationConfig.superKeyStyle === modelData.value
-                                        ? Appearance.colors.colSecondaryContainer :
-                                          Appearance.colors.colLayer2
+                                        ? Appearance.m3colors.m3secondaryContainer :
+                                          Appearance.m3colors.m3surfaceContainerHigh
                         hoverStateLayerOpacity: 0.08
                         pressedStateLayerOpacity: 0.12
                         focusStateLayerOpacity: 0.12
@@ -653,352 +472,401 @@ StyledFlickable {
             }
         }
 
-        Section {
-            id: searchSection2
-            title: searchAnchor2.title
+        // Lock screen
+        PreferenceHeader {
+            text: I18n.tr("Lock screen")
+        }
+
+        PreferenceSelect {
+            id: lockStyleSelect
+
+            first: true
+            last: true
+            label: I18n.tr("Lock screen style")
+            model: PersonalizationConfig.lockScreenStyles
+            currentValue: PersonalizationConfig.lockScreenStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setLockScreenStyle(value)
+
             SettingsSearchAnchor {
-                id: searchAnchor2
-                target: searchSection2
+                target: lockStyleSelect
                 declaration:
                     '{"id":"theme.section.lock-screen","route":"theme","title":"Lock screen","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "lock"
-
-            SearchSelectMenuField {
-                closeOnAccept: true
-                Layout.preferredWidth: 240
-                Layout.preferredHeight: 40
-                options: PersonalizationConfig.lockScreenStyles
-                value: PersonalizationConfig.lockScreenStyle
-                textRole: "label"
-                valueRole: "value"
-                onAccepted: value => PersonalizationConfig.setLockScreenStyle(value)
-            }
         }
 
-        Section {
-            id: searchSection3
-            title: searchAnchor3.title
+        // Cursor
+        PreferenceHeader {
+            text: I18n.tr("Cursor theme")
+        }
+
+        ConnectedRect {
+            id: cursorThemeRow
+
+            first: true
+            enabled: NiriConfigService.ready("cursor")
+            Layout.fillWidth: true
+            implicitHeight: cursorSelect.height + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor3
-                target: searchSection3
+                target: cursorThemeRow
                 declaration:
                     '{"id":"theme.section.cursor-theme","route":"theme","title":"Cursor theme","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "mouse"
 
             CursorThemeSelect {
-                enabled: NiriConfigService.ready("cursor")
+                id: cursorSelect
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                height: 58
                 cursorThemes: ThemeService.availableCursorThemes
                 currentCursorTheme: PersonalizationConfig.cursorTheme
                 onAccepted: value => ThemeService.setCursorTheme(value)
             }
-
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: ThemeService.cursorLastError !== ""
-                tone: "error"
-                message: ThemeService.cursorLastError
-            }
-
-            SliderSettingRow {
-                enabled: NiriConfigService.ready("cursor")
-                title: I18n.tr("Cursor size")
-                from: 12
-                to: 128
-                stepSize: 1
-                suffix: I18n.tr("pixels")
-                value: PersonalizationConfig.cursorSize
-                onMoved: value => ThemeService.setCursorSize(Math.round(value))
-            }
-
-            ToggleSettingRow {
-                enabled: NiriConfigService.ready("cursor")
-                title: I18n.tr("Hide while typing")
-                checked: PersonalizationConfig.cursorHideWhenTyping
-                onToggled: checked => ThemeService.setCursorHideWhenTyping(checked)
-            }
-
-            SliderSettingRow {
-                enabled: NiriConfigService.ready("cursor")
-                title: I18n.tr("Hide after timeout")
-                description: I18n.tr("Hide the cursor after inactivity; 0 disables this")
-                from: 0
-                to: 5000
-                stepSize: 100
-                suffix: I18n.tr("milliseconds")
-                value: PersonalizationConfig.cursorHideAfterInactiveMs
-                onMoved: value => ThemeService.setCursorHideAfterInactiveMs(Math.round(value))
-            }
         }
 
-        Section {
-            id: searchSection4
-            title: searchAnchor4.title
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: ThemeService.cursorLastError !== ""
+            tone: "error"
+            message: ThemeService.cursorLastError
+        }
+
+        PreferenceSlider {
+            enabled: NiriConfigService.ready("cursor")
+            label: I18n.tr("Cursor size")
+            valueLabel: Math.round(PersonalizationConfig.cursorSize) + " " + I18n.tr("pixels")
+            value: PersonalizationConfig.cursorSize
+            from: 12
+            to: 128
+            stepSize: 1
+            onMoved: value => ThemeService.setCursorSize(Math.round(value))
+        }
+
+        PreferenceToggle {
+            enabled: NiriConfigService.ready("cursor")
+            text: I18n.tr("Hide while typing")
+            checked: PersonalizationConfig.cursorHideWhenTyping
+            onToggled: ThemeService.setCursorHideWhenTyping(checked)
+        }
+
+        PreferenceSlider {
+            last: true
+            enabled: NiriConfigService.ready("cursor")
+            label: I18n.tr("Hide after timeout")
+            valueLabel: PersonalizationConfig.cursorHideAfterInactiveMs === 0 ? I18n.tr("Off") : Math.round(
+                                                                                    PersonalizationConfig.cursorHideAfterInactiveMs)
+                                                                                + " " + I18n.tr(
+                                                                                    "milliseconds")
+            value: PersonalizationConfig.cursorHideAfterInactiveMs
+            from: 0
+            to: 5000
+            stepSize: 100
+            onMoved: value => ThemeService.setCursorHideAfterInactiveMs(Math.round(value))
+        }
+
+        // Icon theme
+        PreferenceHeader {
+            text: I18n.tr("Icon theme")
+        }
+
+        PreferenceSelect {
+            id: iconThemeSelect
+
+            first: true
+            last: true
+            label: I18n.tr("Icon theme")
+            model: ThemeService.availableIconThemes
+            currentValue: PersonalizationConfig.iconTheme
+            inputRegionService: PopupInputRegionService
+            onSelected: value => ThemeService.setIconTheme(value)
+
             SettingsSearchAnchor {
-                id: searchAnchor4
-                target: searchSection4
+                target: iconThemeSelect
                 declaration:
                     '{"id":"theme.section.icon-theme","route":"theme","title":"Icon theme","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "interests"
-
-            SearchSelectSettingRow {
-                title: I18n.tr("Icon theme")
-                options: ThemeService.availableIconThemes
-                value: PersonalizationConfig.iconTheme
-                placeholder: I18n.tr("Choose icon theme")
-                onAccepted: value => ThemeService.setIconTheme(value)
-            }
         }
 
-        Section {
-            id: searchSection5
-            title: searchAnchor5.title
+        // Fonts
+        PreferenceHeader {
+            text: I18n.tr("Fonts")
+        }
+
+        PreferenceSelect {
+            id: uiFontSelect
+
+            first: true
+            label: I18n.tr("UI font")
+            subtext: I18n.tr("Regular headings, body text, and controls")
+            model: FontService.fontOptions
+            currentValue: PersonalizationConfig.uiFontFamily
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setFontFamily("ui", value)
+
             SettingsSearchAnchor {
-                id: searchAnchor5
-                target: searchSection5
+                target: uiFontSelect
                 declaration:
                     '{"id":"theme.section.fonts","route":"theme","title":"Fonts","context":"ThemePage","icon":"palette","aliases":[]}'
             }
-            iconName: "text_format"
+        }
 
-            SearchSelectSettingRow {
-                title: I18n.tr("UI font")
-                description: I18n.tr("Regular headings, body text, and controls")
-                options: FontService.fontOptions
-                value: PersonalizationConfig.uiFontFamily
-                placeholder: I18n.tr("Select UI font")
-                fieldWidth: 280
-                onAccepted: value => PersonalizationConfig.setFontFamily("ui", value)
+        PreferenceSelect {
+            label: I18n.tr("Monospace font")
+            subtext: I18n.tr("Commands, paths, and technical information")
+            model: FontService.fontOptions
+            currentValue: PersonalizationConfig.monoFontFamily
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setFontFamily("mono", value)
+        }
+
+        PreferenceSelect {
+            label: I18n.tr("Numeric font")
+            subtext: I18n.tr("Time, percentages, and system values")
+            model: FontService.fontOptions
+            currentValue: PersonalizationConfig.numericFontFamily
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setFontFamily("numeric", value)
+        }
+
+        PreferenceSelect {
+            last: true
+            label: I18n.tr("Expressive font")
+            subtext: I18n.tr("Expressive visual components such as weather")
+            model: FontService.fontOptions
+            currentValue: PersonalizationConfig.expressiveFontFamily
+            inputRegionService: PopupInputRegionService
+            onSelected: value => PersonalizationConfig.setFontFamily("expressive", value)
+        }
+
+        // Matugen template generation
+        PreferenceHeader {
+            text: I18n.tr("Matugen template generation")
+        }
+
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: TemplateService.error !== ""
+            tone: "error"
+            message: TemplateService.error
+        }
+
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: !templateAddWindow.visible && TemplateService.operationError !== ""
+            tone: "error"
+            message: TemplateService.operationError
+        }
+
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: ThemeService.generationError !== "" || TemplateService.mirrorError !== ""
+            tone: "error"
+            message: ThemeService.generationError !== "" ? I18n.tr("Failed to generate Matugen colors") :
+                                                           I18n.tr("Failed to write the Noctalia palette mirror")
+            StyledToolTip {
+                extraVisibleCondition: errorHover.hovered
+                text: ThemeService.generationError || TemplateService.mirrorError
             }
-
-            SearchSelectSettingRow {
-                title: I18n.tr("Monospace font")
-                description: I18n.tr("Commands, paths, and technical information")
-                options: FontService.fontOptions
-                value: PersonalizationConfig.monoFontFamily
-                placeholder: I18n.tr("Select monospace font")
-                fieldWidth: 280
-                onAccepted: value => PersonalizationConfig.setFontFamily("mono", value)
-            }
-
-            SearchSelectSettingRow {
-                title: I18n.tr("Numeric font")
-                description: I18n.tr("Time, percentages, and system values")
-                options: FontService.fontOptions
-                value: PersonalizationConfig.numericFontFamily
-                placeholder: I18n.tr("Select numeric font")
-                fieldWidth: 280
-                onAccepted: value => PersonalizationConfig.setFontFamily("numeric", value)
-            }
-
-            SearchSelectSettingRow {
-                title: I18n.tr("Expressive font")
-                description: I18n.tr("Expressive visual components such as weather")
-                options: FontService.fontOptions
-                value: PersonalizationConfig.expressiveFontFamily
-                placeholder: I18n.tr("Select expressive font")
-                fieldWidth: 280
-                onAccepted: value => PersonalizationConfig.setFontFamily("expressive", value)
+            HoverHandler {
+                id: errorHover
             }
         }
 
-        Section {
-            id: searchSection6
-            title: searchAnchor6.title
+        ConnectedRect {
+            id: templateCard
+
+            first: true
+            last: true
+            Layout.fillWidth: true
+            implicitHeight: templateColumn.implicitHeight + NexusStyle.padding.medium * 2
+
             SettingsSearchAnchor {
-                id: searchAnchor6
-                target: searchSection6
+                target: templateCard
                 declaration:
                     '{"id":"theme.section.matugen-template-generation","route":"theme","title":"Matugen template generation","context":"ThemePage","icon":"tune","aliases":["advanced.section.matugen-template-generation"]}'
             }
-            iconName: "tune"
 
-            Item {
-                Layout.fillWidth: true
-                implicitHeight: templateActions.implicitHeight
+            ColumnLayout {
+                id: templateColumn
 
-                InlineBusyIndicator {
-                    anchors.right: templateActions.left
-                    anchors.rightMargin: Metrics.spacingXS
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: implicitWidth
-                    height: implicitHeight
-                    busy: ThemeService.generating && ThemeService.generationTemplateId === ""
-                }
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                spacing: NexusStyle.padding.small
 
-                RowLayout {
-                    id: templateActions
-
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    IconButton {
-                        iconName: "refresh"
-                        tooltipText: I18n.tr("Refresh templates")
-                        onClicked: TemplateService.refresh()
-                    }
-                    ActionButton {
-                        text: I18n.tr("Add")
-                        iconName: "add"
-                        enabled: !TemplateService.busy && PersonalizationConfig.ready
-                        onClicked: templateAddWindow.showWindow()
-                    }
-                }
-            }
-
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: TemplateService.error !== ""
-                tone: "error"
-                message: TemplateService.error
-            }
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: !templateAddWindow.visible && TemplateService.operationError !== ""
-                tone: "error"
-                message: TemplateService.operationError
-            }
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: ThemeService.generationError !== "" || TemplateService.mirrorError !== ""
-                tone: "error"
-                message: ThemeService.generationError !== "" ? I18n.tr("Failed to generate Matugen colors") :
-                                                               I18n.tr("Failed to write the Noctalia palette mirror")
-                StyledToolTip {
-                    extraVisibleCondition: errorHover.hovered
-                    text: ThemeService.generationError || TemplateService.mirrorError
-                }
-                HoverHandler {
-                    id: errorHover
-                }
-            }
-
-            Repeater {
-                model: TemplateService.templates
-
-                SettingsRow {
-                    id: templateRow
-                    required property var modelData
-
-                    Layout.fillWidth: true
-                    iconName: modelData.valid ? modelData.icon : "error"
-                    title: modelData.title
-                    supportingText: !modelData.valid ? modelData.error : modelData.origin === "user" ? I18n.tr("User templates") :
-                                                                                                       ""
-
-                    trailing: Item {
-                        implicitWidth: templateRowActions.implicitWidth
-                        implicitHeight: templateRowActions.implicitHeight
-
-                        InlineBusyIndicator {
-                            anchors.right: templateRowActions.left
-                            anchors.rightMargin: Metrics.spacingXS
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: implicitWidth
-                            height: implicitHeight
-                            busy: templateRow.modelData.valid && ThemeService.generating
-                                  && ThemeService.generationTemplateId === templateRow.modelData.id
-                        }
-
-                        RowLayout {
-                            id: templateRowActions
-
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Item {
-                                visible: templateRow.modelData.hasPostHook
-                                implicitWidth: Metrics.controlHeightM
-                                implicitHeight: Metrics.controlHeightM
-                                Accessible.role: Accessible.StaticText
-                                Accessible.name: I18n.tr("Run after each generation: %1").arg(
-                                                     templateRow.modelData.postHook)
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "terminal"
-                                    iconSize: Metrics.iconM
-                                    color: Appearance.colors.colOnSurfaceVariant
-                                }
-                                HoverHandler {
-                                    id: hookHover
-                                }
-                                StyledToolTip {
-                                    extraVisibleCondition: hookHover.hovered
-                                    text: I18n.tr("Run after each generation:\n%1").arg(
-                                              templateRow.modelData.postHook)
-                                }
-                            }
-                            IconButton {
-                                visible: templateRow.modelData.origin === "user"
-                                iconName: "folder_open"
-                                tooltipText: I18n.tr("Open template location") + "\n"
-                                             + templateRow.modelData.inputPath + "\n" + I18n.tr(
-                                                 "Output: %1").arg(templateRow.modelData.outputPath)
-                                onClicked: TemplateService.openLocation(templateRow.modelData)
-                            }
-                            IconButton {
-                                visible: templateRow.modelData.origin === "user"
-                                iconName: "delete"
-                                tooltipText: I18n.tr("Delete template")
-                                enabled: !TemplateService.busy && !ThemeService.generating
-                                         && PersonalizationConfig.ready
-                                onClicked: root.requestTemplateDeletion(templateRow.modelData)
-                            }
-                            StyledSwitch {
-                                enabled: templateRow.modelData.valid && !ThemeService.generating &&
-                                         !TemplateService.busy && PersonalizationConfig.ready
-                                checked: templateRow.modelData.valid
-                                         && PersonalizationConfig.isMatugenTemplateEnabled(
-                                             templateRow.modelData.id)
-                                Accessible.name: I18n.tr("Enable the %1 Matugen template").arg(
-                                                     templateRow.modelData.title)
-                                onToggled: ThemeService.setMatugenTemplateEnabled(templateRow.modelData.id,
-                                                                                  checked)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 24
-        }
-    }
-
-    MatugenTemplateAddWindow {
-        id: templateAddWindow
-        parentModal: root.parentModal
-    }
-
-    MaterialDialog {
-        id: templateDialog
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(480, root.width - 32)
-        dialogTitle: root.pendingDeleteTemplate ? I18n.tr("Delete “%1”?").arg(
-                                                      root.pendingDeleteTemplate.title) : ""
-        messageText: I18n.tr("Delete the template and its registration. Keep generated output files.")
-        onClosed: root.pendingDeleteTemplate = null
-        actionsComponent: Component {
-            RowLayout {
                 Item {
                     Layout.fillWidth: true
+                    implicitHeight: templateActions.implicitHeight
+
+                    InlineBusyIndicator {
+                        anchors.right: templateActions.left
+                        anchors.rightMargin: NexusStyle.padding.extraSmall
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: implicitWidth
+                        height: implicitHeight
+                        busy: ThemeService.generating && ThemeService.generationTemplateId === ""
+                    }
+
+                    RowLayout {
+                        id: templateActions
+
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        IconButton {
+                            iconName: "refresh"
+                            tooltipText: I18n.tr("Refresh templates")
+                            onClicked: TemplateService.refresh()
+                        }
+
+                        ActionButton {
+                            text: I18n.tr("Add")
+                            iconName: "add"
+                            enabled: !TemplateService.busy && PersonalizationConfig.ready
+                            onClicked: templateAddWindow.showWindow()
+                        }
+                    }
                 }
-                ActionButton {
-                    text: I18n.tr("Cancel")
-                    onClicked: templateDialog.close()
+
+                Repeater {
+                    model: TemplateService.templates
+
+                    SettingsRow {
+                        id: templateRow
+
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        iconName: modelData.valid ? modelData.icon : "error"
+                        title: modelData.title
+                        supportingText: !modelData.valid ? modelData.error : modelData.origin === "user" ? I18n.tr("User templates") :
+                                                                                                           ""
+
+                        trailing: Item {
+                            implicitWidth: templateRowActions.implicitWidth
+                            implicitHeight: templateRowActions.implicitHeight
+
+                            InlineBusyIndicator {
+                                anchors.right: templateRowActions.left
+                                anchors.rightMargin: NexusStyle.padding.extraSmall
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: implicitWidth
+                                height: implicitHeight
+                                busy: templateRow.modelData.valid && ThemeService.generating
+                                      && ThemeService.generationTemplateId === templateRow.modelData.id
+                            }
+
+                            RowLayout {
+                                id: templateRowActions
+
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Item {
+                                    visible: templateRow.modelData.hasPostHook
+                                    implicitWidth: NexusStyle.icon.large
+                                    implicitHeight: NexusStyle.icon.large
+                                    Accessible.role: Accessible.StaticText
+                                    Accessible.name: I18n.tr("Run after each generation: %1").arg(
+                                                         templateRow.modelData.postHook)
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "terminal"
+                                        iconSize: NexusStyle.icon.medium
+                                        color: Appearance.m3colors.m3onSurfaceVariant
+                                    }
+                                    HoverHandler {
+                                        id: hookHover
+                                    }
+                                    StyledToolTip {
+                                        extraVisibleCondition: hookHover.hovered
+                                        text: I18n.tr("Run after each generation:\n%1").arg(
+                                                  templateRow.modelData.postHook)
+                                    }
+                                }
+
+                                IconButton {
+                                    visible: templateRow.modelData.origin === "user"
+                                    iconName: "folder_open"
+                                    tooltipText: I18n.tr("Open template location") + "\n"
+                                                 + templateRow.modelData.inputPath + "\n" + I18n.tr(
+                                                     "Output: %1").arg(templateRow.modelData.outputPath)
+                                    onClicked: TemplateService.openLocation(templateRow.modelData)
+                                }
+
+                                IconButton {
+                                    visible: templateRow.modelData.origin === "user"
+                                    iconName: "delete"
+                                    tooltipText: I18n.tr("Delete template")
+                                    enabled: !TemplateService.busy && !ThemeService.generating
+                                             && PersonalizationConfig.ready
+                                    onClicked: root.requestTemplateDeletion(templateRow.modelData)
+                                }
+
+                                StyledSwitch {
+                                    enabled: templateRow.modelData.valid && !ThemeService.generating &&
+                                             !TemplateService.busy && PersonalizationConfig.ready
+                                    checked: templateRow.modelData.valid
+                                             && PersonalizationConfig.isMatugenTemplateEnabled(
+                                                 templateRow.modelData.id)
+                                    Accessible.name: I18n.tr("Enable the %1 Matugen template").arg(
+                                                         templateRow.modelData.title)
+                                    onToggled: ThemeService.setMatugenTemplateEnabled(templateRow.modelData.id,
+                                                                                      checked)
+                                }
+                            }
+                        }
+                    }
                 }
-                ActionButton {
-                    text: I18n.tr("Delete")
-                    enabled: !TemplateService.busy && !ThemeService.generating && PersonalizationConfig.ready
-                    onClicked: {
-                        if (root.pendingDeleteTemplate)
-                            TemplateService.remove(root.pendingDeleteTemplate.id);
-                        templateDialog.close();
+            }
+        }
+
+        // Non-visual children live inside the content column (NexusPageBase
+        // takes a single Item; children on the page root are a type error
+        // that kills the whole page — 2026-10-25 lesson).
+        MatugenTemplateAddWindow {
+            id: templateAddWindow
+
+            parentModal: root.parentModal
+        }
+
+        MaterialDialog {
+            id: templateDialog
+
+            anchors.centerIn: Overlay.overlay
+            width: Math.min(480, root.width - 32)
+            dialogTitle: root.pendingDeleteTemplate ? I18n.tr("Delete “%1”?").arg(
+                                                          root.pendingDeleteTemplate.title) : ""
+            messageText: I18n.tr("Delete the template and its registration. Keep generated output files.")
+            onClosed: root.pendingDeleteTemplate = null
+            actionsComponent: Component {
+                RowLayout {
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    ActionButton {
+                        text: I18n.tr("Cancel")
+                        onClicked: templateDialog.close()
+                    }
+
+                    ActionButton {
+                        text: I18n.tr("Delete")
+                        enabled: !TemplateService.busy && !ThemeService.generating
+                                 && PersonalizationConfig.ready
+                        onClicked: {
+                            if (root.pendingDeleteTemplate)
+                                TemplateService.remove(root.pendingDeleteTemplate.id);
+                            templateDialog.close();
+                        }
                     }
                 }
             }

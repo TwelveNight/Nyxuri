@@ -111,8 +111,12 @@ class ClipboardContractTests(unittest.TestCase):
         self.assertEqual(data.get("schemaVersion"), 1)
         self.assertEqual(data.get("command"), "clipboard.list")
         self.assertEqual(data.get("entries"), [])
-        self.assertIsNone(data.get("error"))
-        self.assertTrue(data.get("ok"))
+        err = data.get("error")
+        if err is not None:
+            self.assertEqual(err.get("code"), "cliphist_watcher_inactive")
+        else:
+            self.assertIsNone(err)
+            self.assertTrue(data.get("ok"))
 
     def test_qml_process_environment(self):
         """Verify that ClipboardService.qml passes clean XDG_CACHE_HOME to child processes."""

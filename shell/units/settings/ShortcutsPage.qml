@@ -8,9 +8,14 @@ import "./NiriActionNames.js" as ActionNames
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
 Item {
     id: root
+
+    // Self-rendered Nexus-style title — the window route-title shim yields.
+    readonly property bool rendersPageTitle: true
 
     component ShortcutRecorder: QtObject {
         id: recorder
@@ -70,16 +75,18 @@ Item {
         property string removalLabel: I18n.tr("Delete")
         signal removeRequested
         implicitWidth: label.implicitWidth + leftPadding + rightPadding
-        implicitHeight: Metrics.controlHeightS
-        height: Metrics.controlHeightS
+        implicitHeight: NexusStyle.icon.large
+        height: NexusStyle.icon.large
         topInset: 0
         bottomInset: 0
         leftInset: 0
         rightInset: 0
         topPadding: 0
         bottomPadding: 0
-        leftPadding: Metrics.spacingM
-        rightPadding: removable ? removeButton.width + Metrics.spacingXS * 2 : Metrics.spacingM
+        leftPadding: NexusStyle.padding.small
+        rightPadding: removable ? removeButton.width + NexusStyle.padding.extraSmall * 2 :
+                                  NexusStyle.padding.small
+
         buttonRadius: Appearance.rounding.small
         buttonRadiusPressed: buttonRadius
         containerColor: conflicting ? Appearance.m3colors.m3errorContainer : recordingStyle
@@ -94,10 +101,10 @@ Item {
             id: removeButton
             z: 2
             anchors.right: parent.right
-            anchors.rightMargin: Metrics.spacingXS
+            anchors.rightMargin: NexusStyle.padding.extraSmall
             anchors.verticalCenter: parent.verticalCenter
-            controlSize: Metrics.controlHeightS - Metrics.spacingXS * 2
-            iconSize: Metrics.iconS
+            controlSize: NexusStyle.icon.medium
+            iconSize: NexusStyle.icon.small
             iconName: "close"
             iconColor: shortcutChip.stateLayerColor
             visible: shortcutChip.removable
@@ -114,8 +121,9 @@ Item {
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
             color: shortcutChip.stateLayerColor
-            font.family: Typography.labelMedium.family
-            font.pixelSize: Typography.labelMedium.pixelSize
+            font.family: Fonts.ui
+            font.pixelSize: NexusStyle.font.labelMedium
+            font.weight: NexusStyle.font.labelMediumWeight
         }
     }
 
@@ -397,10 +405,21 @@ Item {
 
     ColumnLayout {
         id: column
-        y: Metrics.pageMargin
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        spacing: Metrics.spacingM
+        y: NexusStyle.padding.largeIncreased
+        width: Math.min(640, Math.max(0, root.width - NexusStyle.padding.largeIncreased * 2))
+        x: Math.max(NexusStyle.padding.largeIncreased, (root.width - width) / 2)
+        spacing: NexusStyle.padding.small
+
+        // Self-rendered page title — pixel-matched to the NexusPageBase
+        // header typography.
+        StyledText {
+            Layout.fillWidth: true
+            text: SpotlightCatalog.title("shortcuts")
+            color: Appearance.m3colors.m3onSurface
+            font.pixelSize: NexusStyle.font.titleLarge
+            font.weight: NexusStyle.font.titleWeight
+            elide: Text.ElideRight
+        }
 
         NiriSetupPrompt {
             Layout.fillWidth: true
@@ -493,14 +512,14 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: column.bottom
-        anchors.topMargin: Metrics.spacingM
+        anchors.topMargin: NexusStyle.padding.small
         anchors.bottom: parent.bottom
         clip: true
         contentWidth: width
         maximumFlickVelocity: 3500
         boundsBehavior: Flickable.DragOverBounds
-        spacing: Metrics.spacingM
-        bottomMargin: Metrics.pageMargin
+        spacing: NexusStyle.padding.small
+        bottomMargin: NexusStyle.padding.large
         model: root.visibleGroups
         keyNavigationEnabled: false
         ScrollBar.vertical: StyledScrollBar {}
@@ -514,13 +533,13 @@ Item {
             ColumnLayout {
                 id: row
                 readonly property var modelData: rowContainer.modelData
-                width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
+                width: Math.min(640, Math.max(0, root.width - NexusStyle.padding.largeIncreased * 2))
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: Metrics.spacingS
+                spacing: NexusStyle.padding.small
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: Metrics.spacingM
+                    spacing: NexusStyle.padding.small
 
                     Text {
                         Layout.fillWidth: true
@@ -530,15 +549,15 @@ Item {
                         textFormat: Text.PlainText
                         wrapMode: Text.Wrap
                         color: Appearance.colors.colOnLayer0
-                        font.family: Typography.bodyMedium.family
-                        font.pixelSize: Typography.bodyMedium.pixelSize
+                        font.family: Fonts.ui
+                        font.pixelSize: NexusStyle.font.bodyMedium
                     }
                     Flow {
                         id: chips
                         Layout.fillWidth: true
                         Layout.preferredWidth: row.width * 0.62
                         Layout.minimumWidth: 0
-                        spacing: Metrics.spacingXS
+                        spacing: NexusStyle.padding.extraSmall
                         layoutDirection: Qt.RightToLeft
 
                         ShortcutChip {
@@ -600,18 +619,18 @@ Item {
                             text: row.modelData.supported ? I18n.tr("Not configured") : I18n.tr(
                                                                 "Unavailable in this niri version")
                             color: Appearance.colors.colSubtext
-                            font.pixelSize: Typography.bodyMedium.pixelSize
+                            font.pixelSize: NexusStyle.font.bodyMedium
                             wrapMode: Text.Wrap
                             horizontalAlignment: Text.AlignRight
-                            height: Math.max(implicitHeight, Metrics.controlHeightS)
+                            height: Math.max(implicitHeight, NexusStyle.icon.large)
                             verticalAlignment: Text.AlignVCenter
                         }
                     }
                     IconButton {
                         iconName: "delete"
                         iconColor: Appearance.colors.colError
-                        controlSize: Metrics.controlHeightS
-                        iconSize: Metrics.iconS
+                        controlSize: NexusStyle.icon.large
+                        iconSize: NexusStyle.icon.small
                         visible: !row.modelData.builtin && row.modelData.chips.some(chip => chip.managed)
                         enabled: !root.draft && NiriConfigService.ready("binds") && !NiriConfigService.busy
                         accessibleName: I18n.tr("Delete action")
@@ -623,8 +642,8 @@ Item {
                     }
                     IconButton {
                         iconName: "add_circle"
-                        controlSize: Metrics.controlHeightS
-                        iconSize: Metrics.iconS
+                        controlSize: NexusStyle.icon.large
+                        iconSize: NexusStyle.icon.small
                         enabled: row.modelData.supported && NiriConfigService.ready("binds") &&
                                  !NiriConfigService.busy
                         accessibleName: I18n.tr("Add shortcut")
@@ -681,7 +700,7 @@ Item {
         ColumnLayout {
             id: editorContent
             readonly property var bindingDraft: parent.bindingDraft
-            spacing: Metrics.spacingS
+            spacing: NexusStyle.padding.small
             enabled: !NiriConfigService.busy
             InlineStatusBanner {
                 Layout.fillWidth: true
@@ -749,10 +768,12 @@ Item {
                 ? editorContent.bindingDraft.props["hotkey-overlay-title"] : ""
                 onTextEdited: root.change("hotkey-overlay-title", text)
             }
-            SettingsActionRow {
+            PreferenceAction {
                 Layout.fillWidth: true
+                first: true
+                last: true
                 text: I18n.tr("Advanced options")
-                trailingIconName: root.advanced ? "expand_less" : "expand_more"
+                trailingIcon: root.advanced ? "expand_less" : "expand_more"
                 onClicked: root.advanced = !root.advanced
             }
             Item {
@@ -770,22 +791,19 @@ Item {
                 ColumnLayout {
                     id: advancedContent
                     width: parent.width
-                    SettingsRow {
+                    PreferenceToggle {
+                        first: true
                         Layout.fillWidth: true
-                        title: I18n.tr("Repeat while held")
-                        trailing: StyledSwitch {
-                            checked: root.option("repeat", true)
-                            onToggled: root.change("repeat", checked)
-                        }
+                        text: I18n.tr("Repeat while held")
+                        checked: root.option("repeat", true)
+                        onToggled: root.change("repeat", checked)
                     }
-                    SettingsRow {
+                    PreferenceToggle {
                         Layout.fillWidth: true
-                        title: I18n.tr("Allow while locked")
-                        trailing: StyledSwitch {
-                            enabled: /^\s*(spawn|spawn-sh)\s/.test(actionField.text)
-                            checked: root.option("allow-when-locked", false)
-                            onToggled: root.change("allow-when-locked", checked)
-                        }
+                        text: I18n.tr("Allow while locked")
+                        enabled: /^\s*(spawn|spawn-sh)\s/.test(actionField.text)
+                        checked: root.option("allow-when-locked", false)
+                        onToggled: root.change("allow-when-locked", checked)
                     }
                     ActionButton {
                         visible: root.option("allow-when-locked", undefined) !== undefined
@@ -803,19 +821,18 @@ Item {
                         onTextEdited: if (acceptableInput)
                                           root.change("cooldown-ms", Number(text))
                     }
-                    SettingsRow {
+                    PreferenceToggle {
+                        last: true
                         Layout.fillWidth: true
-                        title: I18n.tr("Keep working when apps inhibit shortcuts")
-                        trailing: StyledSwitch {
-                            checked: !root.option("allow-inhibiting", true)
-                            onToggled: root.change("allow-inhibiting", !checked)
-                        }
+                        text: I18n.tr("Keep working when apps inhibit shortcuts")
+                        checked: !root.option("allow-inhibiting", true)
+                        onToggled: root.change("allow-inhibiting", !checked)
                     }
                 }
             }
             Flow {
                 Layout.fillWidth: true
-                spacing: Metrics.spacingS
+                spacing: NexusStyle.padding.small
                 layoutDirection: Qt.RightToLeft
                 ActionButton {
                     text: I18n.tr("Save")

@@ -7,8 +7,29 @@
 
 ## [Unreleased]
 
+### Fixed
+- 从仓库或缓存副本运行时，`nyxuri update` 重启后报 `No module named nyxuri`、更新后的部署被跳过：重启现在回到常驻入口 `launcher.sh`，不再自己拼 `python -m nyxuri`
+- `nyxuri deps apps` 菜单显示裸键名：补齐 `greeter` / `mango` / `wallpapers` / `shell-runtime` 分类缺失的双语词条，并新增目录↔词典反向校验堵住同类缺口
+- Niri 托管快捷键片段生成的 `spawn qs -c clavis …` 指向不存在的配置名：合成器快捷键统一经 `nyxuri-shell --ipc` 网关分发；layer-rule 命名空间与实际窗口对齐（overview 背景、shell 表面效果）
+- TUI 子页头渲染旧品牌 "NYX NIRI"，现为 "NYXURI"
+- Shell 中文词典清理 164 条无消费死键（云备份、天气地图、awww 后端、歌词等封存/未移植域残渣）；误杀的 18 个转义键已复原，4 个史前英文孤儿键补译
+- 设置单元曾因一处 QML 语法粘连编译为空（Mod+I 无响应）：修复并新增 qmllint 语法级常驻门禁，此类错误此后在测试期即红
+- zen-palette 着色器的三个高位 uint 常量触发 Qt shader baker 缺陷（"negative int conversion"）：改为运行时等价拼装，11 个 .qsb 全量可重编
+
+### Changed
+- 上游 Clavis 残留全面单轨化：`CLAVIS_*` 环境变量兼容层、`clavis-*` 临时前缀、托盘/图钉内部 id、`clavis-palette:` 壁纸源前缀全部退役，统一 `NYXURI` / `nyxuri` 命名；`~/.config/niri/clavis/` 托管片段目录自动迁移至 `nyxuri/`
+- AUR 状态对齐：ROADMAP T1 从「阻断/搁置」改为「已上架」，packaging/README 与 humans-wiki Home 安装块同步回填
+- 文档计数修正：软件目录 18 条、单元 13 个（`theme/` 共享模板池此前在目录树中失踪）
+- `shell/LICENSE` 去重：GPL 正文指向根 LICENSE，只保留第三方附录（3036→2364 行）
+- 测试域重组：`test_bugfix_regressions.py` 台账（44 类）全数拆入 24 个域文件，`test_shell.py` 巨类拆为管理/架构/目录三个关注点，主题引擎契约归位 `tests/desktop/`；蓝图树不再被测试进程写入 `__pycache__`（钩子与子解释器统一禁写字节码）
+
+### Removed
+- 仓库减脂：删除 14 个孤儿 QML/JS（天气地图/月相/趋势图清理漏网、未使用控件等，约 1,400 行）、`shell/VERSION` 残留、3 个死脚本（`overview.sh` 上游壁纸状态机、`manage-niri-fragment.sh`、`clavis_paths.py`）、114KB 一次性生命周期审计快照、19 个脱离验收循环的 tst_*.qml 尸体（约 4,200 行）、3 个冗余手写 qmldir、`audit-i18n.py`（能力并入常驻测试 `test_i18n_catalog.py`）、死规则三条
+- 移除引擎 TUI 幽灵兼容分支与死变量（`DOCTOR_CHECKS`、2 元组预设形状、冗余异常元组）
+
 ### Added
 - AUR 上架 `nyxuri-git`：`paru -S nyxuri-git` 一条命令安装完整 Nyxuri（管理引擎、全部配置单元与 Nyxuri Shell），此后更新交给 pacman
+- `nyxuri-shell --ipc <target> <method> [args…]`：PATH 稳定的单元 IPC 通用网关，供合成器绑定与外部脚本调用
 
 ## [v4.0.0-alpha.2] - 2026-10-18
 

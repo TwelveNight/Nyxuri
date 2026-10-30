@@ -17,7 +17,7 @@ Item {
             visible: true
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
-            WlrLayershell.namespace: "clavis-display-identify"
+            WlrLayershell.namespace: "nyxuri-display-identify"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             anchors {
@@ -73,7 +73,7 @@ Item {
             visible: true
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
-            WlrLayershell.namespace: "clavis-shell-display-confirmation"
+            WlrLayershell.namespace: "nyxuri-shell-display-confirmation"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             implicitWidth: Math.min(440, screen ? screen.width : 440)

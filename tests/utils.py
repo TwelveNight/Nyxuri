@@ -25,6 +25,7 @@ class TempEnv:
         self.home = Path(self._tmp.name)
         self._old_env = {}
         self._patcher = None
+        self._theme_run_patcher = None
 
     def __enter__(self):
         home = self.home
@@ -43,6 +44,14 @@ class TempEnv:
         os.environ["XDG_STATE_HOME"] = str(home / ".local" / "state")
         os.environ["XDG_CONFIG_HOME"] = str(home / ".config")
         os.environ["XDG_CACHE_HOME"] = str(home / ".cache")
+
+        # Default sandbox protections: intercept external host-mutating runners
+        import subprocess
+        self._theme_run_patcher = patch(
+            "nyxuri.desktop.theme.timed_run",
+            return_value=subprocess.CompletedProcess([], 0, "", "")
+        )
+        self._theme_run_patcher.start()
 
         # Reset cached Environment so next get_env() picks up new HOME
         core._ENV = None
@@ -67,6 +76,8 @@ class TempEnv:
         return self
 
     def __exit__(self, *exc):
+        if self._theme_run_patcher:
+            self._theme_run_patcher.stop()
         # Restore environment variables
         for key, val in self._old_env.items():
             if val is None:

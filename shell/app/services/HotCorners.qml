@@ -39,7 +39,7 @@ Item {
                     visible: action !== "disabled"
                     exclusionMode: ExclusionMode.Ignore
                     WlrLayershell.layer: WlrLayer.Overlay
-                    WlrLayershell.namespace: "clavis-shell-hot-corner"
+                    WlrLayershell.namespace: "nyxuri-shell-hot-corner"
                     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
                     anchors {

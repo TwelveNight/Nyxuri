@@ -95,7 +95,9 @@ Shell 是极致精简的**微内核宿主**：宿主只保留装配（`SlotHost`
 - **单元自有 IPC**：单元的 IPC surface 属单元（lock/spotlight/power-menu/
   control-center/settings/keystone），随单元装载生死；宿主只保留通用面
   （unit/shell/theme/shortcut-map/wallpaper）。单元 off 时其 IPC 目标消失，
-  六动作经 `nyxuri-shell --action` 得到真实失败而非假成功。
+  六动作经 `nyxuri-shell --action` 得到真实失败而非假成功；任意单元 IPC 面
+  （`niri-actions.json` 目录 207 条）经 `nyxuri-shell --ipc <target> <method>
+  [args…]` PATH 稳定网关分发，合成器 binds 不再引用 quickshell 配置名。
 - **Quickshell 0.3.2 运行时约束**（KM4 实测，quickshell 升级后重估）：
   ① Loader 动态装载的组件首次解析 qs.* import 图不可靠——单元以「module not
   installed / X is not a type」不确定地整单元暴毙（与 QML 磁盘缓存无关）。
@@ -113,6 +115,12 @@ Shell 是极致精简的**微内核宿主**：宿主只保留装配（`SlotHost`
   ③ `IpcHandler` 类型挂在 `Quickshell.Io` 模块下——单元根新增 handler 时必须
   `import Quickshell.Io`（仅 import Quickshell 不够，报「IpcHandler is not a
   type」且目标静默消失）。
+  ④ 窗口与处理器属性面与 Qt/QML 习惯不同（2026-10-25 mod+i 事故定案）：
+  `FloatingWindow` 无 `minimumWidth`/`minimumHeight`（正名 `minimumSize`，
+  误赋值 = 单元 compiled empty，宿主自愈两次后放弃）；`TapHandler` 无
+  `hovered`（运行时 undefined 静默击穿绑定，hover 态一律用 `HoverHandler`）。
+  qmllint 对含 qs.* VFS 导入的文件不做此类成员校验——Quickshell API面
+  改动必须实机验证，不能只信 lint。
 - **降级语义**：能力全开、副作用明示——`off shell.lock` 后 idle 锁请求报失败
   横幅、无锁挂起直接执行；`off shell.wallpaper` 卸载壁纸视觉，合成器背景透出；
   域服务（通知接收、壁纸状态、主题管线输入）是 app 层能力，不随视觉单元卸载。

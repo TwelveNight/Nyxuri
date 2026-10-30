@@ -22,7 +22,7 @@ PanelWindow {
     }
 
     exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "clavis-region-selector"
+    WlrLayershell.namespace: "nyxuri-region-selector"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 

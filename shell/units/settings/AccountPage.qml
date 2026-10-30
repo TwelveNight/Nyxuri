@@ -1,21 +1,32 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.units.wallpaper
-import "../../shared/utils/WallpaperSource.js" as WallpaperSource
-import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Layouts
 import QtQuick.Window
+import qs.units.wallpaper
+import "../../shared/utils/WallpaperSource.js" as WallpaperSource
 import qs.shared.theme
 import qs.shared.controls
 import qs.app.services
 import qs.app
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-Item {
+// Account page (M3 rebuild): NexusPageBase scaffold + AccountProfileHeader
+// hero, then Language / Bluetooth / Keyboard shortcuts / Personalization
+// connected groups built from the M1 atom suite. Business truths (identity,
+// avatar, wallpaper, bluetooth, network, shortcuts, language) keep their
+// owners; only the presentation changed. Custom rows survive where the atom
+// suite has no shape: paired-device rows and the wallpaper quick grid.
+NexusPageBase {
     id: root
-    readonly property var searchLeaf: accountScroll
+
+    title: I18n.tr("Account")
+
+    // Window contract surface — consumed by ControlCenterWindow.
+    readonly property Item searchLeaf: root.flickable
 
     property var parentModal: null
     property bool presentationActive: false
@@ -30,18 +41,29 @@ Item {
         avatarPicker.dismiss();
     }
 
-    readonly property real maximumContentWidth: 1024
-    readonly property bool wideLayout: pageColumn.width >= 848
-    readonly property real cardGap: Appearance.spacing.medium
-    readonly property real columnWidth: wideLayout ? (cardLayout.width - cardGap) / 2 : cardLayout.width
-    readonly property real wallpaperPreviewMaximumWidth: 152
-    readonly property real wallpaperPreviewWidth: Math.min(wallpaperPreviewMaximumWidth, Math.floor((
-                                                                                                        personalizationCard.width
-                                                                                                        - Appearance.spacing.large
-                                                                                                        * 2 - Appearance.spacing.medium
-                                                                                                        * 2 - Appearance.spacing.small
-                                                                                                        * 2) / 3))
-    readonly property real wallpaperPreviewHeight: Math.round(wallpaperPreviewWidth / 1.25)
+    readonly property var languageOptions: I18nService.supportedLanguages.map(lang => ({
+        "label": lang.label,
+        "value": lang.code
+    }))
+    readonly property var colorModeOptions: [
+        {
+            "label": I18n.tr("Light"),
+            "value": "light"
+        },
+        {
+            "label": I18n.tr("Dark"),
+            "value": "dark"
+        }
+    ]
+    // Quick-pick tiles always tile the full row: 6 items divide exactly into
+    // 6 columns (wide) or 2 rows of 3 (narrow), so there is never a ragged
+    // trailing cell or dead side space. The tile width is derived from the
+    // row, never capped — the old 152px cap was tuned for a ~450px card and
+    // broke apart inside the 800px Nexus column.
+    readonly property int wallpaperColumns: wallpaperGrid.width >= 640 ? 6 : 3
+    readonly property real wallpaperPreviewWidth: (wallpaperGrid.width - (wallpaperColumns - 1)
+                                                   * NexusStyle.padding.small) / wallpaperColumns
+    readonly property real wallpaperPreviewHeight: Math.round(root.wallpaperPreviewWidth / 1.25)
     readonly property var pairedBluetoothDevices: {
         const result = [];
         const seen = {};
@@ -140,479 +162,400 @@ Item {
                                                                                  I18n.tr("Connected, open");
     }
 
-    Component.onCompleted: {
-        SystemIdentityService.setUptimeConsumer("account-page", root.presentationActive);
-        if (WallpaperService.wallpapers.length === 0 && !WallpaperService.scanning)
-            WallpaperService.scan();
-    }
+    // Connected group row for one paired device — the atom suite has no
+    // device-row shape (trailing action button + overflow menu).
+    component DeviceRow: ConnectedRect {
+        id: deviceRow
 
-    StyledFlickable {
-        id: accountScroll
-        anchors.fill: parent
-        contentWidth: width
-        contentHeight: pageColumn.implicitHeight + Appearance.spacing.large * 2
+        required property var modelData
 
-        Column {
-            id: pageColumn
+        Layout.fillWidth: true
+        implicitHeight: deviceContent.implicitHeight + NexusStyle.padding.medium * 2
 
-            x: (parent.width - width) / 2
-            y: Appearance.spacing.large
-            width: Math.min(root.maximumContentWidth, Math.max(0, parent.width - Appearance.spacing.large
-                                                               * 2))
+        RowLayout {
+            id: deviceContent
 
-            spacing: Appearance.spacing.large
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: NexusStyle.padding.largeIncreased
+            anchors.rightMargin: NexusStyle.padding.largeIncreased
+            spacing: NexusStyle.padding.small
 
-            AccountProfileHeader {
-                id: accountHeader
-                wallpaperIsImage: WallpaperSource.isImage(wallpaperPath)
-                wallpaperComponent: ProfileWallpaper {
-                    sourcePath: accountHeader.wallpaperPath
-                    previewPath: accountHeader.previewWallpaperPath
+            MaterialSymbol {
+                iconSize: NexusStyle.icon.medium
+                fill: 1
+                text: root.bluetoothIcon(deviceRow.modelData)
+                color: Appearance.m3colors.m3primary
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: deviceRow.modelData.name || I18n.tr("Unnamed device")
+                    color: Appearance.m3colors.m3onSurface
+                    font.pixelSize: NexusStyle.font.bodyMedium
+                    elide: Text.ElideRight
                 }
-                width: parent.width
-                wallpaperPath: bannerEditor.source
-                previewWallpaperPath: bannerEditor.previewSource
-                colorWallpaper: WallpaperService.isColorSource(wallpaperPath)
-                avatarUrl: AvatarService.avatarUrl
-                fallbackAvatarUrl: Paths.fileUrl(Paths.defaultAvatar)
-                accountIdentity: SystemIdentityService.accountIdentity
-                distroId: SystemIdentityService.distroId
-                distroName: SystemIdentityService.distroName
-                uptimeText: SystemIdentityService.uptimeText
-                showNetworkStatus: true
-                networkIconName: root.networkStatusIcon()
-                networkStatusText: root.networkStatusText()
-                networkStatusDetail: root.networkStatusDetail()
-                onBannerFileActivated: bannerEditor.chooseFile()
-                onBannerColorActivated: bannerEditor.chooseColor()
-                onBannerCleared: bannerEditor.clear()
-                onAvatarActivated: avatarPicker.openAt(avatarPicker.picturesDir)
-                onNetworkActivated: root.navigateRequested("network")
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.bluetoothState(deviceRow.modelData)
+                    color: Appearance.m3colors.m3outline
+                    font.pixelSize: NexusStyle.font.labelSmall
+                    elide: Text.ElideRight
+                }
+            }
+
+            ActionButton {
+                text: root.bluetoothActionText(deviceRow.modelData)
+                enabled: BluetoothService.enabled && !BluetoothService.busy
+                onClicked: root.bluetoothAction(deviceRow.modelData)
             }
 
             Item {
-                id: cardLayout
+                Layout.preferredWidth: moreButton.implicitWidth
+                Layout.preferredHeight: moreButton.implicitHeight
 
-                width: parent.width
-                height: root.wideLayout ? Math.max(shortcutsCard.y + shortcutsCard.height,
-                                                   personalizationCard.y + personalizationCard.height) :
-                                          personalizationCard.y + personalizationCard.height
+                IconButton {
+                    id: moreButton
 
-                MaterialCard {
-                    id: languageCard
-
-                    width: root.columnWidth
-                    title: extraSearchAnchor0.title
-                    SettingsSearchAnchor {
-                        id: extraSearchAnchor0
-                        target: languageCard
-                        declaration:
-                            '{"id":"account.section.language","route":"account","title":"Language","context":"AccountPage","icon":"settings","aliases":[]}'
-                    }
-                    iconName: "translate"
-                    containerColor: Appearance.m3colors.m3surfaceContainerHigh
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Appearance.spacing.medium
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: I18n.tr("Display language")
-                            color: Appearance.colors.colOnSurface
-                            font.family: Fonts.ui
-                            font.pixelSize: Typography.bodyMedium.pixelSize
-                            font.weight: Font.Medium
-                        }
-
-                        SearchSelectMenuField {
-                            Layout.preferredWidth: 190
-                            options: I18nService.supportedLanguages
-                            value: UiPreferences.language
-                            placeholder: I18n.tr("Choose language")
-                            textRole: "label"
-                            valueRole: "code"
-                            closeOnAccept: true
-                            onAccepted: value => UiPreferences.setLanguage(value)
-                        }
-                    }
+                    anchors.fill: parent
+                    enabled: !BluetoothService.busy
+                    iconName: "more_horiz"
+                    iconSize: NexusStyle.icon.medium
+                    iconColor: Appearance.m3colors.m3onSurfaceVariant
+                    accessibleName: I18n.tr("More options for %1").arg(deviceRow.modelData.name || I18n.tr(
+                                                                           "Unnamed device"))
+                    onClicked: forgetMenu.open()
                 }
 
-                MaterialCard {
-                    id: bluetoothCard
+                StyledMenu {
+                    id: forgetMenu
 
-                    x: 0
-                    y: languageCard.y + languageCard.height + root.cardGap
-                    width: root.columnWidth
-                    title: extraSearchAnchor1.title
-                    SettingsSearchAnchor {
-                        id: extraSearchAnchor1
-                        target: bluetoothCard
-                        declaration:
-                            '{"id":"account.section.bluetooth-devices","route":"account","title":"Bluetooth devices","context":"AccountPage","icon":"settings","aliases":[]}'
-                    }
-                    iconName: BluetoothService.enabled ? "bluetooth" : "bluetooth_disabled"
-                    containerColor: Appearance.m3colors.m3surfaceContainerHigh
+                    parent: moreButton
+                    x: moreButton.width - width
+                    y: moreButton.height
 
-                    RowLayout {
-                        Layout.fillWidth: true
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: BluetoothService.enabled ? I18n.tr("Bluetooth") : I18n.tr(
-                                                                 "Turn on Bluetooth to connect devices")
-                            color: Appearance.colors.colOnSurfaceVariant
-                            font.family: Fonts.ui
-                            font.pixelSize: Typography.bodyMedium.pixelSize
-                        }
-
-                        StyledSwitch {
-                            checked: BluetoothService.enabled
-                            enabled: BluetoothService.available && !BluetoothService.busy
-                            Accessible.name: I18n.tr("Bluetooth switch")
-                            onToggled: BluetoothService.setBluetoothEnabled(checked)
-                        }
-                    }
-
-                    Flickable {
-                        id: pairedDeviceList
-
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(pairedDeviceColumn.implicitHeight, 56 * 3
-                                                         + Appearance.spacing.small * 2)
-                        Layout.maximumHeight: 56 * 3 + Appearance.spacing.small * 2
-                        contentWidth: width
-                        contentHeight: pairedDeviceColumn.implicitHeight
-                        clip: true
-                        interactive: contentHeight > height
-
-                        Column {
-                            id: pairedDeviceColumn
-
-                            width: pairedDeviceList.width
-                            spacing: Appearance.spacing.small
-
-                            Repeater {
-                                model: root.pairedBluetoothDevices
-
-                                delegate: Rectangle {
-                                    id: deviceRow
-
-                                    required property var modelData
-
-                                    width: pairedDeviceColumn.width
-                                    height: 56
-                                    radius: Appearance.rounding.normal
-                                    color: Appearance.colors.colSurfaceContainer
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: Appearance.spacing.medium
-                                        anchors.rightMargin: Appearance.spacing.small
-                                        spacing: Appearance.spacing.small
-
-                                        MaterialSymbol {
-                                            text: root.bluetoothIcon(deviceRow.modelData)
-                                            iconSize: 22
-                                            color: Appearance.colors.colPrimary
-                                        }
-
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 0
-
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: deviceRow.modelData.name || I18n.tr("Unnamed device")
-                                                color: Appearance.colors.colOnSurface
-                                                font.family: Fonts.ui
-                                                font.pixelSize: Typography.bodyMedium.pixelSize
-                                                elide: Text.ElideRight
-                                            }
-
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: root.bluetoothState(deviceRow.modelData)
-                                                color: Appearance.colors.colOnSurfaceVariant
-                                                font.family: Fonts.ui
-                                                font.pixelSize: Typography.bodySmall.pixelSize
-                                            }
-                                        }
-
-                                        ActionButton {
-                                            text: root.bluetoothActionText(deviceRow.modelData)
-                                            enabled: BluetoothService.enabled && !BluetoothService.busy
-                                            onClicked: root.bluetoothAction(deviceRow.modelData)
-                                        }
-
-                                        Item {
-                                            Layout.preferredWidth: Metrics.controlHeightM
-                                            Layout.preferredHeight: Metrics.controlHeightM
-
-                                            IconButton {
-                                                id: moreButton
-
-                                                anchors.fill: parent
-                                                enabled: !BluetoothService.busy
-                                                iconName: "more_horiz"
-                                                iconSize: 22
-                                                iconColor: Appearance.colors.colOnSurfaceVariant
-                                                accessibleName: I18n.tr("More options for %1").arg(
-                                                                    deviceRow.modelData.name || I18n.tr(
-                                                                        "Unnamed device"))
-                                                onClicked: forgetMenu.open()
-                                            }
-
-                                            StyledMenu {
-                                                id: forgetMenu
-                                                parent: moreButton
-                                                x: moreButton.width - width
-
-                                                y: moreButton.height
-
-                                                StyledMenuItem {
-                                                    iconName: "delete"
-                                                    destructive: true
-                                                    text: I18n.tr("Forget device")
-                                                    onTriggered: BluetoothService.forgetDevice(
-                                                                     deviceRow.modelData)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        visible: BluetoothService.enabled && root.pairedBluetoothDevices.length === 0
-                        text: I18n.tr("No paired devices")
-                        color: Appearance.colors.colOnSurfaceVariant
-                        font.family: Fonts.ui
-                        font.pixelSize: Typography.bodyMedium.pixelSize
-                        horizontalAlignment: Text.AlignHCenter
-                    }
-
-                    SettingsActionRow {
-                        Layout.fillWidth: true
-                        text: I18n.tr("More Bluetooth settings")
-                        trailingIconName: "chevron_right"
-                        onClicked: root.navigateRequested("connected-devices")
-                    }
-                }
-
-                MaterialCard {
-                    id: shortcutsCard
-                    y: bluetoothCard.y + bluetoothCard.height + root.cardGap
-                    width: root.columnWidth
-                    title: extraSearchAnchor2.title
-                    SettingsSearchAnchor {
-                        id: extraSearchAnchor2
-                        target: shortcutsCard
-                        declaration:
-                            '{"id":"account.section.keyboard-shortcuts","route":"account","title":"Keyboard shortcuts","context":"AccountPage","icon":"settings","aliases":[]}'
-                    }
-                    iconName: "keyboard"
-                    containerColor: Appearance.m3colors.m3surfaceContainerHigh
-
-                    SettingsActionRow {
-                        Layout.fillWidth: true
-                        text: I18n.tr("Configure shortcuts")
-                        trailingIconName: "chevron_right"
-                        onClicked: root.navigateRequested("shortcuts")
-                    }
-                    SettingsActionRow {
-                        Layout.fillWidth: true
-                        text: I18n.tr("Shortcut map")
-                        trailingIconName: "open_in_new"
-                        onClicked: ShortcutMapService.open(root.parentModal ? root.parentModal.screen : null)
-                    }
-                }
-
-                MaterialCard {
-                    id: personalizationCard
-
-                    x: root.wideLayout ? root.columnWidth + root.cardGap : 0
-                    y: root.wideLayout ? 0 : shortcutsCard.y + shortcutsCard.height + root.cardGap
-                    width: root.columnWidth
-                    title: extraSearchAnchor4.title
-                    SettingsSearchAnchor {
-                        id: extraSearchAnchor4
-                        target: personalizationCard
-                        declaration:
-                            '{"id":"account.section.personalization","route":"account","title":"Personalization","context":"AccountPage","icon":"settings","aliases":[]}'
-                    }
-                    iconName: "palette"
-                    containerColor: Appearance.m3colors.m3surfaceContainerHigh
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.leftMargin: Appearance.spacing.medium
-                        Layout.rightMargin: Appearance.spacing.medium
-                        columns: 3
-                        columnSpacing: Appearance.spacing.small
-                        rowSpacing: Appearance.spacing.small
-
-                        Repeater {
-                            model: root.wallpaperChoices
-
-                            delegate: RippleButton {
-                                id: wallpaperChoice
-
-                                required property string modelData
-
-                                Layout.preferredWidth: root.wallpaperPreviewWidth
-                                Layout.preferredHeight: root.wallpaperPreviewHeight
-                                padding: 0
-                                buttonRadius: Appearance.rounding.small
-                                containerColor: Appearance.colors.colSurfaceContainer
-                                hoverStateLayerOpacity: 0
-                                pressedStateLayerOpacity: Appearance.interaction.pressedStateLayerOpacity
-                                rippleColor: Appearance.colors.colOnSurface
-                                Accessible.name: I18n.tr("Use wallpaper %1").arg(WallpaperService.basename(
-                                                                                     modelData))
-                                onClicked: WallpaperService.setWallpaper(modelData)
-
-                                backgroundContent: Rectangle {
-                                    anchors.fill: parent
-                                    radius: Appearance.rounding.small
-                                    color: WallpaperService.isColorSource(wallpaperChoice.modelData)
-                                           ? wallpaperChoice.modelData : Appearance.colors.colSurfaceContainer
-
-                                    Image {
-                                        id: wallpaperImage
-
-                                        anchors.fill: parent
-                                        source: WallpaperService.isImagePath(wallpaperChoice.modelData)
-                                                ? Paths.fileUrl(wallpaperChoice.modelData) : ""
-                                        sourceSize: Qt.size(Math.max(1, Math.ceil(width
-                                                                                  * Screen.devicePixelRatio
-                                                                                  * 2)), Math.max(1, Math.ceil(
-                                                                                                      height * Screen.devicePixelRatio
-                                                                                                      * 2)))
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                        smooth: false
-                                        mipmap: false
-                                        visible: source !== ""
-                                        layer.enabled: true
-                                        layer.effect: MultiEffect {
-                                            maskEnabled: true
-                                            maskSource: wallpaperMask
-                                            maskThresholdMin: 0.5
-                                            maskSpreadAtMin: 1
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        id: wallpaperMask
-
-                                        anchors.fill: parent
-                                        radius: Appearance.rounding.small
-                                        color: Appearance.m3colors.m3scrim
-                                        visible: false
-                                        layer.enabled: true
-                                    }
-                                }
-
-                                contentItem: Item {}
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.preferredWidth: root.wallpaperPreviewWidth
-                            Layout.preferredHeight: root.wallpaperPreviewHeight
-                            visible: root.wallpaperChoices.length === 0
-                            radius: Appearance.rounding.small
-                            color: Appearance.colors.colSurfaceContainer
-
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                text: WallpaperService.scanning ? "progress_activity" : "wallpaper"
-                                iconSize: 28
-                                color: Appearance.colors.colOnSurfaceVariant
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Appearance.spacing.medium
-
-                        MaterialSymbol {
-                            text: "palette"
-                            iconSize: 22
-                            color: Appearance.colors.colOnSurfaceVariant
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: I18n.tr("Color mode")
-                            color: Appearance.colors.colOnSurface
-                            font.family: Fonts.ui
-                            font.pixelSize: Typography.bodyMedium.pixelSize
-                            font.weight: Font.Medium
-                        }
-
-                        SearchSelectMenuField {
-                            Layout.preferredWidth: 142
-                            options: [({
-                                           "label": I18n.tr("Light"),
-                                           "value": "light"
-                                       }), ({
-                                                "label": I18n.tr("Dark"),
-                                                "value": "dark"
-                                            })]
-                            value: PersonalizationConfig.themeMode
-                            placeholder: I18n.tr("Choose color mode")
-                            closeOnAccept: true
-                            onAccepted: value => ThemeService.setThemeMode(value)
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 0
-
-                        SettingsActionRow {
-                            Layout.fillWidth: true
-                            text: I18n.tr("Wallpaper")
-                            iconName: "wallpaper"
-                            trailingIconName: "chevron_right"
-                            onClicked: root.navigateRequested("wallpaper")
-                        }
-
-                        SettingsActionRow {
-                            Layout.fillWidth: true
-                            text: I18n.tr("Theme")
-                            iconName: "palette"
-                            trailingIconName: "chevron_right"
-                            onClicked: root.navigateRequested("theme")
-                        }
+                    StyledMenuItem {
+                        iconName: "delete"
+                        destructive: true
+                        text: I18n.tr("Forget device")
+                        onTriggered: BluetoothService.forgetDevice(deviceRow.modelData)
                     }
                 }
             }
         }
     }
 
-    ProfileBannerEditor {
-        id: bannerEditor
-        parentModal: root.parentModal
+    Component.onCompleted: {
+        SystemIdentityService.setUptimeConsumer("account-page", root.presentationActive);
+        if (WallpaperService.wallpapers.length === 0 && !WallpaperService.scanning)
+            WallpaperService.scan();
     }
 
-    FilePickerWindow {
-        id: avatarPicker
+    ColumnLayout {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
-        parentModal: root.parentModal
-        requiresParentWindow: true
-        dialogTitle: I18n.tr("Choose avatar")
-        onAccepted: (path, isDirectory) => {
-            if (!isDirectory)
-                AvatarService.setAvatar(path);
+        // Hero — profile banner, avatar, identity and network status.
+        AccountProfileHeader {
+            id: accountHeader
+
+            Layout.fillWidth: true
+            wallpaperIsImage: WallpaperSource.isImage(wallpaperPath)
+            wallpaperComponent: ProfileWallpaper {
+                sourcePath: accountHeader.wallpaperPath
+                previewPath: accountHeader.previewWallpaperPath
+            }
+            wallpaperPath: bannerEditor.source
+            previewWallpaperPath: bannerEditor.previewSource
+            colorWallpaper: WallpaperService.isColorSource(wallpaperPath)
+            avatarUrl: AvatarService.avatarUrl
+            fallbackAvatarUrl: Paths.fileUrl(Paths.defaultAvatar)
+            accountIdentity: SystemIdentityService.accountIdentity
+            distroId: SystemIdentityService.distroId
+            distroName: SystemIdentityService.distroName
+            uptimeText: SystemIdentityService.uptimeText
+            showNetworkStatus: true
+            networkIconName: root.networkStatusIcon()
+            networkStatusText: root.networkStatusText()
+            networkStatusDetail: root.networkStatusDetail()
+            onBannerFileActivated: bannerEditor.chooseFile()
+            onBannerColorActivated: bannerEditor.chooseColor()
+            onBannerCleared: bannerEditor.clear()
+            onAvatarActivated: avatarPicker.openAt(avatarPicker.picturesDir)
+            onNetworkActivated: root.navigateRequested("network")
+        }
+
+        // Language
+        PreferenceHeader {
+            text: I18n.tr("Language")
+        }
+
+        PreferenceSelect {
+            id: languageSelect
+
+            first: true
+            last: true
+            label: I18n.tr("Display language")
+            model: root.languageOptions
+            currentValue: UiPreferences.language
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setLanguage(value)
+
+            SettingsSearchAnchor {
+                target: languageSelect
+                declaration:
+                    '{"id":"account.section.language","route":"account","title":"Language","context":"AccountPage","icon":"settings","aliases":[]}'
+            }
+        }
+
+        // Bluetooth
+        PreferenceHeader {
+            text: I18n.tr("Bluetooth")
+        }
+
+        PreferenceToggle {
+            id: bluetoothToggle
+
+            first: true
+            text: BluetoothService.enabled ? I18n.tr("Bluetooth") : I18n.tr(
+                                                 "Turn on Bluetooth to connect devices")
+            checked: BluetoothService.enabled
+            enabled: BluetoothService.available && !BluetoothService.busy
+            onToggled: BluetoothService.setBluetoothEnabled(checked)
+
+            SettingsSearchAnchor {
+                target: bluetoothToggle
+                declaration:
+                    '{"id":"account.section.bluetooth-devices","route":"account","title":"Bluetooth devices","context":"AccountPage","icon":"settings","aliases":[]}'
+            }
+        }
+
+        Repeater {
+            model: root.pairedBluetoothDevices
+
+            delegate: DeviceRow {}
+        }
+
+        ConnectedRect {
+            Layout.fillWidth: true
+            visible: BluetoothService.enabled && root.pairedBluetoothDevices.length === 0
+            implicitHeight: noDevicesLabel.implicitHeight + NexusStyle.padding.medium * 2
+
+            StyledText {
+                id: noDevicesLabel
+
+                anchors.centerIn: parent
+                width: parent.width - NexusStyle.padding.largeIncreased * 2
+                text: I18n.tr("No paired devices")
+                color: Appearance.m3colors.m3onSurfaceVariant
+                font.pixelSize: NexusStyle.font.bodyMedium
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+
+        PreferenceAction {
+            last: true
+            text: I18n.tr("More Bluetooth settings")
+            onClicked: root.navigateRequested("connected-devices")
+        }
+
+        // Keyboard shortcuts
+        PreferenceHeader {
+            text: I18n.tr("Keyboard shortcuts")
+        }
+
+        PreferenceAction {
+            id: shortcutsRow
+
+            first: true
+            text: I18n.tr("Configure shortcuts")
+            onClicked: root.navigateRequested("shortcuts")
+
+            SettingsSearchAnchor {
+                target: shortcutsRow
+                declaration:
+                    '{"id":"account.section.keyboard-shortcuts","route":"account","title":"Keyboard shortcuts","context":"AccountPage","icon":"settings","aliases":[]}'
+            }
+        }
+
+        PreferenceAction {
+            last: true
+            text: I18n.tr("Shortcut map")
+            trailingIcon: "open_in_new"
+            onClicked: ShortcutMapService.open(root.parentModal ? root.parentModal.screen : null)
+        }
+
+        // Personalization
+        PreferenceHeader {
+            text: I18n.tr("Personalization")
+        }
+
+        ConnectedRect {
+            id: wallpaperGridRow
+
+            first: true
+            Layout.fillWidth: true
+            implicitHeight: wallpaperGrid.implicitHeight + NexusStyle.padding.medium * 2
+
+            SettingsSearchAnchor {
+                target: wallpaperGridRow
+                declaration:
+                    '{"id":"account.section.personalization","route":"account","title":"Personalization","context":"AccountPage","icon":"settings","aliases":[]}'
+            }
+
+            GridLayout {
+                id: wallpaperGrid
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
+                columns: root.wallpaperColumns
+                columnSpacing: NexusStyle.padding.small
+                rowSpacing: NexusStyle.padding.small
+
+                Repeater {
+                    model: root.wallpaperChoices
+
+                    delegate: RippleButton {
+                        id: wallpaperChoice
+
+                        required property string modelData
+
+                        Layout.preferredWidth: root.wallpaperPreviewWidth
+                        Layout.preferredHeight: root.wallpaperPreviewHeight
+                        padding: 0
+                        buttonRadius: NexusStyle.rounding.medium
+                        containerColor: Appearance.m3colors.m3surfaceContainer
+                        hoverStateLayerOpacity: 0
+                        pressedStateLayerOpacity: Appearance.interaction.pressedStateLayerOpacity
+                        rippleColor: Appearance.m3colors.m3onSurface
+                        Accessible.name: I18n.tr("Use wallpaper %1").arg(WallpaperService.basename(modelData))
+                        onClicked: WallpaperService.setWallpaper(modelData)
+
+                        backgroundContent: Rectangle {
+                            anchors.fill: parent
+                            radius: NexusStyle.rounding.medium
+                            color: WallpaperService.isColorSource(wallpaperChoice.modelData)
+                                   ? wallpaperChoice.modelData : Appearance.m3colors.m3surfaceContainer
+
+                            Image {
+                                id: wallpaperImage
+
+                                anchors.fill: parent
+                                source: WallpaperService.isImagePath(wallpaperChoice.modelData)
+                                        ? Paths.fileUrl(wallpaperChoice.modelData) : ""
+                                sourceSize: Qt.size(Math.max(1, Math.ceil(width * Screen.devicePixelRatio * 2)),
+                                                    Math.max(1, Math.ceil(height * Screen.devicePixelRatio
+                                                                          * 2)))
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
+                                smooth: false
+                                mipmap: false
+                                visible: source !== ""
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    maskEnabled: true
+                                    maskSource: wallpaperMask
+                                    maskThresholdMin: 0.5
+                                    maskSpreadAtMin: 1
+                                }
+                            }
+
+                            Rectangle {
+                                id: wallpaperMask
+
+                                anchors.fill: parent
+                                radius: NexusStyle.rounding.medium
+                                color: Appearance.m3colors.m3scrim
+                                visible: false
+                                layer.enabled: true
+                            }
+
+                            // Current-wallpaper selection ring: a 2px inset
+                            // primary stroke that rides above the tile.
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: NexusStyle.rounding.medium
+                                color: "transparent"
+                                border.width: 2
+                                border.color: Appearance.m3colors.m3primary
+                                visible: WallpaperService.currentWallpaper === wallpaperChoice.modelData
+                            }
+                        }
+
+                        contentItem: Item {}
+                    }
+                }
+
+                Rectangle {
+                    Layout.columnSpan: root.wallpaperColumns
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.wallpaperPreviewHeight
+                    visible: root.wallpaperChoices.length === 0
+                    radius: NexusStyle.rounding.medium
+                    color: Appearance.m3colors.m3surfaceContainerHighest
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: WallpaperService.scanning ? "progress_activity" : "wallpaper"
+                        iconSize: NexusStyle.icon.medium
+                        color: Appearance.m3colors.m3onSurfaceVariant
+                    }
+                }
+            }
+        }
+
+        PreferenceSelect {
+            label: I18n.tr("Color mode")
+            model: root.colorModeOptions
+            currentValue: PersonalizationConfig.themeMode
+            inputRegionService: PopupInputRegionService
+            onSelected: value => ThemeService.setThemeMode(value)
+        }
+
+        PreferenceAction {
+            icon: "wallpaper"
+            text: I18n.tr("Wallpaper")
+            onClicked: root.navigateRequested("wallpaper")
+        }
+
+        PreferenceAction {
+            last: true
+            icon: "palette"
+            text: I18n.tr("Theme")
+            onClicked: root.navigateRequested("theme")
+        }
+
+        // Non-visual children live inside the content column (NexusPageBase
+        // takes a single Item; a page-level child on the root is a type
+        // error that kills the whole page — 2026-10-25 lesson).
+        ProfileBannerEditor {
+            id: bannerEditor
+
+            parentModal: root.parentModal
+        }
+
+        FilePickerWindow {
+            id: avatarPicker
+
+            parentModal: root.parentModal
+            requiresParentWindow: true
+            dialogTitle: I18n.tr("Choose avatar")
+            onAccepted: (path, isDirectory) => {
+                if (!isDirectory)
+                    AvatarService.setAvatar(path);
+            }
         }
     }
 }

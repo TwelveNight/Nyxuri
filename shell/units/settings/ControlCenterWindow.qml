@@ -9,29 +9,42 @@ import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.app
-import qs.shared.i18n
 
+// Caelestia-flavoured master-detail shell (Nexus.qml, window mode): a
+// two-zone frame — the left nav panel plus a 12px frame band share the
+// surface-container-low fill, the centre stays clear for pages — with the
+// close chip fused into the top-right corner exactly like the original
+// blob chrome (same colour, so the fusion needs no blobs). Chrome only —
+// routing, deep search and child windows stay on the API surface pinned
+// by tests.
 FloatingWindow {
     id: root
 
     property bool _wasShown: false
-    readonly property bool isMinimal: PersonalizationConfig.settingsPanelStyle === "minimal"
-    readonly property real styleScale: root.isMinimal ? 0.75 : 1
-    property real contentPadding: root.isMinimal ? 4 : 8
     property int currentPage: 0
-    property bool navExpanded: !root.isMinimal && width > 900
+    property int _lastPage: 0
+    property real _animOffset: 0
     property string pendingPageSection: ""
     readonly property var pages: SpotlightCatalog.routes.filter(entry => entry.path.length === 1).map(entry
                                                                                                       => Object.assign(
                                                                                                              {}, entry,
                                                                                                              {
                                                                                                                  title: SpotlightCatalog.title(
-                                                                                                                            entry.id)
+                                                                                                                            entry.id),
+                                                                                                                 sourceTitle:
+                                                                                                                 entry.title,
+                                                                                                                 description:
+                                                                                                                 SpotlightCatalog.description(
+                                                                                                                     entry.id)
                                                                                                              }))
     readonly property string currentRouteId: pages && pages[currentPage] ? pages[currentPage].id : ""
     property int searchRequestSerial: -1
     property var searchLeaf: null
     readonly property var searchPageAnchor: pageSearchAnchor
+    readonly property real navPaneWidth: Math.min(NexusStyle.maxNavWidth, Math.round(root.width / 4))
+    // A loaded page that renders its own NexusPageBase title takes over the
+    // detail header; the interim route-title shim hides.
+    readonly property bool pageRendersTitle: pageLoader.item && pageLoader.item.rendersPageTitle === true
 
     function prepareSearchTarget(entry, serial) {
         searchRequestSerial = serial;
@@ -151,19 +164,17 @@ FloatingWindow {
             page.closeChildWindows();
     }
 
-    function openConfig() {
-        ApplicationService.openUrl(Paths.fileUrl(PersonalizationConfig.filePath));
-    }
-
-    function copyConfigPath() {
-        Quickshell.clipboardText = PersonalizationConfig.filePath;
-        copiedTimer.restart();
-    }
-
     visible: false
+    // Focused by name through ToplevelManager — SettingsBackend.focusWindow()
+    // matches this exact title; keep it stable.
     title: "nyxuri-settings"
-    implicitWidth: 980 * root.styleScale
-    implicitHeight: 665 * root.styleScale
+    // Caelestia Nexus proportions: 70% of the screen height at 16:9, floored
+    // at 800x500 via the Math.max guards. (Never assign explicit size
+    // minimums: Quickshell 0.3.2 collapses the window to the floor when they
+    // are set — the 2026-10-25 width incident.)
+    implicitHeight: Math.max(NexusStyle.minHeight, Math.round((root.screen ? root.screen.height : 900)
+                                                              * NexusStyle.heightMult))
+    implicitWidth: Math.max(NexusStyle.minWidth, Math.round(root.implicitHeight * NexusStyle.ratio))
     color: "transparent"
     Material.theme: PersonalizationConfig.themeMode === "light" ? Material.Light : Material.Dark
     Material.accent: Appearance.colors.colPrimary
@@ -181,36 +192,23 @@ FloatingWindow {
             SettingsBackend.cancelSearch();
         root.closeChildWindows();
         SettingsBackend.retrySearch();
-        root.ensureCurrentNavVisible();
-    }
-
-    function ensureCurrentNavVisible() {
-        if (!navFlickable || !navTabArray)
-            return;
-        const targetY = navTabArray.currentItemY;
-        const itemH = navTabArray.itemHeight;
-        if (targetY < navFlickable.contentY) {
-            navFlickable.contentY = targetY;
-        } else if (targetY + itemH > navFlickable.contentY + navFlickable.height) {
-            navFlickable.contentY = Math.max(0, targetY + itemH - navFlickable.height);
+        if (root.visible) {
+            // Direction-aware vertical slide (Caelestia Pages.qml): navigating
+            // further down the list enters from below, going up enters from
+            // above.
+            root._animOffset = NexusStyle.padding.extraLarge * (root.currentPage > root._lastPage ? 1 : -1);
+            switchAnim.restart();
         }
+        root._lastPage = root.currentPage;
     }
     Component.onDestruction: root.closeChildWindows()
-
-    Timer {
-        id: copiedTimer
-
-        interval: 1400
-    }
 
     Rectangle {
         id: outerBackground
 
         anchors.fill: parent
-        radius: Appearance.rounding.large
+        radius: NexusStyle.rounding.large
         color: BlurService.backgroundColor(Appearance.m3colors.m3background)
-        border.width: 1
-        border.color: Appearance.colors.colOutlineVariant
     }
 
     CompositorBlurRegion {
@@ -248,216 +246,208 @@ FloatingWindow {
             onWheel: wheel => wheel.accepted = false
         }
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: root.contentPadding
-            spacing: root.contentPadding
+        // Left nav zone: nav pane width plus its 16px margins, full height,
+        // sharing the window's left corner rounding. Same fill as the frame
+        // band and the close chip — the original fuses all three from one
+        // blob colour.
+        Rectangle {
+            id: navZone
 
-            Item {
-                id: titlebar
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: root.navPaneWidth + NexusStyle.navMargin * 2
+            topLeftRadius: NexusStyle.rounding.large
+            bottomLeftRadius: NexusStyle.rounding.large
+            color: Appearance.colors.colSurfaceContainerLow
 
-                Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(titleText.implicitHeight, closeButton.implicitHeight)
-
-                Text {
-                    id: titleText
-
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: I18n.tr("Settings")
-                    color: Appearance.colors.colOnLayer0
-                    font.family: Fonts.ui
-                    font.pixelSize: 24
-                    font.weight: Font.DemiBold
+            DragHandler {
+                target: null
+                acceptedButtons: Qt.LeftButton
+                onActiveChanged: {
+                    if (active)
+                        root.startSystemMove();
                 }
+            }
+        }
 
-                Rectangle {
-                    id: closeButton
+        NexusNavPane {
+            id: navPane
 
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    implicitWidth: 35
-                    implicitHeight: 35
-                    radius: Appearance.rounding.full
-                    color: closeMouse.pressed ? Appearance.colors.colLayer1Active : closeMouse.containsMouse
-                                                ? Appearance.colors.colLayer1Hover : "transparent"
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.margins: NexusStyle.navMargin
+            width: root.navPaneWidth
+            currentIndex: root.currentPage
+            routes: root.pages
+            onRouteActivated: index => root.currentPage = index
+        }
 
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "close"
-                        iconSize: 20
-                        color: Appearance.colors.colOnLayer1
-                    }
+        // Pages region: 16px clear of the frame band (28px from the window
+        // edge) and 28px clear of the nav zone, exactly the original Pages
+        // anchors. No close chip: the author dropped the original window
+        // button (2026-10-25) — closing rides the mod+i toggle and the
+        // compositor.
+        Item {
+            id: detailPane
 
-                    MouseArea {
-                        id: closeMouse
+            anchors.left: navZone.right
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: NexusStyle.frameBand + NexusStyle.chromeInset
+            anchors.rightMargin: NexusStyle.frameBand + NexusStyle.chromeInset
+            anchors.topMargin: NexusStyle.frameBand + NexusStyle.chromeInset
+            anchors.bottomMargin: NexusStyle.frameBand + NexusStyle.chromeInset
 
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.hideWindow()
-                    }
+            InlineStatusBanner {
+                z: 200
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: Metrics.spacingM
+                visible: SettingsBackend.searchError !== ""
+                tone: "error"
+                message: SettingsBackend.searchError
+            }
 
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: Appearance.animation.expressiveEffects.duration
-                            easing.type: Appearance.animation.expressiveEffects.type
-                            easing.bezierCurve: Appearance.animation.expressiveEffects.bezierCurve
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: NexusStyle.spacing.large
+
+                // Route-responsive detail title — the interim shim for old
+                // pre-M3 pages. Pages built on NexusPageBase render their own
+                // title and the shim steps aside. Doubles as the drag grip
+                // the frameless window needs.
+                Item {
+                    Layout.fillWidth: true
+                    visible: !root.pageRendersTitle
+                    implicitHeight: root.pageRendersTitle ? 0 : routeTitle.implicitHeight
+
+                    DragHandler {
+                        target: null
+                        acceptedButtons: Qt.LeftButton
+                        onActiveChanged: {
+                            if (active)
+                                root.startSystemMove();
                         }
                     }
+
+                    StyledText {
+                        id: routeTitle
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.pages && root.pages[root.currentPage] ? root.pages[root.currentPage].title :
+                                                                           ""
+                        color: Appearance.m3colors.m3onSurface
+                        font.pixelSize: NexusStyle.font.titleLarge
+                        font.weight: NexusStyle.font.titleWeight
+                        elide: Text.ElideRight
+                    }
                 }
 
-                DragHandler {
-                    target: null
-                    acceptedButtons: Qt.LeftButton
-                    onActiveChanged: {
-                        if (active)
-                            root.startSystemMove();
+                // Page container: the whole pane swaps with the
+                // direction-aware fade-and-settle animation below, the host
+                // itself swaps layers instantly. The inner container is
+                // anchor-managed so margins animate.
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    Item {
+                        id: pageContainer
+
+                        anchors.fill: parent
+
+                        SettingsPageHost {
+                            id: pageLoader
+
+                            anchors.fill: parent
+                            animationsEnabled: false
+
+                            property var parentModal: root
+
+                            source: root.pageSource(root.currentPage)
+                            presentationActive: root.visible
+                            onLoaded: {
+                                if (item && "parentModal" in item)
+                                    item.parentModal = parentModal;
+
+                                const page = item;
+                                if (page && "presentationActive" in page)
+                                    page.presentationActive = Qt.binding(function () {
+                                        return root.visible && pageLoader.item === page;
+                                    });
+
+                                root.applyPendingPageSection();
+                                SettingsBackend.retrySearch();
+                            }
+                        }
+
+                        Connections {
+                            function onNavigateRequested(pageId) {
+                                root.openPage(pageId);
+                            }
+
+                            target: pageLoader.item
+                            ignoreUnknownSignals: true
+                        }
                     }
                 }
             }
+        }
+    }
 
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: root.contentPadding
+    SequentialAnimation {
+        id: switchAnim
 
-                Item {
-                    id: navRailWrapper
+        alwaysRunToEnd: false
 
-                    Layout.fillHeight: true
-                    Layout.margins: 5
-                    implicitWidth: root.navExpanded ? (root.isMinimal ? 180 : 220) : configButton.baseSize
-
-                    ColumnLayout {
-                        id: navRail
-
-                        anchors.fill: parent
-                        spacing: 10
-
-                        NavigationRailExpandButton {
-                            expanded: root.navExpanded
-                            onClicked: root.navExpanded = !root.navExpanded
-                        }
-
-                        FloatingActionButton {
-                            id: configButton
-
-                            property bool justCopied: copiedTimer.running
-
-                            baseSize: root.isMinimal ? 36 : 56
-                            iconText: justCopied ? "check" : "edit"
-                            buttonText: justCopied ? I18n.tr("Path copied") : I18n.tr("config file")
-                            expanded: root.navExpanded
-                            onClicked: root.openConfig()
-                            onAltClicked: root.copyConfigPath()
-                        }
-
-                        Flickable {
-                            id: navFlickable
-
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            contentWidth: width
-                            contentHeight: navTabArray.implicitHeight
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            ScrollBar.vertical: StyledScrollBar {
-                                policy: ScrollBar.AsNeeded
-                            }
-
-                            NavigationRailTabArray {
-                                id: navTabArray
-
-                                width: navFlickable.width
-                                currentIndex: root.currentPage
-                                expanded: root.navExpanded
-
-                                Repeater {
-                                    model: root.pages
-
-                                    NavigationRailButton {
-                                        required property int index
-                                        required property var modelData
-
-                                        width: navTabArray.width
-                                        baseSize: root.isMinimal ? 36 : 56
-                                        baseHighlightHeight: root.isMinimal ? 28 : 32
-                                        active: root.currentPage === index
-                                        expanded: root.navExpanded
-                                        buttonIcon: modelData.icon
-                                        buttonText: modelData.title
-                                        showToggledHighlight: false
-                                        onPressed: root.currentPage = index
-                                        onClicked: root.currentPage = index
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Behavior on implicitWidth {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementMoveFast.duration
-                            easing.type: Appearance.animation.elementMoveFast.type
-                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: bodyBackground
-
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: Math.max(0, Appearance.rounding.large - root.contentPadding)
-                    color: root.currentPage === 0 ? "transparent" : Appearance.m3colors.m3surfaceContainerLow
-                    clip: true
-
-                    InlineStatusBanner {
-                        z: 200
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.margins: Metrics.spacingM
-                        visible: SettingsBackend.searchError !== ""
-                        tone: "error"
-                        message: SettingsBackend.searchError
-                    }
-
-                    SettingsPageHost {
-                        id: pageLoader
-
-                        property var parentModal: root
-
-                        anchors.fill: parent
-                        source: root.pageSource(root.currentPage)
-                        presentationActive: root.visible
-                        onLoaded: {
-                            if (item && "parentModal" in item)
-                                item.parentModal = parentModal;
-
-                            const page = item;
-                            if (page && "presentationActive" in page)
-                                page.presentationActive = Qt.binding(function () {
-                                    return root.visible && pageLoader.item === page;
-                                });
-
-                            root.applyPendingPageSection();
-                            SettingsBackend.retrySearch();
-                        }
-                    }
-
-                    Connections {
-                        function onNavigateRequested(pageId) {
-                            root.openPage(pageId);
-                        }
-
-                        target: pageLoader.item
-                        ignoreUnknownSignals: true
-                    }
-                }
+        NumberAnimation {
+            target: pageContainer
+            property: "opacity"
+            to: 0
+            duration: Appearance.animation.expressiveDefaultEffects.duration
+            easing.type: Appearance.animation.expressiveDefaultEffects.type
+            easing.bezierCurve: Appearance.animation.expressiveDefaultEffects.bezierCurve
+        }
+        PropertyAction {
+            target: pageContainer.anchors
+            property: "topMargin"
+            value: root._animOffset
+        }
+        PropertyAction {
+            target: pageContainer.anchors
+            property: "bottomMargin"
+            value: -root._animOffset
+        }
+        ParallelAnimation {
+            NumberAnimation {
+                target: pageContainer
+                property: "opacity"
+                to: 1
+                duration: Appearance.animation.expressiveSlowEffects.duration
+                easing.type: Appearance.animation.expressiveSlowEffects.type
+                easing.bezierCurve: Appearance.animation.expressiveSlowEffects.bezierCurve
+            }
+            NumberAnimation {
+                target: pageContainer.anchors
+                property: "topMargin"
+                to: 0
+                duration: Appearance.animation.expressiveSlowEffects.duration
+                easing.type: Appearance.animation.expressiveSlowEffects.type
+                easing.bezierCurve: Appearance.animation.expressiveSlowEffects.bezierCurve
+            }
+            NumberAnimation {
+                target: pageContainer.anchors
+                property: "bottomMargin"
+                to: 0
+                duration: Appearance.animation.expressiveSlowEffects.duration
+                easing.type: Appearance.animation.expressiveSlowEffects.type
+                easing.bezierCurve: Appearance.animation.expressiveSlowEffects.bezierCurve
             }
         }
     }

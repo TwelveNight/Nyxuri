@@ -1,10 +1,10 @@
 ```text
 Nyxuri
 ├── install.sh                  # lightweight bootstrap entrypoint
-├── catalog.toml                # package catalogue (17 standalone apps without dotfiles)
+├── catalog.toml                # package catalogue (18 standalone apps without dotfiles)
 ├── nyxuri/                     # Python core engine (zero pip dependencies)
 ├── shell/                      # Nyxuri Shell (QML/Qt6 desktop shell, experimental)
-└── units/                      # 12 modular desktop capability units
+└── units/                      # 13 modular desktop capability units
     ├── fastfetch/              # system information
     ├── fcitx5-rime/            # dynamic Material You input skin & Rime config
     ├── fish/                   # shell aliases & functions
@@ -14,6 +14,7 @@ Nyxuri
     ├── niri/                   # window manager & session scripts
     ├── noctalia/               # desktop shell, theme sync, Orbit & wallpaper picker
     ├── starship/               # prompt styling
+    ├── theme/                  # shared matugen theme template pool
     ├── wallpapers/             # companion wallpapers & video pack hooks
     ├── xdg-desktop-portal/     # portal routing (theme sync, screencast)
     └── zed/                    # editor configuration

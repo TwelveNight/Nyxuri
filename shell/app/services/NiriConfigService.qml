@@ -233,7 +233,7 @@ Singleton {
                 root.actionCatalog = JSON.parse(text()).map(entry => Object.assign({}, entry, {
                                                                                        supported:
                                                                                        entry.category
-                                                                                       === "clavis" || !!(
+                                                                                       === "nyxuri" || !!(
                                                                                            previous[entry.id]
                                                                                            && previous[entry.id].supported)
                                                                                    }));

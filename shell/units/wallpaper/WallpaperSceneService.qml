@@ -257,7 +257,7 @@ Singleton {
                                                   + fillModeName + "|" + Math.round(canvasWidth) + "x"
                                                   + Math.round(canvasHeight) + "|" + Math.round(
                                                       imagePixelWidth) + "x" + Math.round(imagePixelHeight)
-                                                  + "|" + (externalBackend ? "external" : "clavis")
+                                                  + "|" + (externalBackend ? "external" : "nyxuri")
 
             Behavior on animatedOffsetX {
                 NumberAnimation {

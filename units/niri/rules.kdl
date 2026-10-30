@@ -10,12 +10,12 @@ layer-rule {
 
 // Nyxuri Shell 壁纸与表面层规则
 layer-rule {
-    match namespace="^(nyxuri|clavis)-wallpaper$"
+    match namespace="^nyxuri-wallpaper$"
     place-within-backdrop true
 }
 
 layer-rule {
-    match namespace="^(nyxuri|clavis)-shell-"
+    match namespace="^nyxuri-shell-"
     background-effect {
         xray false
     }

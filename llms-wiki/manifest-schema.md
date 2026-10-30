@@ -17,7 +17,7 @@
 | `target` | `""` | 单文件单元例外：单元目录只 ship 一个文件 `units/<unit>/<target>`，落点 `~/.config/<target>`（如 starship）。`~/` 前缀则声明 `~/.config` 外的**共享生活区**（如壁纸 `~/Pictures/Wallpapers`）。target 单元不支持 presets/parts |
 | `merge` | `false` | 共享生活区声明：`on` 走 no-clobber 增量合流（已存在文件永不覆盖），快照只记部署落下的文件；`off` 只撤回快照文件，外来内容幸存并报告；doctor 对停用 merge 单元只把蓝图具名残留记 Ghost（见 [unit-model](unit-model.md) §3） |
 | `runtime` | `false` | 运行态单元声明（KM4，shell 命名空间专用，见 [unit-model](unit-model.md) §6）：无载荷、无生活区、无 Vault 进出、无 presets/parts——`on`/`off` 纯账本落记 + 一次 `unit-changed` 事件，运行中的宿主（Shell）据事件装载/卸载该域。doctor 恒 `Synced`（实机无可对账之物）。物理承载 `shell/units/<domain>/manifest.toml` |
-| `preserve` | `[]` | 跨部署保留的文件（按名声明，如 `monitor.kdl`；与 Dunder 不同机制） |
+| `preserve` | `[]` | 跨部署保留的路径（按名声明，如 `monitor.kdl`；与 Dunder 不同机制）。条目可以是**目录**：整目录归运行时管理（如 fish 的 `functions/`），部署前整树注入、off 入 Vault、目录下所有文件不入账不参与 Drifted。**禁令：preserve 目录不得混铺模板 payload**——声明即承诺"模板不在此目录铺设任何文件"，混居会把 payload 永久冻结在旧版 |
 | `preserve_values` | `{}` | 跨部署保留指定文本配置里的个别键，形如 `{ "noctalia-config.toml" = ["enable_ddcutil"] }`。旧文件里存在的键按原样带入新文件，缺失的键不携带，沿用新模板的值 |
 | `chmod` | `[]` | 部署后设 +x 的 glob（相对单元目录，如 `scripts/*.sh`） |
 | `label` | `<目录名>` | PKGBUILD optdepends 展示名（菜单显示名走 i18n `app_*` 键） |
@@ -73,7 +73,7 @@
 
 ```toml
 # units/niri/manifest.toml — monitor.kdl 被 include 引用；effects.kdl 为运行时护眼模式符号链接
-preserve = ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "eyecare_temp"]
+preserve = ["monitor.kdl", "effects.kdl", "effects_normal.kdl", "glow.kdl", "colors.kdl", "noctalia.kdl", "eyecare_temp"]
 chmod = ["scripts/*.sh", "scripts/*.py"]
 
 [parts.effects]
@@ -110,8 +110,9 @@ fastfetch **不写 manifest**（目录名 = 包名 = 二进制名 = 无例外）
 
 可选不再住 sidecar 登记簿——真单元在自己的 `manifest.toml` 里声明 `optional = true`；
 「装但不部署」的软件（无配置可 ship）住**根 `catalog.toml`**（KM3.5 正名：包目录清单
-不是单元，17 个零文件假目录已处决）。两源同汇进 `deps apps` 菜单与 gen-deps
-`optdepends`。**zed / mango / greeter / fcitx5-rime 双轴共存**：既有配置目录又声明可选，
+不是单元，17 个零文件假目录已处决）。两源同汇进 `deps apps` 菜单（T1 依赖按需化后
+gen-deps `optdepends` 有意与 catalog 脱钩，见 PKGBUILD 头注释）。
+**zed / mango / greeter / fcitx5-rime 双轴共存**：既有配置目录又声明可选，
 两个事实同时为真。例外字段照旧只写差异：
 
 ```toml

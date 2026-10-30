@@ -46,7 +46,7 @@ Item {
     FloatingWindow {
         id: window
         parentWindow: root.parentModal
-        title: "clavis-control-center-color-picker"
+        title: "nyxuri-control-center-color-picker"
         visible: root.shouldBeVisible
         color: "transparent"
         implicitWidth: 470

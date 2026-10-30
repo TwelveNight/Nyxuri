@@ -5,7 +5,7 @@ import qs.shared.controls
 import qs.app.services
 import qs.shared.i18n
 
-// Three-way switch for how the settings panel presents itself. Ported 1:1 from
+// Two-way switch for how the settings panel presents itself. Ported from
 // end4-pC's DashboardStyleCard: same option grid, same selected badge, same
 // shape-wrapped icon treatment — now backed by the real Material 3 shape
 // library, so Clover4Leaf renders instead of the M3Shapes fallback's rounded
@@ -23,13 +23,6 @@ Rectangle {
             "detail": I18n.tr("Full rail and page layout"),
             "icon": "settings_panorama",
             "shape": MaterialShapeCanvas.Shape.Cookie9Sided
-        },
-        {
-            "value": "minimal",
-            "name": I18n.tr("Minimal"),
-            "detail": I18n.tr("Compact rail, tighter padding"),
-            "icon": "settings_heart",
-            "shape": MaterialShapeCanvas.Shape.Clover4Leaf
         },
         {
             "value": "dashboard",

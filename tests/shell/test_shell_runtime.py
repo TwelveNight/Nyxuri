@@ -12,6 +12,11 @@ import time
 import unittest
 
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import io
+import sys
+from unittest.mock import patch
+
 
 SHELL = Path(__file__).resolve().parents[2] / "shell"
 
@@ -20,17 +25,12 @@ PRESENTATION_TIMEOUT_SCALE = 1.0
 
 def presentation_timeout_scale():
     """Multiplier for presentation budgets, for hardware slower than CI."""
-    for key in ("NYXURI_PRESENTATION_TIMEOUT_SCALE", "CLAVIS_PRESENTATION_TIMEOUT_SCALE"):
-        raw = os.environ.get(key, "").strip()
-        if not raw:
-            continue
-        try:
-            value = float(raw)
-        except ValueError:
-            continue
-        if value >= 1:
-            return value
-    return PRESENTATION_TIMEOUT_SCALE
+    raw = os.environ.get("NYXURI_PRESENTATION_TIMEOUT_SCALE", "").strip()
+    try:
+        value = float(raw) if raw else 0.0
+    except ValueError:
+        value = 0.0
+    return value if value >= 1 else PRESENTATION_TIMEOUT_SCALE
 
 
 def presentation_budget(seconds):
@@ -58,7 +58,7 @@ class ShellLauncherTests(unittest.TestCase):
         qs.chmod(0o755)
         self.environment = {
             key: value for key, value in os.environ.items()
-            if key not in {"CLAVIS_BUILD_DIR", "CLAVIS_QML_BUILD_DIR", "NYXURI_BUILD_DIR", "NYXURI_QML_BUILD_DIR", "QML_IMPORT_PATH", "QML2_IMPORT_PATH"}
+            if key not in {"NYXURI_BUILD_DIR", "NYXURI_QML_BUILD_DIR", "QML_IMPORT_PATH", "QML2_IMPORT_PATH"}
         }
         self.environment["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
 
@@ -148,7 +148,7 @@ class ShellLauncherTests(unittest.TestCase):
         (shell / "untracked.qml").write_text("new")
         (repo / "host.py").write_text("new")
         result = subprocess.run(
-            ["bash", "-c", 'source "$1"; clavis_files changed', "test", str(SHELL / "scripts/dev/files.sh")],
+            ["bash", "-c", 'source "$1"; nyxuri_files changed', "test", str(SHELL / "scripts/dev/files.sh")],
             cwd=shell, capture_output=True, check=True, env=self.environment,
         )
         self.assertEqual(set(result.stdout.rstrip(b"\0").split(b"\0")),
@@ -175,7 +175,7 @@ class ShellPresentationTests(unittest.TestCase):
         fallback = str(SHELL / "fallback")
         self.environment = {
             key: value for key, value in os.environ.items()
-            if not key.startswith(("CLAVIS_", "QS_", "NYXURI_"))
+            if not key.startswith(("QS_", "NYXURI_"))
             and key not in {"NIRI_SOCKET", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS"}
         }
         self.environment.update(
@@ -199,7 +199,7 @@ class ShellPresentationTests(unittest.TestCase):
                 compositor_log.seek(0)
                 self.fail("Private compositor did not start:\n" + compositor_log.read())
             time.sleep(0.05)
-        self.palette = self.ctx.home / "data/nyxuri/profiles/default/generated/clavis/colors.json"
+        self.palette = self.ctx.home / "data/nyxuri/profiles/default/generated/nyxuri/colors.json"
         self.palette.parent.mkdir(parents=True)
         if self._testMethodName == "test_template_render_queue_writes_outputs_and_hooks":
             # Builtin template hooks run pkill; shim it so a passing test can
@@ -847,7 +847,7 @@ class ShellConfigStoreTests(unittest.TestCase):
         fallback = str(SHELL / "fallback")
         self.environment = {
             key: value for key, value in os.environ.items()
-            if not key.startswith(("CLAVIS_", "QS_", "NYXURI_"))
+            if not key.startswith(("QS_", "NYXURI_"))
             and key not in {"NIRI_SOCKET", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS"}
         }
         self.environment.update(
@@ -992,7 +992,7 @@ ShellRoot {
         """The drawer and todo stores schedule a save after loading; a parse failure must skip it."""
         corrupt = '{"broken":'
         stores = [self.ctx.home / relative for relative in (
-            ".local/state/nyxuri/clavis-info-drawer.json",
+            ".local/state/nyxuri/nyxuri-info-drawer.json",
             ".local/state/nyxuri/todo.json",
         )]
         for store in stores:
@@ -1041,7 +1041,7 @@ class ShellFileUrlTests(unittest.TestCase):
         fallback = str(SHELL / "fallback")
         self.environment = {
             key: value for key, value in os.environ.items()
-            if not key.startswith(("CLAVIS_", "QS_", "NYXURI_"))
+            if not key.startswith(("QS_", "NYXURI_"))
             and key not in {"NIRI_SOCKET", "WAYLAND_DISPLAY", "DISPLAY", "DBUS_SESSION_BUS_ADDRESS"}
         }
         self.environment.update(
@@ -1179,3 +1179,32 @@ ShellRoot {
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPresentationTimeoutScale(unittest.TestCase):
+    """Slow hardware must be able to run the presentation harness at all."""
+
+    def _module(self):
+        from tests.shell import test_shell_runtime
+
+        return test_shell_runtime
+
+    def test_default_scale_preserves_the_shipped_budgets(self):
+        module = self._module()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("NYXURI_PRESENTATION_TIMEOUT_SCALE", None)
+            self.assertEqual(module.presentation_timeout_scale(), 1.0)
+            for original in (5, 8, 10, 15, 20, 30):
+                self.assertEqual(module.presentation_budget(original), float(original))
+
+    def test_scale_multiplies_every_budget(self):
+        module = self._module()
+        with patch.dict(os.environ, {"NYXURI_PRESENTATION_TIMEOUT_SCALE": "12"}):
+            self.assertEqual(module.presentation_budget(10), 120.0)
+            self.assertEqual(module.presentation_budget(30), 360.0)
+
+    def test_invalid_values_are_ignored(self):
+        module = self._module()
+        for value in ("0.1", "0", "-3", "abc", ""):
+            with patch.dict(os.environ, {"NYXURI_PRESENTATION_TIMEOUT_SCALE": value}):
+                self.assertEqual(module.presentation_timeout_scale(), 1.0, value)

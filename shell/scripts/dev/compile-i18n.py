@@ -134,7 +134,7 @@ def generate_ts(
     all_contexts: Set[str] = set(source_contexts.keys()) | set(context_mappings.keys())
 
     # Ensure well-known test contexts exist
-    all_contexts.update(["AccountPage", "TimeUtils", "DashboardPomodoroCard", "SpotlightClipboardProvider"])
+    all_contexts.update(["AccountPage", "DashboardPomodoroCard", "SpotlightClipboardProvider"])
 
     lines: List[str] = [
         '<?xml version="1.0" encoding="utf-8"?>',
@@ -231,7 +231,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True, help="Output directory for generated TS/QM files")
     parser.add_argument("--source-root", type=Path, default=None, help="Root directory of QML/JS sources (default: input-dir/../..)")
     parser.add_argument("--compile-qm", action="store_true", help="Also compile TS to binary QM files")
-    parser.add_argument("--prefix", default="clavis", help="Prefix for output files (e.g. clavis or nyxuri)")
+    parser.add_argument("--prefix", default="nyxuri", help="Prefix for output files")
 
     args = parser.parse_args()
 

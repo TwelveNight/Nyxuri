@@ -32,7 +32,7 @@ DISPATCH = {
     ('shortcut-map', 'open'): [[]],
     ('power-menu', 'open'): [[]],
 }
-AVAILABILITY = {'always', 'awww', 'clavis-wallpaper', 'wallpaper-idle', 'keystone', 'keyboard-lock', 'dock-previews'}
+AVAILABILITY = {'always', 'awww', 'nyxuri-wallpaper', 'wallpaper-idle', 'keystone', 'keyboard-lock', 'dock-previews'}
 
 
 def required(entry, fields):
@@ -53,7 +53,7 @@ def compile_catalog(route_document, declarations, actions):
     routes = route_document['routes']
     by_id = {}
     for route in routes:
-        required(route, ['id', 'title', 'context', 'icon', 'source'])
+        required(route, ['id', 'title', 'description', 'context', 'icon', 'source'])
         if route['id'] in by_id or route['path'] != route['id'].split('.'):
             raise ValueError(f'Duplicate ID or invalid route path: {route["id"]}')
         if '/' in route['source'] or not route['source'].endswith('.qml'):
@@ -79,7 +79,7 @@ def compile_catalog(route_document, declarations, actions):
     selected = []
     action_ids = set()
     for action in actions:
-        if action['category'] not in ('clavis', 'nyxuri'):
+        if action['category'] != 'nyxuri':
             continue
         if action['id'] in action_ids:
             raise ValueError('Duplicate action ID')
@@ -99,9 +99,8 @@ def compile_catalog(route_document, declarations, actions):
         if entry['target'] == 'power-menu' and entry['confirmation'] != 'power-menu':
             raise ValueError('Power actions must open the existing confirmation UI')
         # Check fixed argv against the existing shortcut declaration, never run it.
-        expected_clavis = 'spawn ' + ' '.join(json.dumps(v) for v in ['qs', '-c', 'clavis', 'ipc', 'call', entry['target'], entry['method'], *args])
-        expected_nyxuri = 'spawn ' + ' '.join(json.dumps(v) for v in ['qs', '-c', 'nyxuri', 'ipc', 'call', entry['target'], entry['method'], *args])
-        if action['expression'] not in (expected_clavis, expected_nyxuri):
+        expected = 'spawn ' + ' '.join(json.dumps(v) for v in ['nyxuri-shell', '--ipc', entry['target'], entry['method'], *args])
+        if action['expression'] != expected:
             raise ValueError(f'Fixed arguments disagree with shortcut: {entry["id"]}')
         selected.append(entry)
     return {'schemaVersion': 1, 'routes': routes, 'settings': settings, 'actions': selected}
@@ -122,6 +121,11 @@ def render(catalog):
     for entry in catalog['settings'] + catalog['actions']:
         lines.append('    case '+json.dumps(entry['id'])+': return I18n.tr('+json.dumps(entry['title'])+', '+json.dumps(entry['context'])+');')
     lines += ['    default: return "";', '    }', '}', '', 'function description(id) {', '    switch (id) {']
+    # Route descriptions ride the same I18n bridge as titles so the NavPane
+    # subtitle stays translated; section anchors have no description field.
+    for entry in catalog['settings']:
+        if 'description' in entry:
+            lines.append('    case '+json.dumps(entry['id'])+': return I18n.tr('+json.dumps(entry['description'])+', '+json.dumps(entry['context'])+');')
     for entry in catalog['actions']:
         lines.append('    case '+json.dumps(entry['id'])+': return I18n.tr('+json.dumps(entry['description'])+', '+json.dumps(entry['context'])+');')
     lines += ['    default: return "";', '    }', '}', '']

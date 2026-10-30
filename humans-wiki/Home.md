@@ -1,6 +1,14 @@
 Nyxuri is a Material You desktop suite and management engine for Arch Linux / CachyOS.
 The root README serves as a minimal storefront and bootstrap entrypoint. This Wiki houses the full configuration layout, preset details, complete keybindings, CLI tooling matrix, and troubleshooting guides.
 
+### Install from the AUR (Arch / CachyOS, recommended)
+
+```bash
+paru -S nyxuri-git        # management engine + config units + Nyxuri Shell, one package
+nyxuri install full       # or assemble the desktop per unit: nyxuri on <unit>
+```
+> Installing enters system-package mode: updates are handled by pacman. Desktop apps are not bundled — enabling a unit installs only what that unit needs.
+
 ---
 
 ## Documentation Index

@@ -20,6 +20,8 @@ def _command(config: Path, *, cold: bool = False) -> list[str]:
     launcher = f"""
 import runpy, sys, threading, time
 sys.path.insert(0, {str(_ENTRY.parent)!r})
+# Blueprint modules imported from units/ must never drop __pycache__ into the read-only source tree (unit-model §1).
+sys.dont_write_bytecode = True
 from unittest.mock import patch
 from orbit_translate.catalog import CatalogModel, CatalogProvider, CatalogSnapshot
 snapshot = CatalogSnapshot((

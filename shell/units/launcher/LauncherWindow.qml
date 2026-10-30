@@ -24,7 +24,7 @@ PanelWindow {
         right: true
     }
 
-    WlrLayershell.namespace: "clavis-shell-spotlight"
+    WlrLayershell.namespace: "nyxuri-shell-spotlight"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     WlrLayershell.exclusionMode: ExclusionMode.Ignore

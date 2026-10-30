@@ -10,6 +10,12 @@ from nyxuri import pkg
 from nyxuri.pkg import fzf as cli
 from nyxuri.pkg.detection import DependencyProbe
 from tests.utils import TempEnv
+# Imports consolidated from the dissolved bugfix ledger.
+import json
+import os
+import sys
+from pathlib import Path
+
 
 
 class TestPackageAdapter(unittest.TestCase):
@@ -134,3 +140,39 @@ class TestPackageAdapter(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("clean", result.stdout)
         self.assertEqual(set(self.env.home.rglob("*")), before)
+
+
+class TestPackageArgv(unittest.TestCase):
+
+    def test_scalar_packages_is_not_split_into_characters(self):
+        from nyxuri import pkg
+        with patch.object(pkg, "preferred_manager", return_value="pacman"):
+            argv = pkg.command("install", "fish")
+        self.assertEqual(argv[-1], "fish")
+        self.assertNotIn("f", argv)
+        with patch.object(pkg, "preferred_manager", return_value="pacman"), \
+             patch.object(pkg, "run", return_value=type("R", (), {"returncode": 0})()) as runner:
+            pkg.install("fish")
+        self.assertEqual(runner.call_args.args[0][-1], "fish")
+
+    def test_shelly_aur_search_passes_the_separator(self):
+        from nyxuri.pkg import fzf as cli
+        with patch.object(cli, "preferred_manager", return_value="shelly"), \
+             patch.object(cli, "run", return_value=type("R", (), {"returncode": 1, "stdout": "", "stderr": ""})()) as runner:
+            cli.search("aur --regex")
+        argv = runner.call_args.args[0]
+        self.assertIn("--", argv)
+        self.assertEqual(argv[-1], "--regex")
+
+    def test_shelly_remove_classifies_aur_operands(self):
+        from nyxuri.pkg import fzf as cli
+        with patch.object(cli, "preferred_manager", return_value="shelly"), \
+             patch.object(cli, "run") as runner:
+            runner.side_effect = [
+                type("R", (), {"returncode": 0, "stdout": "repo-pkg\n", "stderr": ""})(),
+                type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})(),
+            ]
+            rc = cli.main(["remove", "aur-pkg"])
+            calls = [call.args[0] for call in runner.call_args_list]
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls[-1][:3], ["shelly", "remove", "aur"])

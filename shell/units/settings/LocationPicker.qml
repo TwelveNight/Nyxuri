@@ -4,6 +4,7 @@ import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
 
 ColumnLayout {
     id: root
@@ -69,7 +70,7 @@ ColumnLayout {
     function closeChildWindows() {
     }
 
-    spacing: Metrics.spacingM
+    spacing: NexusStyle.spacing.medium
 
     OutlinedTextField {
         id: coordinateField

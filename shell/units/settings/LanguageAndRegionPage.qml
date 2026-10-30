@@ -1,12 +1,20 @@
 import QtQuick
 import QtQuick.Layouts
-import qs.shared.theme
 import qs.app.services
-import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Language & region page (T3 M4): NexusPageBase scaffold + M1 atom rows.
+// The functional location picker stays a custom editor inside a connected
+// card — Caelestia ships only a placeholder there, Nyxuri has the real thing.
+NexusPageBase {
     id: root
+
+    title: SpotlightCatalog.title("language-region")
+
+    // Window contract surface — consumed by ControlCenterWindow.
+    readonly property Item searchLeaf: root.flickable
 
     property var parentModal: null
     property bool presentationActive: false
@@ -17,158 +25,164 @@ StyledFlickable {
         locationPicker.closeChildWindows();
     }
 
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
+    readonly property var languageOptions: I18nService.supportedLanguages.map(lang => ({
+        "label": lang.label,
+        "value": lang.code
+    }))
+    readonly property var temperatureOptions: [
+        {
+            "label": "°C",
+            "value": "celsius"
+        },
+        {
+            "label": "°F",
+            "value": "fahrenheit"
+        }
+    ]
+    readonly property var clockOptions: [
+        {
+            "label": I18n.tr("24-hour"),
+            "value": "24"
+        },
+        {
+            "label": I18n.tr("12-hour"),
+            "value": "12"
+        }
+    ]
 
     ColumnLayout {
-        id: contentColumn
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
-        spacing: Metrics.spacingXL
+        // Language
+        PreferenceHeader {
+            first: true
+            text: I18n.tr("Language")
+        }
 
-        SettingsSection {
-            id: searchSection0
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor0.title
+        PreferenceSelect {
+            id: languageSelect
+
+            first: true
+            last: true
+            icon: "language"
+            label: I18n.tr("Interface language")
+            subtext: I18n.tr("The language used in the shell UI")
+            model: root.languageOptions
+            currentValue: UiPreferences.language
+            inputRegionService: PopupInputRegionService
+            onSelected: value => {
+                return UiPreferences.setLanguage(value);
+            }
+
             SettingsSearchAnchor {
                 id: searchAnchor0
-                target: searchSection0
+                target: languageSelect
                 declaration:
                     '{"id":"language-region.section.language","route":"language-region","title":"Language","context":"LanguageAndRegionPage","icon":"language","aliases":["general.language-region.section.language"]}'
             }
-            iconName: "translate"
-
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: "language"
-                title: I18n.tr("Interface language")
-
-                trailing: SearchSelectMenuField {
-                    Layout.preferredWidth: 190
-                    options: I18nService.supportedLanguages
-                    value: UiPreferences.language
-                    placeholder: I18n.tr("Select language")
-                    textRole: "label"
-                    valueRole: "code"
-                    closeOnAccept: true
-                    onAccepted: value => {
-                        return UiPreferences.setLanguage(value);
-                    }
-                }
-            }
         }
 
-        SettingsSection {
-            id: searchSection1
+        // Region & weather location
+        PreferenceHeader {
+            text: I18n.tr("Region & weather location")
+        }
+
+        ConnectedRect {
+            id: locationCard
+
+            first: true
+            last: true
             Layout.fillWidth: true
-            flat: true
-            title: searchAnchor1.title
-            SettingsSearchAnchor {
-                id: searchAnchor1
-                target: searchSection1
-                declaration:
-                    '{"id":"language-region.section.region-weather-location","route":"language-region","title":"Region & weather location","context":"LanguageAndRegionPage","icon":"language","aliases":["general.language-region.section.region-weather-location"]}'
-            }
-            iconName: "map"
+            implicitHeight: locationPicker.implicitHeight + NexusStyle.padding.medium * 2
 
             LocationPicker {
                 id: locationPicker
 
-                Layout.fillWidth: true
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: NexusStyle.padding.largeIncreased
+                anchors.rightMargin: NexusStyle.padding.largeIncreased
                 parentModal: root.parentModal
                 active: root.presentationActive && root.visible
             }
+
+            SettingsSearchAnchor {
+                id: searchAnchor1
+                target: locationCard
+                declaration:
+                    '{"id":"language-region.section.region-weather-location","route":"language-region","title":"Region & weather location","context":"LanguageAndRegionPage","icon":"language","aliases":["general.language-region.section.region-weather-location"]}'
+            }
         }
 
-        SettingsSection {
-            id: searchSection3
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor3.title
+        // Units
+        PreferenceHeader {
+            text: I18n.tr("Units")
+        }
+
+        PreferenceSelect {
+            id: weatherUnitsSelect
+
+            first: true
+            icon: "thermostat"
+            label: I18n.tr("Weather temperature")
+            subtext: I18n.tr("Units for weather temperatures")
+            model: root.temperatureOptions
+            currentValue: UiPreferences.weatherTemperatureUnit
+            inputRegionService: PopupInputRegionService
+            onSelected: value => {
+                return UiPreferences.setWeatherTemperatureUnit(value);
+            }
+
             SettingsSearchAnchor {
                 id: searchAnchor3
-                target: searchSection3
+                target: weatherUnitsSelect
                 declaration:
                     '{"id":"language-region.section.units","route":"language-region","title":"Units","context":"LanguageAndRegionPage","icon":"language","aliases":["general.language-region.section.units"]}'
             }
-            iconName: "thermostat"
+        }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Weather temperature")
-
-                trailing: StyledButtonGroup {
-                    model: [({
-                                 "value": "celsius",
-                                 "label": "°C"
-                             }), ({
-                                      "value": "fahrenheit",
-                                      "label": "°F"
-                                  })]
-                    currentValue: UiPreferences.weatherTemperatureUnit
-                    buttonMinWidth: 56
-                    onValueSelected: value => {
-                        return UiPreferences.setWeatherTemperatureUnit(value);
-                    }
-                }
-            }
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Hardware temperature")
-
-                trailing: StyledButtonGroup {
-                    model: [({
-                                 "value": "celsius",
-                                 "label": "°C"
-                             }), ({
-                                      "value": "fahrenheit",
-                                      "label": "°F"
-                                  })]
-                    currentValue: UiPreferences.systemTemperatureUnit
-                    buttonMinWidth: 56
-                    onValueSelected: value => {
-                        return UiPreferences.setSystemTemperatureUnit(value);
-                    }
-                }
+        PreferenceSelect {
+            last: true
+            icon: "device_thermostat"
+            label: I18n.tr("Hardware temperature")
+            subtext: I18n.tr("Units for CPU and GPU temperatures")
+            model: root.temperatureOptions
+            currentValue: UiPreferences.systemTemperatureUnit
+            inputRegionService: PopupInputRegionService
+            onSelected: value => {
+                return UiPreferences.setSystemTemperatureUnit(value);
             }
         }
 
-        SettingsSection {
-            id: searchSection4
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor4.title
+        // Time & date
+        PreferenceHeader {
+            text: I18n.tr("Time & date")
+        }
+
+        PreferenceSelect {
+            id: clockSelect
+
+            first: true
+            last: true
+            icon: "schedule"
+            label: I18n.tr("Clock format")
+            subtext: I18n.tr("How times are shown across the shell")
+            model: root.clockOptions
+            currentValue: UiPreferences.useTwelveHourClock ? "12" : "24"
+            inputRegionService: PopupInputRegionService
+            onSelected: value => {
+                return UiPreferences.setUseTwelveHourClock(value === "12");
+            }
+
             SettingsSearchAnchor {
                 id: searchAnchor4
-                target: searchSection4
+                target: clockSelect
                 declaration:
                     '{"id":"language-region.section.time-date","route":"language-region","title":"Time & date","context":"LanguageAndRegionPage","icon":"language","aliases":["general.language-region.section.time-date"]}'
-            }
-            iconName: "schedule"
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Clock format")
-
-                trailing: StyledButtonGroup {
-                    model: [({
-                                 "value": "24",
-                                 "label": I18n.tr("24-hour")
-                             }), ({
-                                      "value": "12",
-                                      "label": I18n.tr("12-hour")
-                                  })]
-                    currentValue: UiPreferences.useTwelveHourClock ? "12" : "24"
-                    buttonMinWidth: 78
-                    onValueSelected: value => {
-                        return UiPreferences.setUseTwelveHourClock(value === "12");
-                    }
-                }
             }
         }
     }

@@ -8,10 +8,10 @@ script_dir=$(
 repo_root=$(
     CDPATH='' cd -- "${script_dir}/../.." && pwd
 )
-build_root=${CLAVIS_BUILD_DIR:-${repo_root}/build}
-qml_build_dir=${CLAVIS_QML_BUILD_DIR:-${build_root}/qml}
+build_root=${NYXURI_BUILD_DIR:-${repo_root}/build}
+qml_build_dir=${NYXURI_QML_BUILD_DIR:-${build_root}/qml}
 qmlls_config=${repo_root}/.qmlls.ini
-tooling_timeout=${CLAVIS_QML_TOOLING_TIMEOUT:-5}
+tooling_timeout=${NYXURI_QML_TOOLING_TIMEOUT:-5}
 
 scope=changed
 case "${1:-}" in
@@ -24,12 +24,12 @@ esac
 cd "${repo_root}"
 # shellcheck source=scripts/dev/files.sh
 source "${script_dir}/files.sh"
-mapfile -d '' -t qml_files < <(clavis_qml_files "${scope}")
+mapfile -d '' -t qml_files < <(nyxuri_qml_files "${scope}")
 if [[ ${#qml_files[@]} -eq 0 ]]; then
     printf 'lint-qml: no QML files in scope\n'
     exit 0
 fi
-qmllint_bin=$(clavis_qt_tool qmllint "${QMLLINT:-}")
+qmllint_bin=$(nyxuri_qt_tool qmllint "${QMLLINT:-}")
 command -v qs >/dev/null 2>&1 || {
     printf 'error: Quickshell qs is required for QML tooling\n' >&2
     exit 127
@@ -69,7 +69,7 @@ tooling_config_valid() {
 refresh_tooling() {
     local log_file
     local qs_status
-    log_file=$(mktemp "${TMPDIR:-/tmp}/clavis-qmlls.XXXXXX.log")
+    log_file=$(mktemp "${TMPDIR:-/tmp}/nyxuri-qmlls.XXXXXX.log")
 
     if [[ -L "${qmlls_config}" && ! -e "${qmlls_config}" ]]; then
         rm -f -- "${qmlls_config}"
@@ -78,7 +78,7 @@ refresh_tooling() {
     touch "${qmlls_config}"
 
     set +e
-    QT_QPA_PLATFORM="${CLAVIS_QML_TOOLING_PLATFORM:-offscreen}" \
+    QT_QPA_PLATFORM="${NYXURI_QML_TOOLING_PLATFORM:-offscreen}" \
     QML2_IMPORT_PATH="${qml_build_dir}${QML2_IMPORT_PATH:+:${QML2_IMPORT_PATH}}" \
     QML_IMPORT_PATH="${qml_build_dir}${QML_IMPORT_PATH:+:${QML_IMPORT_PATH}}" \
         timeout --kill-after=2s --signal=TERM "${tooling_timeout}s" qs -p "${repo_root}" -n \
@@ -121,6 +121,11 @@ qml_import_args=(
     -I "${repo_root}"
     -I "${tooling_build_dir}"
     -I "${qml_build_dir}"
+    # The tooling VFS maps the qs.* pools but not the Quickshell plugin
+    # itself; this path restores Quickshell type resolution (member checks
+    # on files that also import qs.* remain a qmllint limitation — see the
+    # 2026-10-25 mod+i incident note in shell/AGENTS.md §Quickshell ④).
+    -I "${qmllint_bin%/bin*}/qml"
 )
 IFS=':' read -r -a import_paths <<< "${import_paths_raw}"
 for path in "${import_paths[@]}"; do

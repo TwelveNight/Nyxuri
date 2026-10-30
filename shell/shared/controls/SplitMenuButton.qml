@@ -13,6 +13,9 @@ Item {
     property int buttonHeight: 36
     property int minimumWidth: 112
     property int maximumWidth: 172
+    // Caelestia SplitButton fallback: rendered when no model entry matches
+    // currentValue (e.g. an unset default application).
+    property string fallbackText: ""
     property int menuMinimumWidth: 190
     property int menuMaximumWidth: 260
     property string leadingIcon: ""
@@ -34,7 +37,9 @@ Item {
     property real popupHeight: menuPreferredHeight
     readonly property Item popupParentItem: root.Window.window ? root.Window.window.contentItem : null
     property var registeredPopupWindow: null
-    readonly property real menuPreferredWidth: Math.min(menuMaximumWidth, Math.max(menuMinimumWidth, menuLabelMetrics.advanceWidth + 64))
+    readonly property real menuPreferredWidth: Math.min(menuMaximumWidth, Math.max(menuMinimumWidth,
+                                                                                   menuLabelMetrics.advanceWidth
+                                                                                   + 64))
     readonly property real menuPreferredHeight: Math.max(menuPadding * 2, model.length * 48 + menuPadding * 2)
 
     signal valueSelected(string value)
@@ -43,7 +48,6 @@ Item {
         for (let i = 0; i < model.length; i += 1) {
             if (model[i].value === value)
                 return model[i].label;
-
         }
         return value;
     }
@@ -54,7 +58,6 @@ Item {
             const label = model[i].label || model[i].value || "";
             if (String(label).length > longest.length)
                 longest = String(label);
-
         }
         return longest;
     }
@@ -89,6 +92,10 @@ Item {
         }
     }
 
+    function closeMenu() {
+        optionsPopup.close();
+    }
+
     function toggleMenu() {
         if (optionsPopup.visible)
             optionsPopup.close();
@@ -112,28 +119,28 @@ Item {
         }
     }
 
-    implicitWidth: Math.min(maximumWidth, Math.max(minimumWidth, labelMetrics.advanceWidth + leadingLeftPadding + leadingRightPadding + (leadingIcon !== "" ? 24 : 0) + gap + trailingWidth))
+    implicitWidth: Math.min(maximumWidth, Math.max(minimumWidth, labelMetrics.advanceWidth
+                                                   + leadingLeftPadding + leadingRightPadding + (leadingIcon
+                                                                                                 !== "" ? 24 :
+                                                                                                          0) + gap
+                                                   + trailingWidth))
     implicitHeight: buttonHeight
     Component.onDestruction: root.updateWindowInputRegion(false)
     onXChanged: {
         if (optionsPopup.visible)
             root.updatePopupGeometry();
-
     }
     onYChanged: {
         if (optionsPopup.visible)
             root.updatePopupGeometry();
-
     }
     onWidthChanged: {
         if (optionsPopup.visible)
             root.updatePopupGeometry();
-
     }
     onHeightChanged: {
         if (optionsPopup.visible)
             root.updatePopupGeometry();
-
     }
 
     TextMetrics {
@@ -142,7 +149,7 @@ Item {
         font.family: Fonts.ui
         font.pixelSize: 13
         font.weight: Font.Medium
-        text: root.labelFor(root.currentValue)
+        text: root.labelFor(root.currentValue) || root.fallbackText
     }
 
     TextMetrics {
@@ -158,13 +165,11 @@ Item {
         function onWidthChanged() {
             if (optionsPopup.visible)
                 root.updatePopupGeometry();
-
         }
 
         function onHeightChanged() {
             if (optionsPopup.visible)
                 root.updatePopupGeometry();
-
         }
 
         function onVisibleChanged() {
@@ -186,8 +191,10 @@ Item {
 
             property bool pressed: leadingMouse.pressed
             property bool hovered: leadingMouse.containsMouse
-            property real innerRadius: (pressed || hovered || optionsPopup.visible) ? Appearance.rounding.small : Appearance.rounding.extraSmall
-            property color fillColor: pressed ? root.buttonPressedColor : hovered ? root.buttonHoverColor : root.buttonColor
+            property real innerRadius: (pressed || hovered || optionsPopup.visible)
+                                       ? Appearance.rounding.small : Appearance.rounding.extraSmall
+            property color fillColor: pressed ? root.buttonPressedColor : hovered ? root.buttonHoverColor :
+                                                                                    root.buttonColor
 
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -206,7 +213,6 @@ Item {
                         easing.type: Appearance.animation.elementMoveFast.type
                         easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
-
                 }
 
                 Behavior on bottomRightRadius {
@@ -215,7 +221,6 @@ Item {
                         easing.type: Appearance.animation.elementMoveFast.type
                         easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
-
                 }
 
                 Behavior on color {
@@ -224,9 +229,7 @@ Item {
                         easing.type: Appearance.animation.expressiveEffects.type
                         easing.bezierCurve: Appearance.animation.expressiveEffects.bezierCurve
                     }
-
                 }
-
             }
 
             RowLayout {
@@ -247,7 +250,7 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
-                    text: root.labelFor(root.currentValue)
+                    text: root.labelFor(root.currentValue) || root.fallbackText
                     color: root.buttonTextColor
                     font.family: Fonts.ui
                     font.pixelSize: 13
@@ -256,7 +259,6 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-
             }
 
             MouseArea {
@@ -267,7 +269,6 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.toggleMenu()
             }
-
         }
 
         Item {
@@ -275,8 +276,11 @@ Item {
 
             property bool pressed: trailingMouse.pressed
             property bool hovered: trailingMouse.containsMouse
-            property real innerRadius: optionsPopup.visible ? (root.buttonHeight / 2) : (pressed || hovered ? Appearance.rounding.small : Appearance.rounding.extraSmall)
-            property color fillColor: pressed ? root.buttonPressedColor : hovered ? root.buttonHoverColor : root.buttonColor
+            property real innerRadius: optionsPopup.visible ? (root.buttonHeight / 2) : (pressed || hovered
+                                                                                         ? Appearance.rounding.small :
+                                                                                           Appearance.rounding.extraSmall)
+            property color fillColor: pressed ? root.buttonPressedColor : hovered ? root.buttonHoverColor :
+                                                                                    root.buttonColor
 
             Layout.preferredWidth: root.trailingWidth
             Layout.fillHeight: true
@@ -295,7 +299,6 @@ Item {
                         easing.type: Appearance.animation.elementMoveFast.type
                         easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
-
                 }
 
                 Behavior on bottomLeftRadius {
@@ -304,7 +307,6 @@ Item {
                         easing.type: Appearance.animation.elementMoveFast.type
                         easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
-
                 }
 
                 Behavior on color {
@@ -313,9 +315,7 @@ Item {
                         easing.type: Appearance.animation.expressiveEffects.type
                         easing.bezierCurve: Appearance.animation.expressiveEffects.bezierCurve
                     }
-
                 }
-
             }
 
             MaterialSymbol {
@@ -333,9 +333,7 @@ Item {
                         easing.type: Appearance.animation.expressiveEffects.type
                         easing.bezierCurve: Appearance.animation.expressiveEffects.bezierCurve
                     }
-
                 }
-
             }
 
             MouseArea {
@@ -346,9 +344,7 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.toggleMenu()
             }
-
         }
-
     }
 
     Popup {
@@ -395,7 +391,12 @@ Item {
                 property bool selected: root.currentValue === modelData.value
                 property bool pressed: optionMouse.pressed
                 property bool hovered: optionMouse.containsMouse
-                property color itemColor: selected ? Appearance.m3colors.m3secondaryContainer : pressed ? Appearance.mix(root.menuSurfaceColor, Appearance.m3colors.m3onSurface, 0.82) : hovered ? Appearance.mix(root.menuSurfaceColor, Appearance.m3colors.m3onSurface, 0.92) : root.menuSurfaceColor
+                property color itemColor: selected ? Appearance.m3colors.m3secondaryContainer : pressed
+                                                     ? Appearance.mix(root.menuSurfaceColor,
+                                                                      Appearance.m3colors.m3onSurface, 0.82) :
+                                                       hovered ? Appearance.mix(root.menuSurfaceColor,
+                                                                                Appearance.m3colors.m3onSurface,
+                                                                                0.92) : root.menuSurfaceColor
 
                 width: ListView.view.width
                 height: 48
@@ -422,14 +423,14 @@ Item {
                         Text {
                             Layout.fillWidth: true
                             text: option.modelData.label
-                            color: option.selected ? Appearance.m3colors.m3onSecondaryContainer : Appearance.m3colors.m3onSurface
+                            color: option.selected ? Appearance.m3colors.m3onSecondaryContainer :
+                                                     Appearance.m3colors.m3onSurface
                             font.family: Fonts.ui
                             font.pixelSize: 14
                             font.weight: option.selected ? Font.Medium : Font.Normal
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
                         }
-
                     }
 
                     Behavior on color {
@@ -438,9 +439,7 @@ Item {
                             easing.type: Appearance.animation.expressiveEffects.type
                             easing.bezierCurve: Appearance.animation.expressiveEffects.bezierCurve
                         }
-
                     }
-
                 }
 
                 MouseArea {
@@ -454,11 +453,7 @@ Item {
                         optionsPopup.close();
                     }
                 }
-
             }
-
         }
-
     }
-
 }

@@ -1,12 +1,24 @@
 import QtQuick
 import QtQuick.Layouts
-import qs.shared.theme
 import qs.app.services
 import qs.shared.controls
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Spotlight page (T3 M4): NexusPageBase scaffold + M1 select/stepper atoms.
+// Caelestia has no Spotlight page — the layout follows the Nexus row language
+// (label, optional subtext, trailing pill or stepper).
+NexusPageBase {
     id: root
+
+    title: SpotlightCatalog.title("spotlight")
+
+    // Window contract surface — consumed by ControlCenterWindow.
+    readonly property Item searchLeaf: root.flickable
+
+    property var parentModal: null
+    property bool presentationActive: false
 
     function closeChildWindows() {
         appStylePicker.closeMenu();
@@ -17,194 +29,163 @@ StyledFlickable {
 
     Component.onCompleted: ClipboardService.loadHistoryConfig()
 
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
+    readonly property var layoutOptions: [
+        {
+            "label": I18n.tr("List"),
+            "value": "list"
+        },
+        {
+            "label": I18n.tr("Grid"),
+            "value": "grid"
+        }
+    ]
+    readonly property var applicationOrderOptions: [
+        {
+            "label": I18n.tr("Smart"),
+            "value": "smart"
+        },
+        {
+            "label": I18n.tr("Most used"),
+            "value": "most-used"
+        },
+        {
+            "label": I18n.tr("Recently used"),
+            "value": "recently-used"
+        },
+        {
+            "label": I18n.tr("Name"),
+            "value": "name"
+        }
+    ]
+    readonly property var clipboardLayoutOptions: [
+        {
+            "label": I18n.tr("Default"),
+            "value": "default"
+        },
+        {
+            "label": I18n.tr("Details"),
+            "value": "details"
+        }
+    ]
+    readonly property var engineOptions: UiPreferences.searchEngines.map(engine => ({
+        "label": engine.label,
+        "value": engine.id
+    }))
 
     ColumnLayout {
-        id: contentColumn
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        width: root.cappedWidth
+        spacing: NexusStyle.padding.extraSmall / 2
 
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
+        // Applications
+        PreferenceHeader {
+            first: true
+            text: I18n.tr("Applications")
+        }
 
-        SettingsSection {
-            id: searchSection0
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor0.title
+        PreferenceSelect {
+            id: appStylePicker
+
+            first: true
+            icon: "grid_view"
+            label: I18n.tr("Layout")
+            model: root.layoutOptions
+            currentValue: UiPreferences.spotlightAppStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSpotlightAppStyle(value)
+
             SettingsSearchAnchor {
                 id: searchAnchor0
-                target: searchSection0
+                target: appStylePicker
                 declaration:
                     '{"id":"spotlight.section.applications","route":"spotlight","title":"Applications","context":"SpotlightPage","icon":"search","aliases":["general.spotlight.section.applications"]}'
             }
-            iconName: "apps"
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Layout")
-                iconName: "grid_view"
-
-                trailing: SearchSelectMenuField {
-                    id: appStylePicker
-
-                    Layout.preferredWidth: 220
-                    options: [
-                        {
-                            value: "list",
-                            label: I18n.tr("List")
-                        },
-                        {
-                            value: "grid",
-                            label: I18n.tr("Grid")
-                        }
-                    ]
-                    value: UiPreferences.spotlightAppStyle
-                    closeOnAccept: true
-                    Accessible.name: I18n.tr("Application layout")
-                    onAccepted: value => UiPreferences.setSpotlightAppStyle(value)
-                }
-            }
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Application order")
-                iconName: "sort"
-                trailing: SearchSelectMenuField {
-                    id: appOrderPicker
-                    Layout.preferredWidth: 220
-                    options: [
-                        {
-                            value: "smart",
-                            label: I18n.tr("Smart")
-                        },
-                        {
-                            value: "most-used",
-                            label: I18n.tr("Most used")
-                        },
-                        {
-                            value: "recently-used",
-                            label: I18n.tr("Recently used")
-                        },
-                        {
-                            value: "name",
-                            label: I18n.tr("Name")
-                        }
-                    ]
-                    value: UiPreferences.spotlightAppOrder
-                    closeOnAccept: true
-                    Accessible.name: I18n.tr("Application order")
-                    onAccepted: value => UiPreferences.setSpotlightAppOrder(value)
-                }
-            }
         }
 
-        SettingsSection {
-            id: searchSection1
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor1.title
+        PreferenceSelect {
+            id: appOrderPicker
+
+            last: true
+            icon: "sort"
+            label: I18n.tr("Application order")
+            model: root.applicationOrderOptions
+            currentValue: UiPreferences.spotlightAppOrder
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSpotlightAppOrder(value)
+        }
+
+        // Web search
+        PreferenceHeader {
+            text: I18n.tr("Web search")
+        }
+
+        PreferenceSelect {
+            id: enginePicker
+
+            first: true
+            last: true
+            icon: "language"
+            label: I18n.tr("Search engine")
+            model: root.engineOptions
+            currentValue: UiPreferences.spotlightSearchEngine
+            inputRegionService: PopupInputRegionService
+            onSelected: value => {
+                return UiPreferences.setSpotlightSearchEngine(value);
+            }
+
             SettingsSearchAnchor {
                 id: searchAnchor1
-                target: searchSection1
+                target: enginePicker
                 declaration:
                     '{"id":"spotlight.section.web-search","route":"spotlight","title":"Web search","context":"SpotlightPage","icon":"search","aliases":["general.spotlight.section.web-search"]}'
             }
-            iconName: "language"
-
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Search engine")
-                iconName: "search"
-
-                trailing: SearchSelectMenuField {
-                    id: enginePicker
-
-                    Layout.preferredWidth: 220
-                    options: UiPreferences.searchEngines
-                    value: UiPreferences.spotlightSearchEngine
-                    textRole: "label"
-                    valueRole: "id"
-                    closeOnAccept: true
-                    leadingWidth: Metrics.iconM
-                    Accessible.name: I18n.tr("Search engine")
-                    onAccepted: value => {
-                        return UiPreferences.setSpotlightSearchEngine(value);
-                    }
-
-                    leadingDelegate: Component {
-                        MaterialSymbol {
-                            text: "search"
-                            iconSize: Metrics.iconM
-                            color: Appearance.colors.colOnSurface
-                        }
-                    }
-                }
-            }
         }
 
-        SettingsSection {
-            id: searchSection2
-            Layout.fillWidth: true
-            flat: true
-            title: searchAnchor2.title
+        // Clipboard
+        PreferenceHeader {
+            text: I18n.tr("Clipboard")
+        }
+
+        PreferenceSelect {
+            id: clipboardStylePicker
+
+            first: true
+            icon: "view_sidebar"
+            label: I18n.tr("Layout")
+            model: root.clipboardLayoutOptions
+            currentValue: UiPreferences.spotlightClipboardStyle
+            inputRegionService: PopupInputRegionService
+            onSelected: value => UiPreferences.setSpotlightClipboardStyle(value)
+
             SettingsSearchAnchor {
                 id: searchAnchor2
-                target: searchSection2
+                target: clipboardStylePicker
                 declaration:
                     '{"id":"spotlight.section.clipboard","route":"spotlight","title":"Clipboard","context":"SpotlightPage","icon":"search","aliases":["general.spotlight.section.clipboard"]}'
             }
-            iconName: "content_paste"
+        }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Layout")
-                iconName: "view_sidebar"
-                trailing: SearchSelectMenuField {
-                    id: clipboardStylePicker
-                    Layout.preferredWidth: 220
-                    options: [
-                        {
-                            value: "default",
-                            label: I18n.tr("Default")
-                        },
-                        {
-                            value: "details",
-                            label: I18n.tr("Details")
-                        }
-                    ]
-                    value: UiPreferences.spotlightClipboardStyle
-                    closeOnAccept: true
-                    Accessible.name: I18n.tr("Clipboard layout")
-                    onAccepted: value => UiPreferences.setSpotlightClipboardStyle(value)
-                }
-            }
+        PreferenceStepper {
+            id: historyLimitStepper
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("History limit")
-                supportingText: I18n.tr("Oldest items are removed when new content is saved.")
-                iconName: "history"
+            last: true
+            label: I18n.tr("History limit")
+            subtext: I18n.tr("Oldest items are removed when new content is saved.")
+            from: 50
+            to: 750
+            stepSize: 50
+            value: ClipboardService.historyLimit
+            enabled: ClipboardService.historyConfigLoaded
+            busy: ClipboardService.historyConfigBusy
+            onMoved: value => ClipboardService.setHistoryLimit(value)
+        }
 
-                trailing: MaterialStepper {
-                    from: 50
-                    to: 750
-                    stepSize: 50
-                    value: ClipboardService.historyLimit
-                    enabled: ClipboardService.historyConfigLoaded
-                    busy: ClipboardService.historyConfigBusy
-                    Accessible.name: I18n.tr("History limit")
-                    onValueModified: value => ClipboardService.setHistoryLimit(value)
-                }
-            }
-
-            InlineStatusBanner {
-                Layout.fillWidth: true
-                visible: ClipboardService.historyConfigError !== null
-                tone: "error"
-                message: ClipboardService.historyConfigError ? ClipboardService.historyConfigError.message :
-                                                               ""
-            }
+        InlineStatusBanner {
+            Layout.fillWidth: true
+            visible: ClipboardService.historyConfigError !== null
+            tone: "error"
+            message: ClipboardService.historyConfigError ? ClipboardService.historyConfigError.message : ""
         }
     }
 }

@@ -1,14 +1,28 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import qs.shared.theme
 import qs.shared.controls
 import qs.app.services
 import qs.shared.i18n
+import qs.units.settings
+import qs.units.settings.controls
 
-StyledFlickable {
+// Network page (T3 M4): NexusPageBase scaffold + M1 atom rows. Wired and
+// active rows ride the action/info atoms; the nearby list keeps its fixed
+// viewport with custom connected-card rows (trailing lock/bookmark glyphs a
+// chevron atom cannot carry); scan/lease lifecycle stays byte-for-byte.
+NexusPageBase {
     id: root
 
+    title: SpotlightCatalog.title("network")
+
+    // Window contract surface — consumed by ControlCenterWindow.
+    readonly property Item searchLeaf: root.flickable
+
     property var parentModal: null
+    property bool presentationActive: false
     property var passwordTarget: null
     property bool initialLoadAttempted: false
     property bool initialLoading: false
@@ -131,9 +145,6 @@ StyledFlickable {
         configWindow.dismiss();
     }
 
-    clip: true
-    contentWidth: width
-    contentHeight: contentColumn.implicitHeight + Metrics.pageMargin * 2
     onActiveConnectionKeyChanged: root.refreshRuntimeDetails()
     onNearbyNetworksChanged: {
         if (root.nearbyNetworks.length > 0)
@@ -152,75 +163,181 @@ StyledFlickable {
         NetworkService.releaseScan("control-center-network");
     }
 
-    Connections {
-        function onOperationSucceeded(operation) {
-            if (operation === "connect" || operation === "disconnect")
+    // Nearby network row — a connected-card list row with two trailing
+    // glyphs (saved bookmark, secure lock); no atom carries that shape.
+    component WifiListRow: ConnectedRect {
+        id: wifiListRow
+
+        required property var modelData
+        required property int index
+
+        width: ListView.view.width
+        height: nearbyViewport.rowHeight
+        first: wifiListRow.index === 0
+        last: wifiListRow.index === root.nearbyNetworks.length - 1
+
+        StateLayer {
+            anchors.fill: parent
+            layerRadius: (wifiListRow.first || wifiListRow.last) ? NexusStyle.rounding.extraLarge :
+                                                                   NexusStyle.rounding.extraSmall
+            color: Appearance.m3colors.m3onSurface
+            hovered: rowPress.containsMouse
+            pressed: rowPress.pressed
+        }
+
+        MouseArea {
+            id: rowPress
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                if (wifiListRow.modelData.isSecure && !wifiListRow.modelData.known)
+                    root.passwordTarget = wifiListRow.modelData;
+                else
+                    NetworkService.connectToWifiNetwork(wifiListRow.modelData);
+            }
+        }
+
+        RowLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: NexusStyle.padding.largeIncreased
+            anchors.rightMargin: NexusStyle.padding.largeIncreased
+            spacing: NexusStyle.padding.small
+
+            MaterialSymbol {
+                text: wifiListRow.modelData.strength >= 70 ? "signal_wifi_4_bar" :
+                                                             wifiListRow.modelData.strength >= 35
+                                                             ? "network_wifi_2_bar" : "network_wifi_1_bar"
+                iconSize: NexusStyle.icon.medium
+                fill: 1
+                color: Appearance.m3colors.m3onSurfaceVariant
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: wifiListRow.modelData.ssid
+                    color: Appearance.m3colors.m3onSurface
+                    font.pixelSize: NexusStyle.font.bodyMedium
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.nearbyWifiDetails(wifiListRow.modelData)
+                    color: Appearance.m3colors.m3outline
+                    font.pixelSize: NexusStyle.font.labelSmall
+                    elide: Text.ElideRight
+                }
+            }
+
+            MaterialSymbol {
+                visible: wifiListRow.modelData.known
+                text: "bookmark"
+                iconSize: NexusStyle.icon.small
+                fill: 1
+                color: Appearance.m3colors.m3onSurfaceVariant
+            }
+
+            MaterialSymbol {
+                visible: wifiListRow.modelData.isSecure
+                text: "lock"
+                iconSize: NexusStyle.icon.small
+                fill: 1
+                color: Appearance.m3colors.m3onSurfaceVariant
+            }
+        }
+    }
+
+    // The scaffold takes a single content child; the column, the scan lease
+    // timer and the config window all ride inside it (2026-10-25 lesson:
+    // extra root children kill the whole page).
+    Item {
+        id: content
+
+        width: parent.width
+        implicitHeight: contentColumn.implicitHeight
+
+        Connections {
+            function onOperationSucceeded(operation) {
+                if (operation === "connect" || operation === "disconnect")
+                    root.refreshRuntimeDetails();
+            }
+
+            function onProfileWriteSucceeded(uuid) {
                 root.refreshRuntimeDetails();
-        }
-
-        function onProfileWriteSucceeded(uuid) {
-            root.refreshRuntimeDetails();
-        }
-
-        function onWifiEnabledChanged() {
-            if (!NetworkService.wifiEnabled) {
-                root.finishInitialLoad();
-                root.initialLoadAttempted = false;
-                nearbyPassword.text = "";
-                root.passwordTarget = null;
-            } else {
-                Qt.callLater(root.beginInitialLoad);
             }
-        }
 
-        target: NetworkService
-    }
-
-    Timer {
-        id: initialLoadTimer
-
-        interval: 4000
-        repeat: false
-        onTriggered: root.initialLoading = false
-    }
-
-    ColumnLayout {
-        id: contentColumn
-
-        width: Math.min(640, Math.max(0, root.width - Metrics.pageMargin * 2))
-        x: Math.max(Metrics.pageMargin, (root.width - width) / 2)
-        y: Metrics.pageMargin
-        spacing: Metrics.spacingL
-
-        InlineStatusBanner {
-            Layout.fillWidth: true
-            radius: Metrics.cornerM
-            visible: !NetworkService.available || NetworkService.lastError.length > 0
-            tone: "error"
-            message: NetworkService.lastError.length > 0 ? NetworkService.lastError : I18n.tr(
-                                                               "Network service unavailable")
-        }
-
-        SettingsSection {
-            id: searchSection0
-            Layout.fillWidth: true
-            visible: NetworkService.wiredDevices.length > 0
-            title: searchAnchor0.title
-            SettingsSearchAnchor {
-                id: searchAnchor0
-                target: searchSection0
-                declaration:
-                    '{"id":"network.section.wired-connections","route":"network","title":"Wired connections","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.wired-connections"]}'
+            function onWifiEnabledChanged() {
+                if (!NetworkService.wifiEnabled) {
+                    root.finishInitialLoad();
+                    root.initialLoadAttempted = false;
+                    nearbyPassword.text = "";
+                    root.passwordTarget = null;
+                } else {
+                    Qt.callLater(root.beginInitialLoad);
+                }
             }
-            iconName: "lan"
+
+            target: NetworkService
+        }
+
+        Timer {
+            id: initialLoadTimer
+
+            interval: 4000
+            repeat: false
+            onTriggered: root.initialLoading = false
+        }
+
+        ColumnLayout {
+            id: contentColumn
+
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            width: root.cappedWidth
+            spacing: NexusStyle.padding.extraSmall / 2
+
+            InlineStatusBanner {
+                Layout.fillWidth: true
+                visible: !NetworkService.available || NetworkService.lastError.length > 0
+                tone: "error"
+                message: NetworkService.lastError.length > 0 ? NetworkService.lastError : I18n.tr(
+                                                                   "Network service unavailable")
+            }
+
+            // Wired connections
+            PreferenceHeader {
+                id: wiredHeader
+
+                visible: NetworkService.wiredDevices.length > 0
+                text: I18n.tr("Wired connections")
+
+                SettingsSearchAnchor {
+                    id: searchAnchor0
+                    target: wiredHeader
+                    declaration:
+                        '{"id":"network.section.wired-connections","route":"network","title":"Wired connections","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.wired-connections"]}'
+                }
+            }
 
             Repeater {
+                id: wiredList
+
                 model: NetworkService.wiredProfiles
 
-                SettingsRow {
+                delegate: PreferenceAction {
                     id: wiredRow
 
                     required property var modelData
+                    required property int index
+
                     readonly property var device: root.wiredDeviceForProfile(wiredRow.modelData)
                     readonly property string detailText: {
                         const details = [];
@@ -247,75 +364,69 @@ StyledFlickable {
                         return details.join(" · ");
                     }
 
-                    Layout.fillWidth: true
-                    iconName: wiredRow.device && wiredRow.device.connected ? "link" : "link_off"
-                    title: wiredRow.modelData.name || wiredRow.modelData.deviceName || I18n.tr(
-                               "Wired network")
-                    supportingText: wiredRow.detailText
-                    interactive: true
-                    highlighted: wiredRow.device ? wiredRow.device.connected : false
+                    first: wiredRow.index === 0
+                    last: wiredRow.index === wiredList.count - 1 && unconfiguredWiredList.count === 0
+                    icon: wiredRow.device && wiredRow.device.connected ? "link" : "link_off"
+                    text: wiredRow.modelData.name || wiredRow.modelData.deviceName || I18n.tr("Wired network")
+                    subtext: wiredRow.detailText
                     onClicked: configWindow.openProfile(wiredRow.modelData, "")
-
-                    trailing: MaterialSymbol {
-                        text: "chevron_right"
-                        iconSize: Metrics.iconS
-                        color: Appearance.colors.colOnSurfaceVariant
-                    }
                 }
             }
 
             Repeater {
+                id: unconfiguredWiredList
+
                 model: NetworkService.wiredDevices.filter(device => {
                     return !NetworkService.wiredProfiles.some(profile => {
                         return profile.deviceName === device.deviceName;
                     });
                 })
 
-                SettingsRow {
+                delegate: PreferenceInfo {
                     id: unconfiguredWiredRow
 
                     required property var modelData
+                    required property int index
 
-                    Layout.fillWidth: true
-                    iconName: unconfiguredWiredRow.modelData.connected ? "link" : "link_off"
-                    title: unconfiguredWiredRow.modelData.name || I18n.tr("Wired network")
-                    supportingText: unconfiguredWiredRow.modelData.hasLink ? I18n.tr(
-                                                                                 "No editable connection") :
-                                                                             I18n.tr("Network cable unplugged")
-                    highlighted: unconfiguredWiredRow.modelData.connected
+                    first: wiredList.count === 0 && unconfiguredWiredRow.index === 0
+                    last: unconfiguredWiredRow.index === unconfiguredWiredList.count - 1
+                    icon: unconfiguredWiredRow.modelData.connected ? "link" : "link_off"
+                    label: unconfiguredWiredRow.modelData.name || I18n.tr("Wired network")
+                    subtext: unconfiguredWiredRow.modelData.hasLink ? I18n.tr("No editable connection") :
+                                                                      I18n.tr("Network cable unplugged")
                 }
             }
-        }
 
-        SettingsSection {
-            id: searchSection1
-            Layout.fillWidth: true
-            title: searchAnchor1.title
-            SettingsSearchAnchor {
-                id: searchAnchor1
-                target: searchSection1
-                declaration:
-                    '{"id":"network.section.wi-fi","route":"network","title":"Wi-Fi","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.wi-fi"]}'
-            }
-            iconName: "wifi"
+            // Wi-Fi
+            PreferenceHeader {
+                id: wifiHeader
 
-            SettingsRow {
-                Layout.fillWidth: true
-                iconName: NetworkService.wifiEnabled ? "wifi" : "wifi_off"
-                title: I18n.tr("Wi-Fi")
-                supportingText: !NetworkService.available ? "" : !NetworkService.wifiAvailable ? I18n.tr(
-                                                                                                     "No wireless adapter detected") :
-                                                                                                 !NetworkService.wifiHardwareEnabled
-                                                                                                 ? I18n.tr(
-                                                                                                       "Disabled by a hardware switch or rfkill") :
-                                                                                                   ""
+                text: I18n.tr("Wi-Fi")
 
-                trailing: StyledSwitch {
-                    checked: NetworkService.wifiEnabled
-                    enabled: NetworkService.available && NetworkService.wifiAvailable
-                             && NetworkService.wifiHardwareEnabled && !NetworkService.busy
-                    onToggled: NetworkService.setWifiEnabled(checked)
+                SettingsSearchAnchor {
+                    id: searchAnchor1
+                    target: wifiHeader
+                    declaration:
+                        '{"id":"network.section.wi-fi","route":"network","title":"Wi-Fi","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.wi-fi"]}'
                 }
+            }
+
+            PreferenceToggle {
+                id: wifiToggle
+
+                first: true
+                last: true
+                text: I18n.tr("Wi-Fi")
+                subtext: !NetworkService.available ? "" : !NetworkService.wifiAvailable ? I18n.tr(
+                                                                                              "No wireless adapter detected") :
+                                                                                          !NetworkService.wifiHardwareEnabled
+                                                                                          ? I18n.tr(
+                                                                                                "Disabled by a hardware switch or rfkill") :
+                                                                                            ""
+                checked: NetworkService.wifiEnabled
+                enabled: NetworkService.available && NetworkService.wifiAvailable
+                         && NetworkService.wifiHardwareEnabled && !NetworkService.busy
+                onToggled: NetworkService.setWifiEnabled(checked)
             }
 
             Item {
@@ -330,40 +441,39 @@ StyledFlickable {
                     id: expandedWifiContent
 
                     width: parent.width
-                    spacing: Metrics.spacingS
+                    spacing: NexusStyle.padding.small
 
-                    SettingsRow {
-                        Layout.fillWidth: true
+                    PreferenceAction {
+                        Layout.topMargin: NexusStyle.padding.extraSmall / 2
                         visible: NetworkService.activeWifi !== null
-                        iconName: "wifi"
-                        title: NetworkService.activeWifi ? NetworkService.activeWifi.ssid : ""
-                        supportingText: root.activeWifiDetails()
-                        interactive: root.profileForTarget(NetworkService.activeWifi) !== null
-                        highlighted: true
+                        icon: "wifi"
+                        text: NetworkService.activeWifi ? NetworkService.activeWifi.ssid : ""
+                        subtext: root.activeWifiDetails()
+                        enabled: root.profileForTarget(NetworkService.activeWifi) !== null
+                        trailingIcon: root.profileForTarget(NetworkService.activeWifi) !== null ? "settings" :
+                                                                                                  ""
                         onClicked: root.openProfile(NetworkService.activeWifi)
-
-                        trailing: MaterialSymbol {
-                            visible: root.profileForTarget(NetworkService.activeWifi) !== null
-                            text: "settings"
-                            iconSize: Metrics.iconS
-                            color: Appearance.colors.colOnSurfaceVariant
-                        }
                     }
 
-                    Text {
+                    StyledText {
                         Layout.fillWidth: true
+                        Layout.topMargin: NexusStyle.padding.extraSmall
+                        Layout.leftMargin: NexusStyle.padding.extraSmall
                         text: I18n.tr("Nearby networks")
-                        color: Appearance.colors.colOnSurfaceVariant
-                        font.family: Typography.labelLarge.family
-                        font.pixelSize: Typography.labelLarge.pixelSize
-                        font.weight: Typography.labelLarge.weight
+                        color: Appearance.m3colors.m3onSurfaceVariant
+                        font.pixelSize: NexusStyle.font.labelMedium
+                        font.weight: NexusStyle.font.labelMediumWeight
+                        elide: Text.ElideRight
                     }
 
                     Item {
                         id: nearbyViewport
 
-                        readonly property real rowHeight: Metrics.controlHeightXL + Metrics.spacingS
-                        readonly property real rowSpacing: Metrics.spacingXS
+                        readonly property real rowHeight: NexusStyle.padding.medium * 2
+                                                          + NexusStyle.font.bodyMedium
+                                                          + NexusStyle.font.labelSmall
+                                                          + NexusStyle.padding.extraSmall
+                        readonly property real rowSpacing: NexusStyle.padding.extraSmall / 2
                         readonly property real viewportHeight: rowHeight * 5 + rowSpacing * 4
 
                         Layout.fillWidth: true
@@ -383,45 +493,7 @@ StyledFlickable {
                             showVerticalScrollBar: true
                             animateMovement: true
 
-                            delegate: SettingsRow {
-                                id: wifiRow
-
-                                required property var modelData
-
-                                width: ListView.view.width
-                                height: nearbyViewport.rowHeight
-                                iconName: wifiRow.modelData.strength >= 70 ? "signal_wifi_4_bar" :
-                                                                             wifiRow.modelData.strength >= 35
-                                                                             ? "network_wifi_2_bar" :
-                                                                               "network_wifi_1_bar"
-                                title: wifiRow.modelData.ssid
-                                supportingText: root.nearbyWifiDetails(wifiRow.modelData)
-                                interactive: !NetworkService.busy
-                                onClicked: {
-                                    if (wifiRow.modelData.isSecure && !wifiRow.modelData.known)
-                                        root.passwordTarget = wifiRow.modelData;
-                                    else
-                                        NetworkService.connectToWifiNetwork(wifiRow.modelData);
-                                }
-
-                                trailing: RowLayout {
-                                    spacing: Metrics.spacingXS
-
-                                    MaterialSymbol {
-                                        visible: wifiRow.modelData.known
-                                        text: "bookmark"
-                                        iconSize: Metrics.iconS
-                                        color: Appearance.colors.colOnSurfaceVariant
-                                    }
-
-                                    MaterialSymbol {
-                                        visible: wifiRow.modelData.isSecure
-                                        text: "lock"
-                                        iconSize: Metrics.iconS
-                                        color: Appearance.colors.colOnSurfaceVariant
-                                    }
-                                }
-                            }
+                            delegate: WifiListRow {}
 
                             Behavior on opacity {
                                 ElementMoveAnimation {}
@@ -432,7 +504,7 @@ StyledFlickable {
                             anchors.centerIn: parent
                             visible: root.initialLoading
                             opacity: visible ? 1 : 0
-                            spacing: Metrics.spacingS
+                            spacing: NexusStyle.padding.small
 
                             MaterialLoadingIndicator {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -440,12 +512,11 @@ StyledFlickable {
                                 accessibleName: I18n.tr("Searching for nearby networks")
                             }
 
-                            Text {
+                            StyledText {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: I18n.tr("Searching for nearby networks")
-                                color: Appearance.colors.colOnLayer1
-                                font.family: Typography.bodyMedium.family
-                                font.pixelSize: Typography.bodyMedium.pixelSize
+                                color: Appearance.m3colors.m3onSurface
+                                font.pixelSize: NexusStyle.font.bodyMedium
                             }
 
                             Behavior on opacity {
@@ -456,21 +527,21 @@ StyledFlickable {
                         Column {
                             anchors.centerIn: parent
                             visible: !root.initialLoading && root.nearbyNetworks.length === 0
-                            spacing: Metrics.spacingS
+                            spacing: NexusStyle.padding.small
 
                             MaterialSymbol {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: "search_off"
-                                iconSize: Metrics.iconM
-                                color: Appearance.colors.colOnSurfaceVariant
+                                iconSize: NexusStyle.icon.medium
+                                fill: 1
+                                color: Appearance.m3colors.m3onSurfaceVariant
                             }
 
-                            Text {
+                            StyledText {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: I18n.tr("No nearby networks found")
-                                color: Appearance.colors.colOnSurfaceVariant
-                                font.family: Typography.bodyMedium.family
-                                font.pixelSize: Typography.bodyMedium.pixelSize
+                                color: Appearance.m3colors.m3onSurfaceVariant
+                                font.pixelSize: NexusStyle.font.bodyMedium
                             }
                         }
                     }
@@ -478,7 +549,7 @@ StyledFlickable {
                     ColumnLayout {
                         Layout.fillWidth: true
                         visible: root.passwordTarget !== null
-                        spacing: Metrics.spacingXS
+                        spacing: NexusStyle.padding.extraSmall
 
                         OutlinedTextField {
                             id: nearbyPassword
@@ -526,119 +597,110 @@ StyledFlickable {
                     ElementMoveAnimation {}
                 }
             }
-        }
 
-        SettingsSection {
-            id: searchSection2
-            Layout.fillWidth: true
-            title: searchAnchor2.title
-            SettingsSearchAnchor {
-                id: searchAnchor2
-                target: searchSection2
-                declaration:
-                    '{"id":"network.section.other-settings","route":"network","title":"Other settings","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.other-settings"]}'
+            // Other settings
+            PreferenceHeader {
+                text: I18n.tr("Other settings")
             }
-            iconName: "tune"
 
-            SettingsActionRow {
-                Layout.fillWidth: true
-                iconName: "bookmark"
+            PreferenceAction {
+                id: savedNetworksRow
+
+                first: true
+                icon: "bookmark"
                 text: I18n.tr("Saved networks")
-                trailingIconName: "chevron_right"
                 onClicked: configWindow.openSavedNetworks()
+
+                SettingsSearchAnchor {
+                    id: searchAnchor2
+                    target: savedNetworksRow
+                    declaration:
+                        '{"id":"network.section.other-settings","route":"network","title":"Other settings","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.other-settings"]}'
+                }
             }
 
-            SettingsActionRow {
-                Layout.fillWidth: true
-                iconName: "add"
+            PreferenceAction {
+                last: true
+                icon: "add"
                 text: I18n.tr("Add network")
-                trailingIconName: "chevron_right"
                 onClicked: configWindow.openAddNetwork()
             }
-        }
 
-        SettingsSection {
-            id: searchSection3
-            Layout.fillWidth: true
-            title: searchAnchor3.title
-            SettingsSearchAnchor {
-                id: searchAnchor3
-                target: searchSection3
-                declaration:
-                    '{"id":"network.section.connection-information","route":"network","title":"Connection information","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.connection-information"]}'
+            // Connection information
+            PreferenceHeader {
+                text: I18n.tr("Connection information")
             }
-            iconName: root.activeNetwork ? (root.activeNetwork.type === "wired" ? "link" : "wifi") :
-                                           "link_off"
 
             InlineStatusBanner {
                 Layout.fillWidth: true
-                radius: Metrics.cornerM
                 visible: NetworkService.runtimeDetailsError.length > 0
                 tone: "error"
                 message: NetworkService.runtimeDetailsError
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Interface")
-                supportingText: root.activeNetwork ? root.activeNetwork.deviceName : "—"
+            PreferenceInfo {
+                id: interfaceRow
+
+                first: true
+                label: I18n.tr("Interface")
+                subtext: root.activeNetwork ? root.activeNetwork.deviceName : "—"
+
+                SettingsSearchAnchor {
+                    id: searchAnchor3
+                    target: interfaceRow
+                    declaration:
+                        '{"id":"network.section.connection-information","route":"network","title":"Connection information","context":"NetworkPage","icon":"wifi","aliases":["general.network.section.connection-information"]}'
+                }
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("IP address")
-                supportingText: root.runtimeMatchesActive && NetworkService.runtimeDetails.addresses
-                                ? NetworkService.runtimeDetails.addresses.join(", ") : "—"
+            PreferenceInfo {
+                label: I18n.tr("IP address")
+                subtext: root.runtimeMatchesActive && NetworkService.runtimeDetails.addresses
+                         ? NetworkService.runtimeDetails.addresses.join(", ") : "—"
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("Gateway")
-                supportingText: root.runtimeMatchesActive ? NetworkService.runtimeDetails.gateway || "—" : "—"
+            PreferenceInfo {
+                label: I18n.tr("Gateway")
+                subtext: root.runtimeMatchesActive ? NetworkService.runtimeDetails.gateway || "—" : "—"
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("DNS")
-                supportingText: root.runtimeMatchesActive && NetworkService.runtimeDetails.dns
-                                ? NetworkService.runtimeDetails.dns.join(", ") : "—"
+            PreferenceInfo {
+                label: I18n.tr("DNS")
+                subtext: root.runtimeMatchesActive && NetworkService.runtimeDetails.dns
+                         ? NetworkService.runtimeDetails.dns.join(", ") : "—"
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
-                title: I18n.tr("MAC")
-                supportingText: root.activeNetwork ? root.activeNetwork.address || "—" : "—"
+            PreferenceInfo {
+                label: I18n.tr("MAC")
+                subtext: root.activeNetwork ? root.activeNetwork.address || "—" : "—"
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
+            PreferenceInfo {
                 visible: root.activeNetwork !== null && root.activeNetwork.type === "wifi"
-                title: I18n.tr("Security type")
-                supportingText: root.activeNetwork ? root.activeNetwork.security || I18n.tr("Unknown") : "—"
+                label: I18n.tr("Security type")
+                subtext: root.activeNetwork ? root.activeNetwork.security || I18n.tr("Unknown") : "—"
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
+            PreferenceInfo {
                 visible: root.activeNetwork !== null && root.activeNetwork.type === "wifi"
-                title: I18n.tr("Frequency")
-                supportingText: root.runtimeMatchesActive ? NetworkService.runtimeDetails.frequency || "—" :
-                                                            "—"
+                label: I18n.tr("Frequency")
+                subtext: root.runtimeMatchesActive ? NetworkService.runtimeDetails.frequency || "—" : "—"
             }
 
-            SettingsRow {
-                Layout.fillWidth: true
+            PreferenceInfo {
+                last: true
                 visible: root.activeNetwork !== null && root.activeNetwork.type === "wired"
-                title: I18n.tr("Link speed")
-                supportingText: root.activeNetwork && root.activeNetwork.linkSpeed > 0 ? I18n.tr("%1 Mbps").arg(
-                                                                                             root.activeNetwork.linkSpeed) :
-                                                                                         "—"
+                label: I18n.tr("Link speed")
+                subtext: root.activeNetwork && root.activeNetwork.linkSpeed > 0 ? I18n.tr("%1 Mbps").arg(
+                                                                                      root.activeNetwork.linkSpeed) :
+                                                                                  "—"
             }
         }
-    }
 
-    NetworkConfigWindow {
-        id: configWindow
+        NetworkConfigWindow {
+            id: configWindow
 
-        parentModal: root.parentModal
+            parentModal: root.parentModal
+        }
     }
 }
