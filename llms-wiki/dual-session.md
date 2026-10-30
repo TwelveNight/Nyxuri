@@ -220,6 +220,24 @@ Swappy 内 Ctrl+C 复制、Ctrl+S 保存、Esc 退出；保存目录与文件名
 检查部署、复制、编辑、取消、不误开其他截图以及临时文件清理。
 真实会话另检查两个面板打开时的按键、编辑器焦点、画线及保存结果。
 
+## 截图贴图
+
+`Ctrl+Alt+MouseMiddle` 调用个人 `screenshot_pin.py`，复用 Noctalia 5.4 的区域截图。
+本次调用关闭确认、标注、保存和剪贴板输出，只把 PNG 通过 stdin 交给脚本；
+不改 Noctalia 全局截图设置或现有截图键。框选后松开左键即贴图，Esc 取消。
+Noctalia v5 及 Screen Toolkit v5 均无原生 Pin；后者的迁移说明明确排除了浮动贴图。
+
+`screenshot-pin.qml` 用已安装的 Quickshell 建立 Overlay layer-shell 小窗口，
+不保留布局空间、不抢键盘焦点，在当前输出上跨工作区、全屏保持可见。
+左键拖动、滚轮缩放、右键关闭；可同时保留多张。位置与大小限制在所属显示器内，
+不实现跨显示器拖动或跨登录恢复。关闭时退出该张贴图进程，清理运行目录下
+0700 私有目录里的临时 PNG；不上传、不自动落入 Pictures、不覆盖剪贴板。
+
+安装器把两份文件复制到 `niri/scripts/`，并预检 `quickshell`；不构建定制 Noctalia，
+不添加常驻服务。当前会话的键位放在最后加载的 `__custom__.kdl`，更新时保留。
+`tests/test_personal_screenshot_pin.py` 使用 TempEnv 验证调用参数、PNG 传递、
+临时文件生命周期和安装输出；真实输入、渲染、拖动、缩放与关闭另作会话验收。
+
 ## 屏幕文字识别
 
 `Super+Shift+X` 调用个人 `screen_ocr.py`，用 slurp 框选屏幕区域，grim 捕获，

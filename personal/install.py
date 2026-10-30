@@ -28,7 +28,7 @@ AUTOSTART_UNITS = (
     "app-org.fcitx.Fcitx5@autostart.service",
     "app-org.kde.kdeconnect.daemon@autostart.service",
 )
-SESSION_TOOLS = ("niri", "noctalia", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify", "cliphist", "wl-paste", "wl-copy", "wl-clip-persist")
+SESSION_TOOLS = ("niri", "noctalia", "quickshell", "kitty", "skwd-helm", "ffmpeg", "jq", "inotifywait", "wlsunset", "systemctl", "dbus-update-activation-environment", "busctl", "systemd-notify", "cliphist", "wl-paste", "wl-copy", "wl-clip-persist")
 
 
 def prepare_sources(destination: Path) -> None:
@@ -102,7 +102,7 @@ def prepare_sources(destination: Path) -> None:
     shutil.copy2(ROOT / "personal/games.kdl", destination / "niri/personal-games.kdl")
     shutil.copy2(ROOT / "personal/monitor.kdl", destination / "niri/monitor.kdl")
     scripts = destination / "niri/scripts"
-    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "launcher.py", "bongocat_input.py", "screen_ocr.py", "screen_search.py", "screenshot_edit.py"):
+    for name in ("desktop-session.py", "runtime.py", "session.py", "wallpaper.py", "clipboard.py", "launcher.py", "bongocat_input.py", "screen_ocr.py", "screen_search.py", "screenshot_edit.py", "screenshot_pin.py", "screenshot-pin.qml"):
         shutil.copy2(ROOT / "personal" / name, scripts / name)
     plugin = destination / "noctalia/personal-plugins/shared-clipboard"
     shutil.copytree(ROOT / "personal/clipboard-panel", plugin)

@@ -99,6 +99,9 @@ binds {
     // Screenshot region.
     Ctrl+Alt+MouseLeft repeat=false hotkey-overlay-title="Screenshot region" { spawn "noctalia" "msg" "screenshot-region"; }
 
+    // #"截图"
+    Ctrl+Alt+MouseMiddle repeat=false hotkey-overlay-title="Screenshot and pin" { spawn "~/.config/niri/scripts/screenshot_pin.py"; }
+
     // Screenshot editor.
     Ctrl+Alt+MouseRight repeat=false hotkey-overlay-title="Screenshot editor" { spawn "noctalia" "msg" "screenshot-annotate"; }
 
