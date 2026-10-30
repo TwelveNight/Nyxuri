@@ -195,6 +195,7 @@ journalctl --user -b -u skwd-walld.service
 - Mod+Ctrl+W：skwd-wall 前端；Ctrl+Alt+T：Nyxuri 壁纸选择器；Mod+F：Firefox；Mod+E：文件管理器；Mod+W：居中浮动；Alt+W：浮动/平铺切换。
 - Ctrl+1 / Ctrl+Alt+左键：区域截图；Super+Shift+X：[框选识别文字](../llms-wiki/dual-session.md#屏幕文字识别)；Super+Shift+A：截图标注。
 - Ctrl+2：[Niri 框选截图](../llms-wiki/dual-session.md#原生框选截图与编辑)，Ctrl+C 直接复制，Space／Enter 进入 Swappy，Esc 取消；Ctrl+1 保留 Noctalia 流程。
+- Ctrl+3：[全屏截图](../llms-wiki/dual-session.md#全屏截图)，直接截取当前显示器，复制到剪贴板并保存，不用 Print 键或框选。
 - Ctrl+Alt+中键：[截图贴图](../llms-wiki/dual-session.md#截图贴图)，框选松手后置顶；左键拖动、滚轮缩放、右键关闭。不自动保存或改剪贴板。
 - Mod+Shift+S：沿用 SekaiPop 的 Google Lens 搜图流程，选区先上传 uguu.se 临时图床，再交给 Google；图片可通过链接访问，不适合敏感内容。不改剪贴板。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。

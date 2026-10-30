@@ -195,6 +195,17 @@ Fcitx5／KDE Connect 使用系统 XDG 条目，CC Switch 不自启动。可选�
 询问录制目标；目录未自定义时保存到 `~/Videos/Recordings`。快捷键速查归入“录屏”。
 需要手动重载 Niri 时仍可用 `niri msg action load-config-file`。
 
+## 全屏截图
+
+`Ctrl+3` 在个人键位层调用 Niri 原生 `screenshot-screen`，直接截取当前聚焦显示器，
+复制 PNG 到剪贴板，并按 `screenshot-path` 保存到 `~/Pictures/Screenshots/`。
+不打开框选或编辑器，不替换 Ctrl+1、Ctrl+2、Ctrl+Print 或 Mod+Print。
+当前会话在最后加载的 `__custom__.kdl` 保留同一绑定，个人源码由安装器复制到
+`niri/personal-binds.kdl`，不添加脚本、依赖或后台服务。
+
+`tests/test_personal_screenshots.py` 通过 TempEnv 检查安装输出包含原生全屏绑定；
+真实会话另检查按键生成完整屏幕 PNG，以及剪贴板与保存文件一致。
+
 ## 原生框选截图与编辑
 
 `Ctrl+2` 调用 `personal/screenshot_edit.py`，部署为 `niri/scripts/screenshot_edit.py`。

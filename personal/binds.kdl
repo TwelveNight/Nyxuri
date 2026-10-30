@@ -96,6 +96,9 @@ binds {
     // Native selection: Ctrl+C copies; Space/Enter opens Swappy above panels.
     Ctrl+2 repeat=false hotkey-overlay-title="Screenshot region (Niri / Swappy)" { spawn "~/.config/niri/scripts/screenshot_edit.py"; }
 
+    // #"截图"
+    Ctrl+3 repeat=false hotkey-overlay-title="Screenshot full screen" { screenshot-screen; }
+
     // Screenshot region.
     Ctrl+Alt+MouseLeft repeat=false hotkey-overlay-title="Screenshot region" { spawn "noctalia" "msg" "screenshot-region"; }
 

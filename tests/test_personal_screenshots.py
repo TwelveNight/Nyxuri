@@ -155,6 +155,14 @@ class PersonalScreenshotTests(unittest.TestCase):
 
 
 class PersonalScreenshotDeploymentTests(unittest.TestCase):
+    def test_install_keeps_native_fullscreen_capture_without_print_key(self):
+        with TempEnv() as context:
+            destination = context.home / "source"
+            destination.mkdir()
+            install.prepare_sources(destination)
+            binds = (destination / "niri/personal-binds.kdl").read_text()
+            self.assertIn('Ctrl+3 repeat=false hotkey-overlay-title="Screenshot full screen" { screenshot-screen; }', binds)
+
     def test_install_copies_helper_and_keeps_ctrl1(self):
         with TempEnv() as context:
             destination = context.home / "source"
