@@ -124,7 +124,7 @@ bar 的壁纸按钮直接打开 skwd-wall 选择器；已有 bar 布局可在设
 Nyxuri 启动时先停止 II 配色监听，再把 skwd 交接到当前桌面；iNiR 同样停止 II 监听，由自身生成共享 Kitty 配色；返回 Hyprland
 时由原有 helper 恢复 II 配色监听。共享服务启用关系和过渡配置不改。
 
-Niri overview 保留 iNiR 的 0.75 缩放、工作区阴影和开合动画；skwd 渲染图层留在 backdrop。
+Niri overview 保留 iNiR 的 0.75 缩放、工作区阴影和开合动画。skwd 的清晰壁纸随各工作区缩小，Noctalia 仅在 backdrop 绘制缓存的模糊壁纸（模糊强度 0.69、不加色罩），不启用其桌面壁纸渲染。
 
 Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` 使用
 `~/.config/nyxuri-desktop`，不是最终应用目录。GUI 状态继续沿用
