@@ -30,6 +30,8 @@ class PersonalPreferencesTests(unittest.TestCase):
                 "Mod+Alt+Right": "move-column-right",
                 "Mod+Alt+Up": "move-window-to-workspace-up",
                 "Mod+Alt+Down": "move-window-to-workspace-down",
+                "Mod+J": "focus-workspace-down",
+                "Mod+K": "focus-workspace-up",
             }.items():
                 with self.subTest(chord=chord):
                     line = next(line for line in reversed(lines) if line.startswith(chord + " "))

@@ -258,12 +258,6 @@ binds {
     Mod+L hotkey-overlay-title="Move right" { move-column-right; }
     Mod+Alt+Right hotkey-overlay-title="Move right" { move-column-right; }
 
-    // Move up.
-    Mod+K hotkey-overlay-title="Move up" { move-window-up; }
-
-    // Move down.
-    Mod+J hotkey-overlay-title="Move down" { move-window-down; }
-
     // Move left.
     Mod+Shift+WheelScrollUp cooldown-ms=150 hotkey-overlay-title="Move left" { move-column-left; }
 
@@ -276,9 +270,11 @@ binds {
 
     // Next workspace.
     Mod+N repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down; }
+    Mod+J repeat=false hotkey-overlay-title="Next workspace" { focus-workspace-down; }
 
     // Previous workspace.
     Mod+P repeat=false hotkey-overlay-title="Previous workspace" { focus-workspace-up; }
+    Mod+K repeat=false hotkey-overlay-title="Previous workspace" { focus-workspace-up; }
 
     // Move window to next workspace.
     Mod+Alt+N hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }

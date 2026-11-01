@@ -201,6 +201,7 @@ journalctl --user -b -u skwd-walld.service
 - Ctrl+Alt+中键：[截图贴图](../llms-wiki/dual-session.md#截图贴图)，框选松手后置顶；左键拖动、滚轮缩放、右键关闭。不自动保存或改剪贴板。
 - Mod+Shift+S：沿用 SekaiPop 的 Google Lens 搜图流程，选区先上传 uguu.se 临时图床，再交给 Google；图片可通过链接访问，不适合敏感内容。不改剪贴板。
 - Mod+N/P：上下工作区；Alt+N/P：直接向右/左聚焦，原生切换器内仍切换窗口。
+- Mod+J/K：跳到下一／上一工作区，不移动窗口，与 Mod+N/P 相同。
 - Ctrl+Mod+Slash：编辑私有 Noctalia 配置；Ctrl+Mod+Alt+Slash：打开更新保留的 `__custom__.kdl`。
 
 Noctalia 没有对应的 iNiR 十字准星、面板家族切换和搜索截图；OCR 使用个人脚本，

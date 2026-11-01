@@ -153,6 +153,8 @@ Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署
 每次按可用布局尺寸的 10% 调整。Mod+Alt+左／右调用原生 move-column-left／right，
 平铺时移动整列，浮动时左右移动窗口，不跨工作区；Mod+Alt+上／下仍移至上一／下一工作区。
 验收需检查个人层加载后的最终动作，并用独立窗口验证尺寸变化与同工作区内的移动。
+Mod+J／K 分别调用 focus-workspace-down／up，跳到下一／上一工作区，不再调整窗口顺序；
+与 Mod+N／P 一样不连发。Mod+Alt+J／K 仍将窗口移至下一／上一工作区。
 Ctrl+Shift+A 调用 `niri-scratch-toggle.sh kitty`，切换 `scratch` 会话的浮动终端，
 个人部署副本将上游 fish 启动命令替换为 zsh，保持默认隐藏状态栏。Mod+Grave 在个人键位层覆盖上游绑定，
 改为调用 `niri-actions.py tmux`，切换普通平铺 tmux 终端。窗口用独立 app-id
