@@ -11,6 +11,30 @@ from personal import install, niri_actions, autostart, runtime
 
 
 class PersonalPreferencesTests(unittest.TestCase):
+    def test_directional_resize_and_move_keys_survive_personal_layers(self):
+        with TempEnv() as ctx:
+            source = ctx.home / "source"
+            source.mkdir()
+            install.prepare_sources(source)
+            lines = [
+                line.strip()
+                for name in ("binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl", "__custom__.kdl")
+                for line in (source / "niri" / name).read_text().splitlines()
+            ]
+            for chord, action in {
+                "Mod+Shift+Left": 'set-window-width "-10%"',
+                "Mod+Shift+Right": 'set-window-width "+10%"',
+                "Mod+Shift+Up": 'set-window-height "-10%"',
+                "Mod+Shift+Down": 'set-window-height "+10%"',
+                "Mod+Alt+Left": "move-column-left",
+                "Mod+Alt+Right": "move-column-right",
+                "Mod+Alt+Up": "move-window-to-workspace-up",
+                "Mod+Alt+Down": "move-window-to-workspace-down",
+            }.items():
+                with self.subTest(chord=chord):
+                    line = next(line for line in reversed(lines) if line.startswith(chord + " "))
+                    self.assertTrue(line.endswith(f"{{ {action}; }}"), line)
+
     def test_tmux_and_scratchpad_shortcuts_are_swapped(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"

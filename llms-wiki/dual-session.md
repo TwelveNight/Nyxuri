@@ -149,6 +149,10 @@ skwd 的当前壁纸状态是三套桌面共享的；Nyxuri 不写 iNiR／Hyprla
 部署副本移除默认 Super+X，使其可供应用使用；电源菜单改用 Super+Alt+Delete，
 Ctrl+Alt+Delete 保留。仓库默认 binds 不变；个人文件随仓库部署更新，
 实机覆盖写入最后加载且受 Dunder 保留的 __custom__.kdl。
+`personal/binds.kdl` 将 Mod+Shift+左／右改为减小／增大窗口宽度，上／下改为减小／增大高度，
+每次按可用布局尺寸的 10% 调整。Mod+Alt+左／右调用原生 move-column-left／right，
+平铺时移动整列，浮动时左右移动窗口，不跨工作区；Mod+Alt+上／下仍移至上一／下一工作区。
+验收需检查个人层加载后的最终动作，并用独立窗口验证尺寸变化与同工作区内的移动。
 Ctrl+Shift+A 调用 `niri-scratch-toggle.sh kitty`，切换 `scratch` 会话的浮动终端，
 个人部署副本将上游 fish 启动命令替换为 zsh，保持默认隐藏状态栏。Mod+Grave 在个人键位层覆盖上游绑定，
 改为调用 `niri-actions.py tmux`，切换普通平铺 tmux 终端。窗口用独立 app-id

@@ -187,6 +187,8 @@ journalctl --user -b -u skwd-walld.service
 - 搜索列表中 Ctrl+J 选择下一项，Ctrl+K 选择上一项，方向键仍可用；同样适用于 Noctalia 的其他内置列表。
 - Super+R：切换列宽；Super+Ctrl+R：恢复窗口高度；Super+Ctrl+方向键：切换显示器。
 - Super+方向键：移动窗口；平铺时左右移动整列、上下调整列内顺序，浮动时向对应方向移动。
+- Mod+Shift+方向键：左／右减小／增大宽度，上／下减小／增大高度；每次按可用布局尺寸的 10% 调整。
+- Mod+Alt+左／右：向左／右移动窗口，平铺时移动整列，不再移至其他工作区；Mod+Alt+上／下仍移动到上一／下一工作区。
 - Alt+方向键：移动焦点，与 Alt+H/J/K/L 相同；到布局边缘后切换到对应方向的显示器。
 - Super+Alt+K / J：将窗口移到上一／下一工作区，替代原来的 Super+Alt+H / L。
 - Super+Ctrl+1–9：移动整列到工作区；Page Up/Down 组合与 Alt+Tab 沿用 iNiR；媒体键交给 Noctalia。

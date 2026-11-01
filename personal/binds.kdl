@@ -191,6 +191,12 @@ binds {
     // Resize
     // ═══════════════════════════════════════════════════════════════════════
 
+    // Percentage changes use the available layout size, not the current window size.
+    Mod+Shift+Left hotkey-overlay-title="Decrease window width" { set-window-width "-10%"; }
+    Mod+Shift+Right hotkey-overlay-title="Increase window width" { set-window-width "+10%"; }
+    Mod+Shift+Up hotkey-overlay-title="Decrease window height" { set-window-height "-10%"; }
+    Mod+Shift+Down hotkey-overlay-title="Increase window height" { set-window-height "+10%"; }
+
     // Shrink window width by 30 px.
     Mod+Shift+H hotkey-overlay-title="Shrink window width by 30 px" { set-window-width "-30"; }
 
@@ -246,9 +252,11 @@ binds {
 
     // Move left.
     Mod+H hotkey-overlay-title="Move left" { move-column-left; }
+    Mod+Alt+Left hotkey-overlay-title="Move left" { move-column-left; }
 
     // Move right.
     Mod+L hotkey-overlay-title="Move right" { move-column-right; }
+    Mod+Alt+Right hotkey-overlay-title="Move right" { move-column-right; }
 
     // Move up.
     Mod+K hotkey-overlay-title="Move up" { move-window-up; }
@@ -283,12 +291,6 @@ binds {
 
     // Move window to next workspace.
     Mod+Alt+J hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
-
-    // Move window to previous workspace.
-    Mod+Alt+Left hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
-
-    // Move window to next workspace.
-    Mod+Alt+Right hotkey-overlay-title="Move window to next workspace" { move-window-to-workspace-down; }
 
     // Move window to previous workspace.
     Mod+Alt+Up hotkey-overlay-title="Move window to previous workspace" { move-window-to-workspace-up; }
