@@ -147,6 +147,26 @@ Shell 单元验证 `org.kde.StatusNotifierWatcher` 的拥有者是本次 Noctali
 该 helper 来源于 iNiR 的个人适配，与现有 Hyprland watcher 共用
 `$XDG_RUNTIME_DIR/inir` 的归属记录；旧 watcher 不会停止新会话。
 
+## 登录前 GPU 选择
+
+私有 `nyxuri-niri.service` 先执行 `personal/gpu_session.py`：只有内屏时选
+AMD `0000:06:00.0`；任一 sysfs 外接连接器为 `connected` 时选 NVIDIA
+`0000:01:00.0`。eDP、LVDS、DSI 不算外屏，card 编号不参与策略；选中设备
+缺失或 PCI/vendor 不匹配时拒绝启动，不悄悄换另一块 GPU。
+
+`personal-gpu.kdl` 只 include 私有 `personal-gpu-session__custom__.kdl`。
+wrapper 登录前生成此 fragment，并持有跨 exec 的 POSIX 进程锁（不由子应用继承）；第二个登录
+实例在写入前失败，部署的 Dunder 保留机制也不会替换运行中的选择。
+最终仍执行 `niri --session --config ~/.config/niri/config.kdl`，不替换主配置
+或改变其它相对 include，兼容既有 clock controller 的会话路径授权。
+Shell 从同次登录记录读取分支，不再独立检测外屏：AMD 分支清除 NVIDIA
+PRIME/GLX/Vulkan 三变量，NVIDIA 分支保留原来的三变量值。
+
+只在新登录时选择，没有热插拔 watcher。外屏模式接受内屏不可用；插拔屏幕后
+若需换 GPU，请注销后重新登录。日志只含 PCI、renderer 和触发外屏连接器。
+此策略不修改其它 profile、系统驱动、共享服务或 clock controller。
+首次部署需 Nyxuri 未运行；不要在现有 Nyxuri 会话内手动重写 selector/fragment。
+
 ## 验收与撤回
 
 三套环境的隔离范围、共享资源和最近一次验证见 [ISOLATION.md](ISOLATION.md)。

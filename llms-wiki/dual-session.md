@@ -289,10 +289,18 @@ grim 将选区 PNG 通过内存交给 curl，采用 SekaiPop 的 `files[]` 表�
 
 ## 个人屏幕与显卡
 
-个人部署副本加入 `personal-gpu.kdl`，沿用 iNiR 的稳定 NVIDIA PCI render 路径
-`/dev/dri/by-path/pci-0000:01:00.0-render`，并为 GLX／Vulkan 应用声明 NVIDIA
-选择变量。私有 shell 单元显式设置相同三项变量，不继承旧会话选择；不使用
-iNiR 专属的 shell 变量，不改变公共默认配置或系统驱动。渲染设备在重新登录后生效。
+个人部署副本加入 `personal-gpu.kdl`，只 include 登录生成并由 Dunder 规则保留的
+`personal-gpu-session__custom__.kdl`。私有 `gpu_session.py` 在 Niri 启动前读取 sysfs：
+任一非 eDP/LVDS/DSI 连接器 `connected` 时选 NVIDIA PCI `0000:01:00.0`，
+否则选 AMD `0000:06:00.0`；校验 by-path card/render 和 sysfs PCI/vendor，
+不硬编码 card 编号，选中设备缺失时拒绝启动。跨 exec 的 POSIX 进程锁阻止第二个实例
+改写运行中的 fragment，安装更新也保留该 fragment；不增加热插拔 watcher。
+
+Niri 的最终 argv 保持 `--session --config ~/.config/niri/config.kdl`，以兼容既有
+clock controller 的路径授权；主配置和相对 include 保持原样。Shell wrapper
+读取同次登录记录，AMD 分支移除 NVIDIA PRIME／GLX／Vulkan 三变量，NVIDIA
+分支保留原三变量行为。不改公共默认配置、其它 profile、系统驱动或 clock controller。
+只在重新登录时选择；外屏模式接受内屏不可用，插拔后不会切换 GPU。
 
 `personal/monitor.kdl` 是首次部署的个人屏幕默认值：HDMI-A-1 为
 2560×1440 @ 143.995 Hz、缩放 1、位置 (-2560, 80)，eDP-2 关闭。

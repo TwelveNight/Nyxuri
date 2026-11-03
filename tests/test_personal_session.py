@@ -46,21 +46,26 @@ class TestPersonalSession(unittest.TestCase):
                 for name in ("GTK_IM_MODULE", "QT_IM_MODULE", "SDL_IM_MODULE"):
                     self.assertIn(f'{name} null', niri)
                 self.assertLess(niri.index('include "personal-gpu.kdl"'), niri.index('include "__custom__.kdl"'))
-                self.assertIn('pci-0000:01:00.0-render', (private / "niri/personal-gpu.kdl").read_text())
+                self.assertIn('personal-gpu-session__custom__.kdl', (private / "niri/personal-gpu.kdl").read_text())
+                self.assertTrue((private / "niri/scripts/gpu_session.py").is_file())
                 self.assertIn('2560x1440@143.995', (private / "niri/monitor.kdl").read_text())
                 shell = (config / "systemd/user/nyxuri-shell.service").read_text()
-                self.assertIn('Environment=__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only', shell)
+                self.assertIn('gpu_session.py shell --config %h/.config/niri/config.kdl', shell)
+                self.assertNotIn('Environment=__NV_PRIME_RENDER_OFFLOAD=1', shell)
                 unset = next(line for line in shell.splitlines() if line.startswith('UnsetEnvironment='))
-                self.assertNotIn('__NV_PRIME_RENDER_OFFLOAD', unset)
+                self.assertIn('__NV_PRIME_RENDER_OFFLOAD', unset)
                 self.assertIn('DRI_PRIME', unset)
                 custom = private / "niri/__custom__.kdl"
                 custom.write_text('// my custom binding\n')
+                gpu_fragment = private / "niri/personal-gpu-session__custom__.kdl"
+                gpu_fragment.write_text('// admitted login renderer; preserve during deploy\n')
                 colors = private / "kitty-nyxuri/colors__custom__.conf"
                 colors.write_text("background #123456\n")
                 monitor = private / "niri/monitor.kdl"
                 monitor.write_text('// my output\n')
                 self.assertEqual(install.main(["--yes"]), 0)
                 self.assertEqual(custom.read_text(), '// my custom binding\n')
+                self.assertEqual(gpu_fragment.read_text(), '// admitted login renderer; preserve during deploy\n')
                 self.assertEqual(colors.read_text(), 'background #123456\n')
                 self.assertEqual(monitor.read_text(), '// my output\n')
             for path, data in originals.items():
