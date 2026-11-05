@@ -131,6 +131,8 @@ Noctalia 会给专用配置根变量追加 `noctalia`：`NOCTALIA_CONFIG_HOME` �
 `~/.local/state/nyxuri-desktop/noctalia/noctalia/`，保留已有设置。
 
 Kitty 继承原有设置，Nyxuri 颜色写入私有目录，Noctalia 和 Niri 键位启动终端时均使用此配置。
+Noctalia 的应用启动环境也与 Niri 一致：Qt 使用 `wayland;xcb` 和 `kde` 平台主题，
+读取当前 `kdeglobals` 配色；不另行指定控件样式，保留现有 Darkly 等选择。
 Nyxuri 登录时先停止 II 配色监听，避免换壁纸串改共享主题；iNiR 自行取色，返回 II 后由其
 原有的启动钩子恢复监听。壁纸预览、色板和缩略图缓存位于 `~/.cache/nyxuri-desktop/`。
 深浅主题切换沿用上游 `nyxuri theme sync`，同步共享 GTK／Qt 应用主题；三套桌面仍共用 skwd 壁纸。

@@ -45,6 +45,10 @@ def main():
     # Systemd does not inherit Niri's per-child environment block. Applications
     # opened by Noctalia must use the same Kitty profile as compositor bindings.
     os.environ["KITTY_CONFIG_DIRECTORY"] = str(config / "kitty-nyxuri")
+    # Match Niri-spawned Qt applications; otherwise launcher children use the
+    # default palette instead of the wallpaper colors already in kdeglobals.
+    os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"
+    os.environ["QT_QPA_PLATFORMTHEME"] = "kde"
     # This systemd-started parent does not receive changes published by the
     # handoff subprocess. Match iNiR before launching it and Noctalia: native
     # Wayland uses text-input; XWayland launchers detect Fcitx via XMODIFIERS.

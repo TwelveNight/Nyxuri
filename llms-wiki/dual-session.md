@@ -66,6 +66,10 @@ runtime 同时确认本次 Shell 拥有托盘总线且 IPC status 返回成功�
 runtime 同时设置 KITTY_CONFIG_DIRECTORY，确保 Noctalia 打开的终端
 与 Niri 键位打开的终端一致。这些私有路径只传给本会话子进程，不导入共享用户管理器。
 不改变所有应用的 XDG_CONFIG_HOME。
+Qt 子进程同样与 Niri 对齐：runtime 设置 `QT_QPA_PLATFORM=wayland;xcb` 和
+`QT_QPA_PLATFORMTHEME=kde`，让启动器打开的 pavucontrol-qt 等应用读取当前
+`kdeglobals` 配色；不覆盖用户选择的控件样式。仅修改 Niri 的 environment
+块不会影响 systemd 启动的 Noctalia。
 
 输入法环境与 iNiR 对齐：私有 Niri 配置与 runtime 父进程都设置
 `XMODIFIERS=@im=fcitx`，并移除 GTK／Qt／SDL 的全局 IM_MODULE，原生 Wayland 应用使用 text-input。
