@@ -95,7 +95,7 @@ class PersonalAppearanceTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("keep this desktop\n")
                 protected[path] = path.read_bytes()
-            upstream = install.ROOT / "units/niri/config.kdl"
+            upstream = install.ROOT / "plugins/niri/config.kdl"
             original = upstream.read_bytes()
             install.prepare_sources(source)
             config = (source / "niri/config.kdl").read_text()

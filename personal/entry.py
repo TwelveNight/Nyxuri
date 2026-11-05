@@ -1,6 +1,5 @@
 """Personal install/update policy behind the ordinary install.sh bootstrap."""
 import argparse
-import copy
 import os
 from pathlib import Path
 import subprocess
@@ -44,14 +43,18 @@ def install_desktop(arguments):
     forwarded = [flag for flag in ("--plan", "--yes") if getattr(args, flag[2:])]
     if args.plan:
         return install.main(forwarded, preflight=prepare_session)
-    core.acquire_lock()
+    previous = core._ENV
     try:
+        core._ENV = install.scoped_environment(core.get_env())
+        core.acquire_lock()
+        core._ENV = previous
         result = install.main(forwarded, preflight=prepare_session)
         if result == 0:
             register_session(core.get_env())
         return result
     finally:
         core.release_lock()
+        core._ENV = previous
 
 
 def management_menu():
@@ -100,30 +103,29 @@ def dispatch(arguments):
               "Other explicit commands use the upstream CLI.")
         return 0
     managed = (core.get_env().config_dir / "desktop-profiles/profiles.json").is_file()
-    if managed and command in ("on", "off", "enable", "disable"):
-        print("Personal profile units are deployed together; use nyxuri install/update.", file=sys.stderr)
+    # The personal launcher always owns private deployment, including before
+    # registration with desktop-profile. New S1 verbs must not bypass it.
+    if command in ("on", "off", "enable", "disable", "add", "remove"):
+        print("Personal plugins are deployed together; use nyxuri install/update.", file=sys.stderr)
         return 2
-    if managed and command == "preset" and (not rest or rest[0] not in install.CONFIGS):
-        print("Personal presets support niri, noctalia and kitty-nyxuri.", file=sys.stderr)
+    if command == "use" and (not rest or rest[0] not in install.CONFIGS):
+        print("Personal forms support niri, noctalia and kitty-nyxuri.", file=sys.stderr)
         return 2
     if managed and command not in ("doctor", "test", "pkg", "help", "--help", "-h"):
         subprocess.run([str(core.get_env().home / ".local/bin/desktop-profile"), "guard", "nyxuri"], check=True)
     from nyxuri.cli import main as upstream_main
     sys.argv = [sys.argv[0], *arguments]
     previous = core._ENV
-    if managed and command in ("snapshot", "backup", "list", "preset", "rollback", "restore", "uninstall", "remove", "purge"):
-        scoped = copy.copy(core.get_env())
-        scoped.config_dir = scoped.config_dir / "desktop-profiles/nyxuri"
-        scoped.nyx_dir = scoped.config_dir / "manager"
-        scoped.presets_dir = scoped.nyx_dir / "presets"
-        scoped.state_dir = scoped.home / ".local/state/nyxuri-desktop/manager"
+    scoped = None
+    if command in ("snapshot", "list", "use", "rollback", "uninstall"):
+        scoped = install.scoped_environment(core.get_env())
         core._ENV = scoped
     try:
-        if core._ENV is not previous:
+        if scoped is not None:
             with tempfile.TemporaryDirectory(prefix="nyxuri-personal-state-") as temporary:
-                scoped.units_src = Path(temporary)
-                scoped.shell_units_src = Path(temporary) / "unused-shell-units"
-                install.prepare_sources(scoped.units_src)
+                scoped.plugins_src = Path(temporary)
+                scoped.shell_units_src = Path(temporary) / "unused-shell-plugins"
+                install.prepare_sources(scoped.plugins_src)
                 upstream_main()
         elif command == "theme" and (not rest or len(rest) == 1 and rest[0] in ("toggle", "dark", "light", "sync")):
             with gtk3.environment():

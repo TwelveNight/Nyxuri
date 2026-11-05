@@ -133,7 +133,7 @@ class TestPersonalSession(unittest.TestCase):
                 self.assertTrue(entry["enabled"])
                 self.assertEqual(entry["input_path"], str(ctx.home / ".config/noctalia/templates/fcitx5" / filename))
                 self.assertEqual(entry["output_path"], str(ctx.home / ".local/share/fcitx5/themes/nyxmellow" / filename))
-                self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "units/fcitx5-rime/hooks/skin/templates" / filename).read_bytes())
+                self.assertEqual((private / "noctalia/templates/fcitx5" / filename).read_bytes(), (install.ROOT / "plugins/fcitx5-rime/hooks/skin/templates" / filename).read_bytes())
             self.assertIn("ReloadAddonConfig s classicui", templates["nyxmellow_highlight"]["post_hook"])
             self.assertNotIn("pkill", templates["nyxmellow_highlight"]["post_hook"])
             self.assertFalse(templates["nyxuri_gtk3"]["enabled"])
@@ -250,16 +250,16 @@ class TestPersonalUpdate(unittest.TestCase):
         with TempEnv(), patch("personal.update.subprocess.run", return_value=Mock(stdout=" M local.py")) as run:
             self.assertEqual(update.main([]), 1)
             self.assertEqual(run.call_count, 1)
-        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", subprocess.CalledProcessError(1, ["merge"]), ""]), patch("personal.update.subprocess.run") as deploy:
+        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", "", subprocess.CalledProcessError(1, ["merge"]), ""]), patch("personal.update.subprocess.run") as deploy:
             with self.assertRaises(subprocess.CalledProcessError):
                 update.main([])
             deploy.assert_not_called()
 
 
     def test_incompatible_upstream_layout_stops_before_merge_or_deploy(self):
-        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", subprocess.CalledProcessError(1, ["git", "cat-file", "-e", "FETCH_HEAD:units/niri/config.kdl"])]) as git, patch("personal.update.subprocess.run") as deploy:
+        with TempEnv(), patch("personal.update.git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", subprocess.CalledProcessError(1, ["git", "cat-file", "-e", "FETCH_HEAD:plugins/niri/config.kdl"])]) as git, patch("personal.update.subprocess.run") as deploy:
             self.assertEqual(update.main([]), 1)
-            self.assertEqual(git.call_args.args, ("cat-file", "-e", "FETCH_HEAD:units/niri/config.kdl"))
+            self.assertEqual(git.call_args.args, ("cat-file", "-e", "FETCH_HEAD:plugins/niri/config.kdl"))
             self.assertFalse(any(call.args[:1] == ("merge",) for call in git.call_args_list))
             deploy.assert_not_called()
 

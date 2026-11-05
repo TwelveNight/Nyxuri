@@ -9,7 +9,7 @@ def deploy_wallpapers(do_download=False):
     if do_download:
         raise ValueError("Personal updates only deploy offline fallback assets")
     destination = get_pics_dir() / "Wallpapers"
-    for source in (ROOT / "units/wallpapers").iterdir():
+    for source in (ROOT / "plugins/wallpapers").iterdir():
         if source.is_file() and source.name != "manifest.toml":
             target = destination / source.name
             if not target.exists() and not target.is_symlink():

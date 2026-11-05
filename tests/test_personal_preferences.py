@@ -137,7 +137,7 @@ class PersonalPreferencesTests(unittest.TestCase):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            upstream = (install.ROOT / "units/niri/binds.kdl").read_bytes()
+            upstream = (install.ROOT / "plugins/niri/binds.kdl").read_bytes()
             for _ in range(2):
                 if (source / "niri").exists():
                     import shutil
@@ -161,7 +161,7 @@ class PersonalPreferencesTests(unittest.TestCase):
                 self.assertIn('Mod+Ctrl+9 { move-column-to-workspace 9; }', binds)
                 self.assertIn('Mod+Alt+Delete repeat=false hotkey-overlay-title="Power menu" { spawn "noctalia" "msg" "panel-toggle" "session";', binds)
                 self.assertIn('Alt+Space repeat=false hotkey-overlay-title="Search" { spawn "~/.config/niri/scripts/launcher.py";', binds)
-            self.assertEqual((install.ROOT / "units/niri/binds.kdl").read_bytes(), upstream)
+            self.assertEqual((install.ROOT / "plugins/niri/binds.kdl").read_bytes(), upstream)
 
     def test_xdg_entries_keep_user_changes_and_disable_todesk(self):
         with TempEnv() as ctx:

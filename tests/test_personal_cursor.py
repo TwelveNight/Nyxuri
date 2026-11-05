@@ -17,7 +17,7 @@ class PersonalCursorTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text("original\n")
                 originals[target] = target.read_bytes()
-            upstream = (install.ROOT / "units/niri/config.kdl").read_bytes()
+            upstream = (install.ROOT / "plugins/niri/config.kdl").read_bytes()
             with patch("personal.install.shutil.which", return_value="/usr/bin/tool"), \
                  patch("nyxuri.deploy.templates.get_pics_dir", return_value=ctx.home / "Pictures"), \
                  patch("personal.assets.get_pics_dir", return_value=ctx.home / "Pictures"):
@@ -45,4 +45,4 @@ class PersonalCursorTests(unittest.TestCase):
             self.assertEqual(custom.read_text(), override)
             for path, original in originals.items():
                 self.assertEqual(path.read_bytes(), original)
-            self.assertEqual((install.ROOT / "units/niri/config.kdl").read_bytes(), upstream)
+            self.assertEqual((install.ROOT / "plugins/niri/config.kdl").read_bytes(), upstream)

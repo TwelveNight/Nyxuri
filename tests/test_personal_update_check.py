@@ -41,7 +41,7 @@ class UpdateCheckTests(unittest.TestCase):
             if args == ('branch', '--show-current'): return 'night/personal-overlay'
             if args == ('remote', 'get-url', 'origin'): return 'https://github.com/ech678/Nyxuri.git'
             if args[0] == 'merge': raise subprocess.CalledProcessError(1, ['git', *args])
-            if args[0] == 'diff': return 'units/niri/config.kdl'
+            if args[0] == 'diff': return 'plugins/niri/config.kdl'
             return ''
         with TempEnv(), patch.object(update, 'git', side_effect=git), \
                 patch.object(update.shutil, 'which', return_value=None), patch.object(update, 'deploy') as deploy:

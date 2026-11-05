@@ -72,3 +72,11 @@ R0-3：`preset` 命令别名与 `on --preset` 旗标处决——形态切换入�
 `--no-deploy` 调用 sync，`--local` 直接部署已审阅源码。冲突保留现场，
 停止部署并提示打开 AI 修复后提交；共享入口负责验证、备份、profile 隔离。
 未安装共享入口时保留官方 origin/源布局检查与同样的冲突提示。
+
+个人入口的配置操作（snapshot/list/use/rollback/uninstall）在注册前也隔离，
+只发现准备后的 niri/noctalia/kitty-nyxuri 插件；`use` 只允许这些 ID，
+on/off/add/remove 拒绝绕过个人部署。forms 根为个人 config 下的 nyxuri/forms，
+state/data/cache 使用 nyxuri-desktop/manager；旧 manager 目录须明确迁移。
+外置 Orbit Translate 保留现装 launcher/package/provider 和 custom TOML，
+popup 使用已有配置发现，settings 使用其正式 `--config` 参数。
+目录、边界与历史旧命令区别见 [个人适配](../personal/README.md)。

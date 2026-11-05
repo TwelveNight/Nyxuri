@@ -31,21 +31,21 @@ desktop-profile maintain nyxuri -- nyxuri install --plan
 ```
 
 实际部署始终写入 Nyxuri 的配置实体。预设、快照、回滚等上游配置操作同样
-使用该实体及其 manager 目录，避免原子替换活动链接。主题同步仍更新当前会话
+使用该实体及其私有管理目录，避免原子替换活动链接。主题同步仍更新当前会话
 的标准配置和共享 GTK/Qt 应用设置。安装器不选择或重启另一个桌面。
 新机器须先安装 desktop-profile 管理器和登录入口。
 
-个人分支使用 configs/ 布局；上游 main 已改为 units/。更新器 fetch 后先检查
-所需源文件，布局不兼容时在 merge 和部署之前停止。架构迁移需单独审阅；
-不会把当前 Noctalia 5 桌面自动换成其他 shell。
+个人适配已合入 plugins/forms 架构（上游 `fcfb8744`）。更新器 fetch 后检查
+`plugins/niri`、`plugins/noctalia` 与 forms API，缺少契约时在 merge 前停止。
+只准备 niri、noctalia、kitty-nyxuri 三个插件，不启用上游自研 Shell。
 
 当前 profile 的本地更新使用 `nyxuri update --local`，或自动化使用
-`nyxuri update --local --yes`。它用新进程运行个人安装器，允许部署本地已审阅但
-尚未提交的修改，不 fetch、不 merge、不选择其他桌面的活动链接。
+`nyxuri update --local --yes`。它用新进程运行个人安装器，不 fetch、不 merge、
+不选择其他桌面的活动链接；使用前须独立审阅源码与部署清单。
 远程策略 `remote-panel__custom__.kdl` 及加载它的 `__custom__.kdl` 随原子部署保留。
-`backup`、`restore`、`list` 等状态命令与完整名称一样使用 Nyxuri profile，
-不读取或替换当前 iNiR 的配置实体。上游 `units/` 架构迁移仍需单独适配，
-普通 `nyxuri update` 保持在 merge 前停止；`--local` 不声称同步到最新上游。
+`snapshot`、`list`、`use`、`rollback`、`uninstall` 只发现三个个人插件；旧
+`backup`/`preset`/`restore` 别名已由上游移除。禁止个人入口的 on/off/add/remove。
+注册前同样隔离配置、forms、state/data/cache，具体根见文末当前契约。
 
 以下为此前的适配记录；其中独立配置目录和入口路径已由本节取代。
 
@@ -312,3 +312,23 @@ GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctali
 共享工具安装：在 iNiR 源码运行 `bash scripts/personal/install-desktop-update.sh`。
 共享的 `desktop-update-check.timer` 每六小时 fetch/check 已注册桌面，
 发现新的上游提交时通知；不调用配置安装器，不重启 Noctalia/Niri。
+
+## 当前 plugins/forms 与外置翻译契约
+
+- 准备源码：`plugins/{niri,noctalia,kitty-nyxuri}`；每次状态命令使用相同的个人
+  源码准备流程，不发现 `shell.*` 或其它上游插件。`use` 仅接受这三个插件 ID。
+- 配置：`~/.config/desktop-profiles/nyxuri`；forms：其下 `nyxuri/forms`。
+  管理 state/data/cache 分别为 `~/.local/{state,share}/nyxuri-desktop/manager`
+  和 `~/.cache/nyxuri-desktop/manager`。安装锁也使用该 state 根。
+- 旧 `profile/manager`（包括 symlink）存在时拒绝操作，不自动搬迁或丢弃用户预设。
+  必须先备份并明确迁移。
+- Orbit Translate 由上游外置到 `WALKERKILLER/orbit-translate`。个人部署不联网
+  安装它、不复制已删旧项目；manifest 显式保留已安装的 `tools/orbit-translate.py`
+  和 `tools/orbit_translate/`（包括个人 provider 修复）。首次安装缺失时需用户另行
+  审阅外部工具，而不是悄悄补装新依赖。
+- settings 通过现有、仅适用于 settings 的 `--config` 参数读取
+  `~/.config/noctalia/tools/orbit-translate__custom__.toml`；popup 沿用配置发现，
+  只为该子进程将 `XDG_CONFIG_HOME` 固定为 `$HOME/.config`，兼容已安装的个人
+  config 适配和新版外置工具。custom TOML 遵循 dunder 保留协议。
+- 个人 CLI 的 forms/snapshot/rollback 不选择 canonical 链接、不重启桌面。
+  GTK/theme 命令仍具有原先明确的共享应用主题副作用，不属于隔离部署测试步骤。

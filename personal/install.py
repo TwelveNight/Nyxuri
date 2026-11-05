@@ -33,12 +33,12 @@ SESSION_TOOLS = ("niri", "noctalia", "quickshell", "kitty", "skwd-helm", "ffmpeg
 
 def prepare_sources(destination: Path) -> None:
     for item in CONFIGS:
-        shutil.copytree(ROOT / "units" / item, destination / item, symlinks=True)
+        shutil.copytree(ROOT / "plugins" / item, destination / item, symlinks=True)
     # This palette is rendered at runtime by the personal Noctalia template.
     # Carry it across updates before the next login regenerates it.
     manifest = destination / "niri/manifest.toml"
     manifest.write_text(manifest.read_text().replace('preserve = [', 'preserve = ["appearance-colors.kdl", ', 1))
-    shutil.copytree(ROOT / "units/theme", destination / "noctalia/templates", ignore=shutil.ignore_patterns("manifest.toml", "hooks"))
+    shutil.copytree(ROOT / "plugins/theme", destination / "noctalia/templates", ignore=shutil.ignore_patterns("manifest.toml", "hooks"))
     shutil.copy2(ROOT / "personal/templates/kitty-nyxuri.conf", destination / "noctalia/templates/kitty-nyxuri.conf")
     shutil.copy2(ROOT / "personal/noctalia-keybinds.toml", destination / "noctalia/zz-personal-keybinds.toml")
     shutil.copy2(ROOT / "personal/keybind-cheatsheet.toml", destination / "noctalia/zz-personal-cheatsheet.toml")
@@ -125,16 +125,19 @@ def prepare_sources(destination: Path) -> None:
     content = content.replace("exec noctalia msg panel-toggle clipboard",
                               'exec python3 "$(dirname "$0")/clipboard.py" pick')
     action.write_text(content)
-    translate_config = destination / "noctalia/tools/orbit_translate/config.py"
-    content = translate_config.read_text()
-    upstream_path = 'return Path.home() / ".config" / "noctalia" / "tools"'
-    if upstream_path not in content:
-        raise ValueError("Upstream translation config path changed; review before deployment")
-    translate_config.write_text(content.replace(
-        upstream_path,
-        'import os\n    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")\n'
-        '    return Path(config_home) / "noctalia" / "tools"',
-    ))
+    # Orbit Translate is now external. Keep the installed program and package,
+    # including personal provider repairs; never resurrect deleted upstream code.
+    manifest = destination / "noctalia/manifest.toml"
+    manifest.write_text(manifest.read_text() + '\npreserve = ["tools/orbit-translate.py", "tools/orbit_translate"]\n')
+    config_arg = '--config "$HOME/.config/noctalia/tools/orbit-translate__custom__.toml"'
+    # --config is a settings-only interface in the installed tool. Popup must
+    # use its existing config discovery; fix XDG only for that child process.
+    action.write_text(action.read_text().replace('exec "$tools_dir/orbit-translate.py"',
+                      'exec env XDG_CONFIG_HOME="$HOME/.config" "$tools_dir/orbit-translate.py"').replace(
+                      'exec python3 "$tools_dir/orbit-translate.py"',
+                      'exec env XDG_CONFIG_HOME="$HOME/.config" python3 "$tools_dir/orbit-translate.py"'))
+    scratch.write_text(scratch.read_text().replace('orbit-translate.py" --settings',
+                       'orbit-translate.py" --settings ' + config_arg))
     # Request the renderer directly; preview synchronization never calls it back.
     shutil.copy2(ROOT / "personal/wallpaper-backend.py", destination / "noctalia/tools/wallpaper_picker/backend.py")
     conf = destination / "noctalia/noctalia-config.toml"
@@ -162,7 +165,7 @@ def prepare_sources(destination: Path) -> None:
             policy += [f"[theme.templates.user.{name}]", "enabled = false"]
     # Fcitx is an explicitly shared application theme, owned by the current desktop.
     fcitx_templates = destination / "noctalia/templates/fcitx5"
-    shutil.copytree(ROOT / "units/fcitx5-rime/hooks/skin/templates", fcitx_templates, dirs_exist_ok=True)
+    shutil.copytree(ROOT / "plugins/fcitx5-rime/hooks/skin/templates", fcitx_templates, dirs_exist_ok=True)
     for index, (suffix, filename) in enumerate((("theme", "theme.conf"), ("panel", "panel.svg"), ("highlight", "highlight.svg")), 8):
         policy += [f"[theme.templates.user.nyxmellow_{suffix}]", "enabled = true", f"index = {index}",
                    f'input_path = "/home/user/.config/noctalia/templates/fcitx5/{filename}"',
@@ -196,6 +199,22 @@ def prepare_sources(destination: Path) -> None:
     for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):
         target = destination / "niri" / name
         target.write_text(annotate(target.read_text()))
+
+
+def scoped_environment(env):
+    """Bind every registry and persistence root to the personal profile."""
+    scoped = copy.copy(env)
+    scoped.config_dir = env.config_dir / "desktop-profiles/nyxuri"
+    # Upstream fd-safe form storage opens config_dir/nyxuri/forms.
+    scoped.nyx_dir = scoped.config_dir / "nyxuri"
+    scoped.forms_dir = scoped.nyx_dir / "forms"
+    scoped.state_dir = env.home / ".local/state/nyxuri-desktop/manager"
+    scoped.data_dir = env.home / ".local/share/nyxuri-desktop/manager"
+    scoped.cache_dir = env.home / ".cache/nyxuri-desktop/manager"
+    legacy = scoped.config_dir / "manager"
+    if legacy.exists() or legacy.is_symlink():
+        raise ValueError(f"Legacy personal manager data needs explicit migration: {legacy}")
+    return scoped
 
 
 def main(argv=None, preflight=None) -> int:
@@ -234,16 +253,13 @@ def main(argv=None, preflight=None) -> int:
             return 2
     if preflight is not None:
         preflight(env)
-    scoped = copy.copy(env)
-    scoped.config_dir = private
-    scoped.nyx_dir = private / "manager"
-    scoped.presets_dir = scoped.nyx_dir / "presets"
-    scoped.state_dir = env.home / ".local/state/nyxuri-desktop/manager"
+    scoped = scoped_environment(env)
     previous = core._ENV
     try:
         with tempfile.TemporaryDirectory(prefix="nyxuri-personal-") as temporary:
-            scoped.units_src = Path(temporary)
-            prepare_sources(scoped.units_src)
+            scoped.plugins_src = Path(temporary)
+            scoped.shell_units_src = Path(temporary) / "unused-shell-plugins"
+            prepare_sources(scoped.plugins_src)
             core._ENV = scoped
             if _phase_atomic_deployment(list(CONFIGS)):
                 return 1

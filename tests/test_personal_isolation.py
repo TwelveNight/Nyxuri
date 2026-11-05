@@ -62,34 +62,34 @@ class PersonalIsolationTests(unittest.TestCase):
 
     def test_translate_reads_private_config_for_popup_and_settings(self):
         with TempEnv() as ctx:
-            source = ctx.home / "source"
-            source.mkdir()
-            upstream = install.ROOT / "units/noctalia/tools/orbit_translate/config.py"
-            original = upstream.read_bytes()
+            source = ctx.home / ".config"
             install.prepare_sources(source)
-            path = source / "noctalia/tools/orbit_translate/config.py"
-            spec = importlib.util.spec_from_file_location("private_translate_config_test", path)
-            module = importlib.util.module_from_spec(spec)
-            with patch.dict(sys.modules, {spec.name: module}):
-                spec.loader.exec_module(module)
-            for config_root in (ctx.home / ".config", ctx.home / "alternate-config"):
-                with self.subTest(config_root=config_root), patch.dict(os.environ, XDG_CONFIG_HOME=str(config_root)):
-                    private = config_root / "noctalia/tools/orbit-translate__custom__.toml"
-                    private.parent.mkdir(parents=True, exist_ok=True)
-                    private.write_text('source = "auto"\ntarget = "zh-CN"\n')
-                    public = config_root / "nyxuri-desktop/noctalia/tools/orbit-translate__custom__.toml"
-                    public.parent.mkdir(parents=True, exist_ok=True)
-                    public.write_text('source = "en"\ntarget = "fr"\n')
-                    self.assertEqual(module.config_path(), private)
-                    self.assertEqual(module.load_config().source, "auto")
-                    self.assertEqual(module.load_config().target, "zh-CN")
-            self.assertEqual(upstream.read_bytes(), original)
+            tools = source / "noctalia/tools"
+            tool = tools / "orbit-translate.py"
+            tool.write_text('#!/usr/bin/env python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+            tool.chmod(0o755)
+            binaries = ctx.home / "bin"
+            binaries.mkdir()
+            kitty = binaries / "kitty"
+            kitty.write_text('#!/bin/sh\nwhile [ "$1" != "-e" ]; do shift; done\nshift\nexec "$@"\n')
+            kitty.chmod(0o755)
+            niri = binaries / "niri"
+            niri.write_text('#!/bin/sh\nif [ "$1 $2 $3 $4" = "msg action spawn --" ]; then shift 4; exec "$@"; fi\necho "[]"\n')
+            niri.chmod(0o755)
+            config = str(tools / "orbit-translate__custom__.toml")
+            env = dict(os.environ, PATH=str(binaries)+os.pathsep+os.defpath)
+            popup = subprocess.run(['bash',str(source/'niri/scripts/shell-action.sh'),'translate'],env=env,capture_output=True,text=True,timeout=5)
+            self.assertEqual(popup.returncode,0,popup.stderr)
+            self.assertEqual(json.loads(popup.stdout),[])
+            settings = subprocess.run(['bash',str(source/'niri/scripts/niri-scratch-toggle.sh'),'translate'],env=env,capture_output=True,text=True,timeout=5)
+            self.assertEqual(settings.returncode,0,settings.stderr)
+            self.assertEqual(json.loads(settings.stdout),['--settings','--config',config])
 
     def test_overview_uses_skwd_renderers_without_moving_picker_or_shell(self):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            original = (install.ROOT / "units/niri/config.kdl").read_bytes()
+            original = (install.ROOT / "plugins/niri/config.kdl").read_bytes()
             install.prepare_sources(source)
             config = (source / "niri/config.kdl").read_text()
             overview = (source / "niri/personal-overview.kdl").read_text()
@@ -105,7 +105,7 @@ class PersonalIsolationTests(unittest.TestCase):
                 self.assertRegex(renderer, namespace)
             for surface in ("skwd-wall-v2", "skwd-paper-picker", "noctalia-wallpaper", "mpvpaper", "noctalia-bar-bar", "noctalia-dock"):
                 self.assertNotRegex(surface, namespace)
-            self.assertEqual((install.ROOT / "units/niri/config.kdl").read_bytes(), original)
+            self.assertEqual((install.ROOT / "plugins/niri/config.kdl").read_bytes(), original)
 
     def test_deployed_launchers_ignore_public_tools_and_legacy_shell_selection(self):
         with TempEnv() as ctx:

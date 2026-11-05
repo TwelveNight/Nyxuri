@@ -150,18 +150,18 @@ class PersonalEntryTests(unittest.TestCase):
             expected = ctx.env.config_dir / "desktop-profiles/nyxuri"
             def assert_scope():
                 self.assertEqual(core.get_env().config_dir, expected)
-                self.assertEqual(core.get_env().nyx_dir, expected / "manager")
-                self.assertEqual({p.name for p in core.get_env().units_src.iterdir()}, set(install.CONFIGS))
+                self.assertEqual(core.get_env().nyx_dir, expected / "nyxuri")
+                self.assertEqual({p.name for p in core.get_env().plugins_src.iterdir()}, set(install.CONFIGS))
                 self.assertEqual(core.get_env().state_dir, ctx.home / ".local/state/nyxuri-desktop/manager")
             previous = core._ENV
             with patch("nyxuri.cli.main", side_effect=assert_scope) as main, patch.object(entry.subprocess, "run") as guard:
-                for command in ("snapshot", "backup", "list", "preset", "rollback", "restore", "uninstall", "remove", "purge", "BACKUP"):
+                for command in ("snapshot", "list", "use", "rollback", "uninstall", "SNAPSHOT"):
                     with self.subTest(command=command):
-                        arguments = [command, "niri", "list"] if command == "preset" else [command]
+                        arguments = [command, "niri", "list"] if command == "use" else [command]
                         self.assertEqual(entry.dispatch(arguments), 0)
                         self.assertIs(core._ENV, previous)
                         guard.assert_called_with([str(ctx.home / ".local/bin/desktop-profile"), "guard", "nyxuri"], check=True)
-                self.assertEqual(main.call_count, 10)
+                self.assertEqual(main.call_count, 6)
 
     def test_unit_lifecycle_cannot_modify_global_units(self):
         with TempEnv() as ctx:
@@ -193,7 +193,7 @@ class PersonalEntryTests(unittest.TestCase):
             previous = core._ENV
             with patch("nyxuri.cli.main", side_effect=RuntimeError("stopped")), patch.object(entry.subprocess, "run"):
                 with self.assertRaisesRegex(RuntimeError, "stopped"):
-                    entry.dispatch(["restore"])
+                    entry.dispatch(["rollback"])
             self.assertIs(core._ENV, previous)
 
     def test_incompatible_upstream_stops_before_merge_and_deployment(self):
@@ -214,7 +214,7 @@ class PersonalEntryTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_update_yes_reenters_standard_installer(self):
-        with TempEnv(), patch.object(update, "git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", ""]), patch.object(update.subprocess, "run", return_value=Mock(returncode=0)) as run:
+        with TempEnv(), patch.object(update, "git", side_effect=["", "night/personal-overlay", "https://github.com/ech678/Nyxuri.git", "", "", "", "", ""]), patch.object(update.subprocess, "run", return_value=Mock(returncode=0)) as run:
             self.assertEqual(entry.dispatch(["update", "--yes"]), 0)
             run.assert_called_once_with([str(update.ROOT / "install.sh"), "install", "--yes"], cwd=update.ROOT)
 

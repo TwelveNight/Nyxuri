@@ -14,14 +14,14 @@ class ScreenSearchTests(unittest.TestCase):
         with TempEnv() as ctx:
             source = ctx.home / "source"
             source.mkdir()
-            upstream = (install.ROOT / "units/niri/binds.kdl").read_bytes()
+            upstream = (install.ROOT / "plugins/niri/binds.kdl").read_bytes()
             install.prepare_sources(source)
             binds = (source / "niri/75-personal-binds.kdl").read_text()
             self.assertIn('Mod+Shift+S repeat=false hotkey-overlay-title="Search screenshot with Google Lens" { spawn "~/.config/niri/scripts/screen_search.py"; }', binds)
             self.assertIn('// #"截图"\n    Mod+Shift+S ', binds)
             self.assertEqual((source / "niri/scripts/screen_search.py").read_bytes(),
                              (install.ROOT / "personal/screen_search.py").read_bytes())
-            self.assertEqual((install.ROOT / "units/niri/binds.kdl").read_bytes(), upstream)
+            self.assertEqual((install.ROOT / "plugins/niri/binds.kdl").read_bytes(), upstream)
 
     def test_selected_png_uses_sekaipop_host_and_browser_lens_import(self):
         from personal import screen_search

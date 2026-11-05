@@ -60,14 +60,14 @@ def main(argv=None):
         print(json.dumps(dict(profile="nyxuri", upstream="origin/main", ahead=ahead, behind=behind,
                               status="behind" if behind else "current")))
         return 0
-    # The personal adapter consumes units/. Never merge an incompatible
-    # upstream unit-layout migration and discover the mismatch during deployment.
-    for source in ("units/niri/config.kdl", "units/noctalia/noctalia-config.toml"):
+    # The adapter consumes the plugins/forms API; keep this fail-closed when
+    # upstream moves its source roots again.
+    for source in ("plugins/niri/config.kdl", "plugins/noctalia/noctalia-config.toml", "nyxuri/deploy/forms.py"):
         try:
             git("cat-file", "-e", "FETCH_HEAD:" + source)
         except subprocess.CalledProcessError:
             print("Upstream configuration layout changed; update stopped before merge or deployment. "
-                  "Review the new unit architecture in the main worktree first.", file=sys.stderr)
+                  "Review the new plugin/forms architecture in the main worktree first.", file=sys.stderr)
             return 1
     # No reset/stash/rebase: personal commits remain visible; conflicts stop
     # before any deployment and can be reviewed with ordinary Git tools.
