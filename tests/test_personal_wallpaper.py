@@ -10,6 +10,14 @@ from tests.utils import TempEnv
 
 
 class TestPersonalWallpaper(unittest.TestCase):
+    def test_sync_defers_all_wallpaper_writes_while_locked(self):
+        with TempEnv(), patch.object(wallpaper.subprocess, "run", return_value=Mock(returncode=0, stdout='{"locked": true}')) as run, patch.object(wallpaper, "current") as current:
+            self.assertFalse(wallpaper.sync())
+            current.assert_not_called()
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ["noctalia", "msg", "status"],
+            ])
+
     def test_apply_socket_request_disables_transition_for_static_and_video(self):
         for suffix, kind in ((".png", "static"), (".mp4", "video")):
             with self.subTest(kind=kind), TempEnv() as ctx:
@@ -45,13 +53,66 @@ class TestPersonalWallpaper(unittest.TestCase):
             self.assertEqual(run.call_args.args[0], ["skwd-helm", "current", "--json"])
 
     def test_sync_only_updates_noctalia_and_skips_unchanged_preview(self):
-        with TempEnv(), patch.object(wallpaper, "current", return_value=[{"name": "DP-1"}, {"name": "DP-2"}]), patch.object(wallpaper, "preview", return_value="/preview.png"), patch.object(wallpaper.subprocess, "run", side_effect=[Mock(returncode=0, stdout="/old.png"), Mock(returncode=0), Mock(returncode=0, stdout="/preview.png")]) as run:
+        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home)), patch.object(wallpaper, "current", return_value=[{"name": "DP-1"}, {"name": "DP-2"}]), patch.object(wallpaper, "preview", return_value="/preview.png"), patch.object(wallpaper.subprocess, "run", side_effect=[Mock(returncode=0, stdout='{"locked": false}'), Mock(returncode=0, stdout="/old.png"), Mock(returncode=0), Mock(returncode=0, stdout="/preview.png"), Mock(returncode=0, stdout="'/preview.png'\n")]) as run:
             wallpaper.sync()
         self.assertEqual([call.args[0] for call in run.call_args_list], [
+            ["noctalia", "msg", "status"],
             ["noctalia", "msg", "wallpaper-get", "DP-1"],
             ["noctalia", "msg", "wallpaper-set", "DP-1", "/preview.png"],
-            ["noctalia", "msg", "wallpaper-get", "DP-2"]])
+            ["noctalia", "msg", "wallpaper-get", "DP-2"],
+            ["noctalia", "msg", "config-get", "lockscreen.wallpaper"]])
 
+
+    def test_sync_updates_pinned_lockscreen_even_when_preview_is_unchanged(self):
+        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home)):
+            image = ctx.home / 'space ; "wallpaper".png'
+            image.write_bytes(b"image")
+            output = {"name": "DP-1", "path": str(image)}
+            with patch.object(wallpaper, "current", return_value=[output]), patch.object(wallpaper.subprocess, "run", side_effect=[
+                Mock(returncode=0, stdout='{"locked": false}'),
+                Mock(returncode=0, stdout=str(image)),
+                Mock(returncode=0, stdout="'/old.png'\n"),
+                Mock(returncode=0),
+            ]) as run:
+                wallpaper.sync()
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ["noctalia", "msg", "status"],
+                ["noctalia", "msg", "wallpaper-get", "DP-1"],
+                ["noctalia", "msg", "config-get", "lockscreen.wallpaper"],
+                ["noctalia", "msg", "config-set", "lockscreen.wallpaper", json.dumps(str(image), ensure_ascii=False)],
+            ])
+            self.assertTrue(run.call_args.kwargs["check"])
+
+    def test_sync_keeps_lockscreen_when_no_preview_is_available(self):
+        with TempEnv(), patch.object(wallpaper, "current", return_value=[{"name": "DP-1", "path": "/missing.png"}]), patch.object(wallpaper.subprocess, "run", return_value=Mock(returncode=0, stdout='{"locked": false}')) as run:
+            wallpaper.sync()
+            self.assertEqual([call.args[0] for call in run.call_args_list], [["noctalia", "msg", "status"]])
+
+    def test_sync_uses_first_valid_output_video_thumbnail_for_lockscreen(self):
+        with TempEnv() as ctx, patch.dict(os.environ, XDG_RUNTIME_DIR=str(ctx.home)):
+            video = ctx.home / "wallpaper.mp4"
+            video.write_bytes(b"video")
+            thumbnail = ctx.home / ".cache/nyxuri-desktop/thumbnails" / (wallpaper.hashlib.sha256(f"{video}:{video.stat().st_mtime_ns}".encode()).hexdigest() + ".jpg")
+            thumbnail.parent.mkdir(parents=True)
+            thumbnail.write_bytes(b"thumbnail")
+            image = ctx.home / "second.png"
+            image.write_bytes(b"image")
+            outputs = [{"name": "DP-0", "path": "/missing.png"},
+                       {"name": "DP-1", "path": str(video)},
+                       {"name": "DP-2", "path": str(image)}]
+            with patch.object(wallpaper, "current", return_value=outputs), patch.object(wallpaper.subprocess, "run", side_effect=[
+                Mock(returncode=0, stdout='{"locked": false}'),
+                Mock(returncode=0, stdout=str(thumbnail)), Mock(returncode=0, stdout=str(image)),
+                Mock(returncode=0, stdout="''\n"), Mock(returncode=0),
+            ]) as run:
+                wallpaper.sync()
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ["noctalia", "msg", "status"],
+                ["noctalia", "msg", "wallpaper-get", "DP-1"],
+                ["noctalia", "msg", "wallpaper-get", "DP-2"],
+                ["noctalia", "msg", "config-get", "lockscreen.wallpaper"],
+                ["noctalia", "msg", "config-set", "lockscreen.wallpaper", json.dumps(str(thumbnail), ensure_ascii=False)],
+            ])
 
     def test_bar_wallpaper_opens_skwd_frontend(self):
         with TempEnv() as ctx:

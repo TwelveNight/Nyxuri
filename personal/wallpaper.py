@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Bridge skwd's active images to Noctalia's palette, without another renderer."""
+"""Bridge skwd's images to Noctalia's palette and lockscreen, without rendering."""
 import hashlib
 import json
 import os
 from pathlib import Path
+import select
 import subprocess
 import socket
 import sys
 import time
+import tomllib
 
 VIDEO = {".mp4", ".webm", ".mkv", ".mov", ".gif"}
 
@@ -72,10 +74,18 @@ def hook():
 
 
 def sync():
+    status = subprocess.run(["noctalia", "msg", "status"], capture_output=True,
+                            text=True, check=True, timeout=3)
+    if json.loads(status.stdout)["locked"]:
+        return False  # Config/texture reloads can crash Noctalia's active locker.
+    lock_path = None
     for output in current():
         path = preview(output)
         if not path:
             continue
+        # Noctalia has one explicit lock wallpaper; prefer the first live output.
+        if lock_path is None:
+            lock_path = path
         connector = output.get("name") or output.get("output") or output.get("connector") or output.get("output_name")
         args = [connector] if connector else []
         saved = subprocess.run(["noctalia", "msg", "wallpaper-get", *args], capture_output=True, text=True, timeout=3)
@@ -83,6 +93,14 @@ def sync():
             continue
         preview_marker(path, connector or "").touch()
         subprocess.run(["noctalia", "msg", "wallpaper-set", *args, path], check=True, timeout=5)
+    if lock_path is not None:
+        # Since 5.4, disabling its desktop renderer also disables implicit follow.
+        saved = subprocess.run(["noctalia", "msg", "config-get", "lockscreen.wallpaper"],
+                               capture_output=True, text=True, check=True, timeout=3)
+        if tomllib.loads("wallpaper = " + saved.stdout)["wallpaper"] != lock_path:
+            subprocess.run(["noctalia", "msg", "config-set", "lockscreen.wallpaper",
+                            json.dumps(lock_path, ensure_ascii=False)], check=True, timeout=5)
+    return True
 
 
 def apply(path, output=None):
@@ -110,14 +128,22 @@ def apply(path, output=None):
 def watch():
     # Start watching before reading current state so no event falls in between.
     while True:
-        with subprocess.Popen(["skwd-helm", "watch"], stdout=subprocess.PIPE, text=True) as stream:
+        with subprocess.Popen(["skwd-helm", "watch"], stdout=subprocess.PIPE) as stream:
+            assert stream.stdout is not None
             try:
-                sync()
-                for _ in stream.stdout:
-                    try:
-                        sync()
-                    except (OSError, ValueError, subprocess.SubprocessError) as error:
-                        print(f"wallpaper sync: {error}", file=sys.stderr)
+                pending = True
+                while True:
+                    if pending:
+                        try:
+                            pending = not sync()
+                        except (OSError, ValueError, subprocess.SubprocessError) as error:
+                            print(f"wallpaper sync: {error}", file=sys.stderr)
+                    # Retry after unlock without needing another wallpaper event.
+                    ready, _, _ = select.select([stream.stdout], [], [], 2 if pending else None)
+                    if ready:
+                        if not os.read(stream.stdout.fileno(), 65536):
+                            break
+                        pending = True
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 print(f"wallpaper sync: {error}", file=sys.stderr)
             finally:
