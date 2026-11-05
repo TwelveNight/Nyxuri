@@ -317,6 +317,8 @@ GTK3／GTK4 的动态模板在个人配置中显式启用，读取私有 Noctali
 
 - 准备源码：`plugins/{niri,noctalia,kitty-nyxuri}`；每次状态命令使用相同的个人
   源码准备流程，不发现 `shell.*` 或其它上游插件。`use` 仅接受这三个插件 ID。
+  个人 Kitty/Noctalia overlay 在准备阶段展开 HOME，使整型 `use` 与 install 一致，
+  不把 `/home/user` 占位符重新部署到活动配置。
 - 配置：`~/.config/desktop-profiles/nyxuri`；forms：其下 `nyxuri/forms`。
   管理 state/data/cache 分别为 `~/.local/{state,share}/nyxuri-desktop/manager`
   和 `~/.cache/nyxuri-desktop/manager`。安装锁也使用该 state 根。

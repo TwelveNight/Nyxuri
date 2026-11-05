@@ -24,8 +24,8 @@ class PersonalAppearanceTests(unittest.TestCase):
             for mode in ("light", "dark"):
                 entry = templates[f"nyxuri_gtk3_{mode}"]
                 self.assertTrue(entry["enabled"])
-                self.assertEqual(entry["input_path"], f"/home/user/.config/noctalia/templates/gtk-3.0-{mode}.css")
-                self.assertEqual(entry["output_path"], f"/home/user/.local/share/themes/Nyxuri-M3-{mode.title()}/gtk-3.0/gtk.css")
+                self.assertEqual(entry["input_path"], f"{ctx.home}/.config/noctalia/templates/gtk-3.0-{mode}.css")
+                self.assertEqual(entry["output_path"], f"{ctx.home}/.local/share/themes/Nyxuri-M3-{mode.title()}/gtk-3.0/gtk.css")
                 text = (source / f"noctalia/templates/gtk-3.0-{mode}.css").read_text()
                 self.assertTrue(text.startswith('@import url("base.css");\n'))
                 self.assertIn(f"colors.background.{mode}.hex", text)
@@ -36,7 +36,7 @@ class PersonalAppearanceTests(unittest.TestCase):
             self.assertEqual(templates["nyxuri_gtk3_dark"]["index"], 51)
             self.assertGreater(templates["nyxuri_gtk3_dark"]["index"], 30)
             self.assertEqual(templates["nyxuri_gtk3_dark"]["post_hook"],
-                             'NYXURI_GTK3_REFRESH=1 "/home/user/.local/bin/nyxuri" theme sync')
+                             f'NYXURI_GTK3_REFRESH=1 "{ctx.home}/.local/bin/nyxuri" theme sync')
             self.assertFalse(templates["nyxuri_gtk3_dark"]["hook_async"])
 
     def test_theme_hook_runs_without_user_bin_in_path(self):
@@ -106,8 +106,8 @@ class PersonalAppearanceTests(unittest.TestCase):
             policy = tomllib.loads((source / "noctalia/zz-personal-appearance.toml").read_text())
             entry = policy["theme"]["templates"]["user"]["nyxuri_niri_colors"]
             self.assertTrue(entry["enabled"])
-            self.assertEqual(entry["input_path"], "/home/user/.config/noctalia/templates/niri-personal.kdl")
-            self.assertEqual(entry["output_path"], "/home/user/.config/niri/appearance-colors.kdl")
+            self.assertEqual(entry["input_path"], str(ctx.home / ".config/noctalia/templates/niri-personal.kdl"))
+            self.assertEqual(entry["output_path"], str(ctx.home / ".config/niri/appearance-colors.kdl"))
             self.assertNotIn("post_hook", entry)
             template = (source / "noctalia/templates/niri-personal.kdl").read_text()
             self.assertIn('active-color "{{colors.primary.default.hex}}"', template)

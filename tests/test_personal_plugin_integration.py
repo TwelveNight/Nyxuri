@@ -98,6 +98,9 @@ class PersonalPluginIntegrationTests(unittest.TestCase):
                 self.assertTrue(use_form('niri',None,'default'))
                 self.assertTrue(use_form('niri','effects','default'))
                 self.assertTrue(use_form('noctalia',None,'default'))
+                self.assertTrue(use_form('kitty-nyxuri',None,'default'))
+                for name in ('noctalia/zz-personal.toml','noctalia/zz-personal-appearance.toml','noctalia/zz-personal-bongocat.toml','kitty-nyxuri/kitty.conf'):
+                    self.assertNotIn('/home/user',(private/name).read_text(),name)
             with patch('nyxuri.cli.main',side_effect=apply), patch.object(entry.subprocess,'run') as run:
                 self.assertEqual(entry.dispatch(['use','niri','default']),0)
                 run.assert_not_called()

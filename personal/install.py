@@ -199,6 +199,13 @@ def prepare_sources(destination: Path) -> None:
     for name in ("config.kdl", "binds.kdl", "personal-binds.kdl", "75-personal-binds.kdl"):
         target = destination / "niri" / name
         target.write_text(annotate(target.read_text()))
+    # These personal overlays are not upstream-known template filenames.
+    # Resolve their portable HOME before either install OR whole-form selection
+    # consumes the prepared source; an install-only repair is lost on `use`.
+    for name in ("kitty-nyxuri/kitty.conf", "noctalia/zz-personal.toml",
+                 "noctalia/zz-personal-appearance.toml", "noctalia/zz-personal-bongocat.toml"):
+        target = destination / name
+        target.write_text(target.read_text().replace("/home/user", str(core.get_env().home)))
 
 
 def scoped_environment(env):
