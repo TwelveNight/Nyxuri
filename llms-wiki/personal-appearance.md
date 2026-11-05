@@ -71,11 +71,15 @@ GTK3 在启动时缓存用户 `gtk.css` 和 prefer-dark 属性。Chromium 148 �
 `base.css` 引用已安装的对应 adw-gtk3 主题，不复制系统主题或替换应用运行库。
 
 `personal/gtk3.py` 仅在两份色板都存在且基底可用时启用适配。旧用户 CSS 必须
-完整匹配上一份受管模板的渲染结构才可迁移；先备份至
-`~/.local/state/nyxuri-desktop/gtk3/gtk.css.before-named-themes`，再换成归属说明。
-未知改动、符号链接或同名非受管 wrapper 都拒绝覆盖。
+完整匹配上一份受管模板的渲染结构才可迁移。精确归属 marker 后若只有
+KDE 导出的 `@import 'colors.css';`、Noctalia 内置 GTK 模板生成的
+`@import url("noctalia.css");`（单个、组合及其间空白），也可清理回 marker，
+不读取、改写或删除 import 引用目标。首次原文备份至
+`~/.local/state/nyxuri-desktop/gtk3/gtk.css.before-named-themes`，后续清理不覆盖它。
+任何额外未知 CSS／import、非精确 marker、符号链接或同名非受管 wrapper 都拒绝覆盖。
 
-dark 模板渲染完成后同步调用同一 `nyxuri theme sync`，通过
+light 命名模板保持 index 11，dark 使用 index 51，排在 KDE 导出模板的 index 30
+之后。dark 模板渲染完成后同步调用同一 `nyxuri theme sync`，通过
 `NYXURI_GTK3_REFRESH=1` 在当前模式的主主题名与 `-Alt` 导入别名间轮换，
 让同模式下的壁纸色板更新也触发 GTK 重新加载；不生成第二套配色算法或常驻监听。
 从旧全局 CSS 迁移后，已缓存它的应用需完整退出再打开一次；此后验证需覆盖

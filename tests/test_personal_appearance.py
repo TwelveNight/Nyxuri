@@ -31,6 +31,10 @@ class PersonalAppearanceTests(unittest.TestCase):
                 self.assertIn(f"colors.background.{mode}.hex", text)
                 self.assertNotIn(".default.", text)
                 self.assertNotIn("color-mix(", text)
+            # Noctalia's KDE exporter runs at index 30; cleanup must follow it.
+            self.assertEqual(templates["nyxuri_gtk3_light"]["index"], 11)
+            self.assertEqual(templates["nyxuri_gtk3_dark"]["index"], 51)
+            self.assertGreater(templates["nyxuri_gtk3_dark"]["index"], 30)
             self.assertEqual(templates["nyxuri_gtk3_dark"]["post_hook"],
                              'NYXURI_GTK3_REFRESH=1 "/home/user/.local/bin/nyxuri" theme sync')
             self.assertFalse(templates["nyxuri_gtk3_dark"]["hook_async"])

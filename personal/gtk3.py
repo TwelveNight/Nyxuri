@@ -40,7 +40,10 @@ def _retire_user_css(env):
     content = css.read_text() if css.exists() else ""
     if content == USER_CSS_MARKER:
         return
-    if content.strip():
+    generated_imports = r"""(?:\s*(?:@import 'colors\.css';|@import url\("noctalia\.css"\);))*\s*"""
+    owned_marker = content.startswith(USER_CSS_MARKER) and re.fullmatch(
+        generated_imports, content[len(USER_CSS_MARKER):]) is not None
+    if content.strip() and not owned_marker:
         template = env.config_dir / "noctalia/templates/gtk-3.0.css"
         if not template.is_file():
             raise ValueError("The previous GTK3 template is missing; user CSS left unchanged")

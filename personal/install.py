@@ -171,7 +171,7 @@ def prepare_sources(destination: Path) -> None:
             policy += [f"post_hook = '{FCITX_CLASSICUI_RELOAD_HOOK}'"]
     # GTK3 user CSS is cached by Chromium. Load both palettes as named themes
     # instead, so gtk-theme-name changes reload the actual colors in-process.
-    for index, mode in enumerate(("light", "dark"), 11):
+    for index, mode in ((11, "light"), (51, "dark")):
         policy += [f"[theme.templates.user.nyxuri_gtk3_{mode}]", "enabled = true", f"index = {index}",
                    f'input_path = "/home/user/.config/noctalia/templates/gtk-3.0-{mode}.css"',
                    f'output_path = "/home/user/.local/share/themes/Nyxuri-M3-{mode.title()}/gtk-3.0/gtk.css"']

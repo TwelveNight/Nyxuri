@@ -64,6 +64,80 @@ class PersonalGtk3ThemeTests(unittest.TestCase):
                                         3, capture_output=True, text=True, check=False)
             self.assertEqual(palette.read_bytes(), before)
 
+    def test_marker_with_generated_imports_is_retired_with_first_backup_only(self):
+        imports = (
+            "@import 'colors.css';\n\n@import url(\"noctalia.css\");\n\n",
+            "@import 'colors.css';\n",
+            '@import url("noctalia.css");\n',
+            '\n\t@import url("noctalia.css"); \n\t@import \'colors.css\';\n ',
+            "\n \t\n",
+        )
+        for suffix in imports:
+            with self.subTest(suffix=suffix), TempEnv() as ctx:
+                _, css = self.prepare_palettes(ctx)
+                # Known generated imports do not need the previous template.
+                (ctx.env.config_dir / "noctalia/templates/gtk-3.0.css").unlink()
+                targets = [css.with_name(name) for name in ("colors.css", "noctalia.css")]
+                for target in targets:
+                    target.write_text("/* imported file stays user-owned */\n")
+                before_targets = [target.read_bytes() for target in targets]
+                before = (gtk3.USER_CSS_MARKER + suffix).encode()
+                css.write_bytes(before)
+                with gtk3.environment():
+                    pass
+                self.assertEqual(css.read_text(), gtk3.USER_CSS_MARKER)
+                backup = ctx.home / ".local/state/nyxuri-desktop/gtk3/gtk.css.before-named-themes"
+                self.assertEqual(backup.read_bytes(), before)
+                # A later export is cleaned without replacing the first backup.
+                css.write_text(gtk3.USER_CSS_MARKER + '@import url("noctalia.css");\n')
+                with gtk3.environment():
+                    pass
+                with gtk3.environment():
+                    pass
+                self.assertEqual(css.read_text(), gtk3.USER_CSS_MARKER)
+                self.assertEqual(backup.read_bytes(), before)
+                self.assertEqual([target.read_bytes() for target in targets], before_targets)
+
+    def test_marker_does_not_authorize_unknown_css_or_imports(self):
+        known = "@import 'colors.css';\n@import url(\"noctalia.css\");\n"
+        contents = (
+            gtk3.USER_CSS_MARKER + known + "window { color: red; }\n",
+            gtk3.USER_CSS_MARKER + known + '@import url("unknown.css");\n',
+            gtk3.USER_CSS_MARKER + "@import 'colors.css.extra';\n",
+            gtk3.USER_CSS_MARKER + '@import url("/elsewhere/noctalia.css");\n',
+            gtk3.USER_CSS_MARKER + "/* my note */\n" + known,
+            gtk3.USER_CSS_MARKER + "@import 'colors.css'\n",
+            gtk3.USER_CSS_MARKER.rstrip() + " \n" + known,
+            "/* user prefix */\n" + gtk3.USER_CSS_MARKER + known,
+            known,
+        )
+        for content in contents:
+            with self.subTest(content=content), TempEnv() as ctx:
+                _, css = self.prepare_palettes(ctx)
+                css.write_text(content)
+                with self.assertRaisesRegex(ValueError, "unowned changes"):
+                    with gtk3.environment():
+                        self.fail("Unknown content must remain protected")
+                self.assertEqual(css.read_text(), content)
+                backup = ctx.home / ".local/state/nyxuri-desktop/gtk3/gtk.css.before-named-themes"
+                self.assertFalse(backup.exists())
+
+    def test_generated_imports_do_not_authorize_a_user_css_symlink(self):
+        with TempEnv() as ctx:
+            _, css = self.prepare_palettes(ctx)
+            target = ctx.home / "user.css"
+            content = gtk3.USER_CSS_MARKER + "@import 'colors.css';\n"
+            target.write_text(content)
+            css.unlink()
+            css.symlink_to(target)
+            with self.assertRaisesRegex(ValueError, "stylesheet symlink"):
+                with gtk3.environment():
+                    self.fail("A user CSS symlink must remain protected")
+            self.assertTrue(css.is_symlink())
+            self.assertEqual(target.read_text(), content)
+            backup = ctx.home / ".local/state/nyxuri-desktop/gtk3/gtk.css.before-named-themes"
+            self.assertFalse(backup.exists())
+
     def test_unowned_user_css_is_not_overwritten(self):
         with TempEnv() as ctx:
             _, css = self.prepare_palettes(ctx)
