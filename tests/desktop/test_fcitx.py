@@ -1,4 +1,4 @@
-"""fcitx5-rime unit hook contracts (KM3): skin deploy, rime patch, revert.
+"""fcitx5-rime plugin hook contracts (KM3): skin deploy, rime patch, revert.
 
 The hooks live at configs/fcitx5-rime/hooks/ and are imported as modules.
 Living-area files (classicui.conf, profile) are blueprint+preserve owned —
@@ -19,7 +19,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _load_hook(name: str):
-    path = REPO / "units" / "fcitx5-rime" / "hooks" / name
+    path = REPO / "plugins" / "fcitx5-rime" / "hooks" / name
     mod_name = f"fcitx5_rime_hook_{name}"
     spec = importlib.util.spec_from_file_location(mod_name, path, loader=SourceFileLoader(mod_name, str(path)))
     module = importlib.util.module_from_spec(spec)
@@ -38,14 +38,14 @@ class TestSkinDeploy(unittest.TestCase):
         self._ctx.__exit__()
 
     def test_deploy_skin_copies_blueprint_templates(self):
-        unit_src = REPO / "units" / "fcitx5-rime"
-        self.assertTrue(self.activate.deploy_skin(unit_src))
+        plugin_src = REPO / "plugins" / "fcitx5-rime"
+        self.assertTrue(self.activate.deploy_skin(plugin_src))
         theme_dir = self._ctx.env.home / ".local/share/fcitx5/themes/nyxmellow/templates"
         for name in ("theme.conf", "panel.svg", "highlight.svg"):
             self.assertTrue((theme_dir / name).is_file(), name)
 
     def test_deploy_skin_fails_without_payload(self):
-        empty = self._ctx.env.home / "empty-unit"
+        empty = self._ctx.env.home / "empty-plugin"
         empty.mkdir()
         self.assertFalse(self.activate.deploy_skin(empty))
 
@@ -184,7 +184,7 @@ from tests.utils import TempEnv
 
 class TestThemeSlices(unittest.TestCase):
     def setUp(self):
-        self.source = Path(__file__).resolve().parents[2] / "units/fcitx5-rime/hooks/skin/templates"
+        self.source = Path(__file__).resolve().parents[2] / "plugins/fcitx5-rime/hooks/skin/templates"
 
     def _load_theme(self):
         config = configparser.ConfigParser(interpolation=None)

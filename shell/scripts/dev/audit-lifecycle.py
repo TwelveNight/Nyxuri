@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -30,7 +31,6 @@ EXCLUDED_PARTS = {
     "fixtures",
     "tests",
     "build",
-    "generated",
     "third-party",
     ".git",
     "staging",
@@ -53,6 +53,23 @@ ALLOWED_OPTIONAL_IMPORTERS = {
 }
 
 GATEWAY_FILE = "app/ActionGateway.qml"
+# S0-5: the compositor driver is the sole argv truth for the niri dialect
+# (`niri msg` / `niri --version`). Its exec calls are the confined channel
+# itself, not a bypass of the gateway.
+COMPOSITOR_DRIVER_FILE = "services/NiriDriver.qml"
+# S1-3: the plugin heart (Omarchy Fork & Trim) runs its guard trio (scan /
+# init / watcher-reaper) through `bash -c` with static script literals;
+# runtime paths travel as positional argv ($0/$1), never concatenated.
+PLUGIN_HEART_FILE = "services/PluginRegistry.qml"
+
+
+def _plugins_domain_of(resolved: str) -> str:
+    """The plugins/<domain> a resolved relative path lands in ('' when none)."""
+    parts = resolved.split("/")
+    for i, segment in enumerate(parts):
+        if segment == "plugins" and i + 1 < len(parts):
+            return parts[i + 1].lower()
+    return ""
 
 ALLOWED_MODULE_CROSS_IMPORTS = {
     # host domain -> set of allowed target domains
@@ -77,11 +94,11 @@ UI_IO_ALLOWED_SUFFIXES = (
 )
 UI_IO_ALLOWLIST = {
     # lock domain root: owns its own session marker file (single FileView)
-    "units/lock/Lock.qml",
+    "plugins/lock/Lock.qml",
     # pre-lock screen capture session inside the lock domain
-    "units/lock/PreLockCapture.qml",
+    "plugins/lock/PreLockCapture.qml",
     # keystone cover-art palette extraction (domain singleton)
-    "units/keystone/media/MediaPalette.qml",
+    "plugins/keystone/media/MediaPalette.qml",
 }
 
 
@@ -228,8 +245,8 @@ def check_file_violations(
     violations: List[AuditViolation] = []
     lines = content.splitlines()
 
-    is_shared = is_shared_override if is_shared_override is not None else (rel_path.startswith("shared/") or file_path.name.startswith("shared") or "shared_sideeffect" in file_path.name)
-    is_gateway = rel_path.endswith(GATEWAY_FILE)
+    is_shared = is_shared_override if is_shared_override is not None else (rel_path.startswith(("commons/", "ui/")) or file_path.name.startswith("shared") or "shared_sideeffect" in file_path.name)
+    is_gateway = rel_path.endswith(GATEWAY_FILE) or rel_path.endswith(COMPOSITOR_DRIVER_FILE)
     has_destruction = ("Component.onDestruction" in content) or ("function closeChildWindows()" in content) or ("function unload()" in content and "Component.onDestruction: unload()" in content)
 
     # 1. LIFE003: Shared layer side-effects
@@ -241,43 +258,43 @@ def check_file_violations(
 
             if re.search(r"\bProcess\s*\{", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: Process is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: Process is prohibited in commons/ui/")
                 )
             if "Quickshell.execDetached" in line:
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: execDetached is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: execDetached is prohibited in commons/ui/")
                 )
             if re.search(r"\bFileView\s*\{", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: FileView is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: FileView is prohibited in commons/ui/")
                 )
             if "Quickshell.env" in line:
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: Quickshell.env reading is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: Quickshell.env reading is prohibited in commons/ui/")
                 )
             if re.search(r"\bnew\s+XMLHttpRequest\b", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: XMLHttpRequest is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: XMLHttpRequest is prohibited in commons/ui/")
                 )
-            if "import qs.app.services" in line:
+            if "import qs.services" in line:
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing services is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing services is prohibited in commons/ui/")
                 )
             elif re.search(r"\bimport\s+qs\.app\b", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing app/ is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing app/ is prohibited in commons/ui/")
                 )
-            if re.search(r"\bimport\s+qs.units\b", line):
+            if re.search(r"\bimport\s+qs\.plugins\b", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing units/ is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: importing plugins/ is prohibited in commons/ui/")
                 )
             if re.search(r"\bimport\s+Quickshell\.Io\b", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: Quickshell.Io is prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: Quickshell.Io is prohibited in commons/ui/")
                 )
             if re.search(r"\bimport\s+Clavis\b", line):
                 violations.append(
-                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: native imports are prohibited in shared/")
+                    AuditViolation("LIFE003", rel_path, idx, "Shared layer side-effect: native imports are prohibited in commons/ui/")
                 )
 
     # 2. LIFE004: Direct external command execution
@@ -285,7 +302,7 @@ def check_file_violations(
         # Registry template hooks are shell command strings by contract (user
         # managed, run verbatim with a parameter array and injected env); the
         # shell-string ban targets concatenating runtime values into commands.
-        shell_hook_allowlist = {"app/services/TemplateService.qml"}
+        shell_hook_allowlist = {"services/TemplateService.qml", PLUGIN_HEART_FILE}
         for idx, line in enumerate(lines, 1):
             stripped = line.strip()
             if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
@@ -310,10 +327,10 @@ def check_file_violations(
                     )
                 )
 
-    # 2b. LIFE008: UI-layer direct I/O (units/ views and app/ top level).
-    # Domain services under app/services/ are exempt by layer definition.
+    # 2b. LIFE008: UI-layer direct I/O (plugins/ views and app/ top level).
+    # services/ is exempt by layer definition.
     is_ui_layer = ui_layer_override if ui_layer_override is not None else (
-        rel_path.startswith("units/") or (rel_path.startswith("app/") and "app/services/" not in rel_path)
+        rel_path.startswith(("plugins/", "app/"))
     )
     if is_ui_layer and not is_gateway:
         declares_io = re.search(r"\b(FileView|Process)\s*\{|property\s+(Process|FileView)\b", content) is not None
@@ -372,12 +389,12 @@ def check_file_violations(
                 )
 
     is_allowed_fallback = any(rel_path.endswith(allowed) for allowed in ALLOWED_OPTIONAL_IMPORTERS)
-    is_settings = "units/settings" in rel_path and not rel_path.endswith("WeatherMapBackend.qml")
+    is_settings = "plugins/settings" in rel_path and not rel_path.endswith("WeatherMapBackend.qml")
     for idx, line in enumerate(lines, 1):
         stripped = line.strip()
         if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
             continue
-        # In units/settings, static import of WeatherMap is prohibited
+        # In plugins/settings, static import of WeatherMap is prohibited
         if is_settings and re.search(r"\bimport\s+Clavis\.WeatherMap\b", line):
             violations.append(
                 AuditViolation(
@@ -522,9 +539,9 @@ def check_file_violations(
                 )
             )
 
-    # 9. ARCH001: Forbidden cross-domain import in units/
+    # 9. ARCH001: Forbidden cross-domain import in plugins/
     parts = rel_path.split("/")
-    if rel_path.startswith("units/") or module_domain_override is not None:
+    if rel_path.startswith("plugins/") or module_domain_override is not None:
         curr_domain = module_domain_override if module_domain_override is not None else (parts[1].lower() if len(parts) >= 3 else "")
         if curr_domain:
             allowed_targets = ALLOWED_MODULE_CROSS_IMPORTS.get(curr_domain, set())
@@ -532,18 +549,30 @@ def check_file_violations(
                 stripped = line.strip()
                 if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
                     continue
-                match_mod = re.search(r"\bimport\s+qs.units\.([A-Za-z0-9_]+)\b", line)
+                match_mod = re.search(r"\bimport\s+qs\.plugins\.([A-Za-z0-9_]+)\b", line)
                 if match_mod:
                     target_domain = match_mod.group(1).lower()
-                    if target_domain != curr_domain and target_domain not in allowed_targets:
-                        violations.append(
-                            AuditViolation(
-                                "ARCH001",
-                                rel_path,
-                                idx,
-                                f"Forbidden cross-domain import: Domain '{curr_domain}' cannot import domain '{target_domain}'; route via ActionGateway or shared layer",
-                            )
+                else:
+                    # S0-2: plugins speak relative directory imports
+                    # (loader-form rule 2/3) — a relative import crossing into
+                    # another plugins/<domain>/ tree is the same offence.
+                    match_rel = re.match(r'\s*import\s+"([^"]+)"', line)
+                    if not match_rel or match_rel.group(1).endswith(".js"):
+                        continue
+                    resolved = posixpath.normpath(
+                        posixpath.join(posixpath.dirname(rel_path), match_rel.group(1)))
+                    target_domain = _plugins_domain_of(resolved)
+                    if not target_domain:
+                        continue
+                if target_domain != curr_domain and target_domain not in allowed_targets:
+                    violations.append(
+                        AuditViolation(
+                            "ARCH001",
+                            rel_path,
+                            idx,
+                            f"Forbidden cross-domain import: Domain '{curr_domain}' cannot import domain '{target_domain}'; route via ActionGateway or the commons/ui layer",
                         )
+                    )
 
     return violations
 
@@ -572,10 +601,10 @@ def build_inventory_entry(
     parts = rel_path.split("/")
     if len(parts) >= 2 and parts[0] == "app":
         module = "app/" + parts[1].replace(".qml", "")
-    elif len(parts) >= 3 and parts[0] == "units":
-        module = "units/" + parts[1]
-    elif len(parts) >= 2 and parts[0] == "shared":
-        module = "shared/" + parts[1]
+    elif len(parts) >= 3 and parts[0] == "plugins":
+        module = "plugins/" + parts[1]
+    elif len(parts) >= 2 and parts[0] in ("commons", "ui", "services"):
+        module = parts[0] + "/" + parts[1]
     else:
         module = parts[0]
 
@@ -802,7 +831,7 @@ def get_git_changed_files(repo_root: Path) -> List[Path]:
 
 
 def get_all_target_files(repo_root: Path) -> List[Path]:
-    target_dirs = ["app", "units", "shared"]
+    target_dirs = ["app", "commons", "ui", "services", "plugins"]
     result: List[Path] = []
     for d in target_dirs:
         dir_path = repo_root / d

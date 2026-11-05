@@ -6,8 +6,8 @@ existing normalizedOption fallbacks, and every settings route carries a
 top-level description for the upcoming two-line NavPane (T3 M2 consumer).
 """
 
-import json
 import re
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -16,7 +16,7 @@ SHELL = REPO_ROOT / "shell"
 
 
 def _qml_sources():
-    for sub in ("app", "units", "shared"):
+    for sub in ("app", "commons", "ui", "services", "plugins"):
         for pattern in ("*.qml", "*.js"):
             for path in (SHELL / sub).rglob(pattern):
                 if "__pycache__" not in path.parts:
@@ -27,7 +27,7 @@ class TestPanelStyleAxisConvergence(unittest.TestCase):
     """settingsPanelStyles is a two-value axis; "minimal" folds, not special-cases."""
 
     def _config_source(self):
-        return (SHELL / "app" / "services" / "PersonalizationConfig.qml").read_text(encoding="utf-8")
+        return (SHELL / "services" / "PersonalizationConfig.qml").read_text(encoding="utf-8")
 
     def test_axis_is_exactly_default_and_dashboard(self):
         source = self._config_source()
@@ -60,12 +60,18 @@ class TestRouteDescriptions(unittest.TestCase):
     """Every route carries a non-empty top-level description."""
 
     def test_every_route_has_a_nonempty_description(self):
-        document = json.loads(
-            (SHELL / "units" / "settings" / "settings-routes.json").read_text(encoding="utf-8"))
-        routes = document["routes"]
-        self.assertGreaterEqual(len(routes), 20)
-        missing = [route["id"] for route in routes
-                   if not str(route.get("description", "")).strip()]
+        # S0-3a: domain pages live in their owning plugins' manifests; the
+        # route set is the union of every plugin manifest's [[settings]].
+        routes = []
+        plugins = SHELL / "plugins"
+        for domain in sorted(d.name for d in plugins.iterdir() if d.is_dir()):
+            manifest = tomllib.loads((plugins / domain / "manifest.toml").read_text(encoding="utf-8"))
+            routes.extend(entry for entry in manifest.get("settings", []) if "route" not in entry)
+        # 45361df 定向瘦身（删除抽屉/显示/自启动/默认应用页面）后的真实规模底线；
+        # S0-2 起路由声明住 manifest.toml（[[settings]] 无 route 键 = 顶层路由）。
+        self.assertGreaterEqual(len(routes), 16)
+        missing = [entry["id"] for entry in routes
+                   if not str(entry.get("description", "")).strip()]
         self.assertEqual(missing, [], f"routes without description: {missing}")
 
 

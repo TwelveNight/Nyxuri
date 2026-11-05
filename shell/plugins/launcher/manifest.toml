@@ -1,0 +1,127 @@
+# Shell ui plugin (plugin-model.md §6): runtime-only — the switch lives
+# in the ledger and the running shell projects it; no files ship from here.
+schemaVersion = 1
+id = "shell.launcher"
+kinds = ["overlay"]
+label = "Launcher"
+order = 120
+
+[entryPoints]
+overlay = "LauncherHost.qml"
+
+# Settings schema (manifest-schema.md): navigation routes and search
+# anchors live here — the runtime registry (PluginRegistry) is the only
+# consumer; group keys drive the nav pane's geometric clustering only.
+
+[[settings]]
+id = "spotlight"
+source = "SpotlightPage.qml"
+title = "Spotlight"
+description = "Search modes, layout, and order"
+context = "ControlCenterWindow"
+icon = "search"
+group = "keyboard"
+order = 110
+aliases = ["general.spotlight"]
+
+[[settings]]
+id = "spotlight.section.applications"
+route = "spotlight"
+title = "Applications"
+context = "SpotlightPage"
+icon = "search"
+aliases = ["general.spotlight.section.applications"]
+
+[[settings]]
+id = "spotlight.section.clipboard"
+route = "spotlight"
+title = "Clipboard"
+context = "SpotlightPage"
+icon = "search"
+aliases = ["general.spotlight.section.clipboard"]
+
+[[settings]]
+id = "spotlight.section.web-search"
+route = "spotlight"
+title = "Web search"
+context = "SpotlightPage"
+icon = "search"
+aliases = ["general.spotlight.section.web-search"]
+
+# Searchable fixed actions (manifest-schema.md): the search index's
+# include set for this plugin's IPC face.
+
+[[actions]]
+id = "nyxuri:spotlight:search"
+target = "spotlight"
+method = "search"
+
+[actions.search]
+title = "Search"
+description = "Open Spotlight Search"
+context = "SpotlightActions"
+icon = "search"
+aliases = ["find"]
+
+[[actions]]
+id = "nyxuri:spotlight:web"
+target = "spotlight"
+method = "web"
+
+[actions.search]
+title = "Web search"
+description = "Enter Spotlight Web search"
+context = "SpotlightActions"
+icon = "language"
+aliases = ["browser", "internet"]
+
+[[actions]]
+id = "nyxuri:spotlight:files"
+target = "spotlight"
+method = "files"
+
+[actions.search]
+title = "Find files"
+description = "Open Spotlight Files"
+context = "SpotlightActions"
+icon = "draft"
+aliases = ["folder"]
+
+[[actions]]
+id = "nyxuri:spotlight:openMode:apps"
+target = "spotlight"
+method = "openMode"
+args = ["apps"]
+
+[actions.search]
+title = "Applications"
+description = "Open the application launcher"
+context = "SpotlightActions"
+icon = "grid_view"
+aliases = ["launch", "apps"]
+
+[[actions]]
+id = "nyxuri:spotlight:openMode:clipboard"
+target = "spotlight"
+method = "openMode"
+args = ["clipboard"]
+
+[actions.search]
+title = "Clipboard history"
+description = "Open clipboard history"
+context = "SpotlightActions"
+icon = "content_paste"
+aliases = ["paste"]
+
+[[actions]]
+id = "nyxuri:spotlight:openMode:wallpapers"
+target = "spotlight"
+method = "openMode"
+args = ["wallpapers"]
+
+[actions.search]
+title = "Wallpaper picker"
+description = "Browse and apply wallpapers"
+context = "SpotlightActions"
+icon = "image"
+aliases = ["background"]

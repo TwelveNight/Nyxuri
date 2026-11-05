@@ -144,10 +144,10 @@ class TestAISpecs(unittest.TestCase):
                     f"{page.relative_to(self.root_dir)} still references retired path: {fragment}",
                 )
 
-        # Stricter checks for paths retired in KM3.5 (exempting unit-model.md §7 death registry and ROADMAP ledger)
+        # Stricter checks for paths retired in KM3.5 (exempting plugin-model.md §7 death registry and ROADMAP ledger)
         km35_banned = ("configs/", "template_registry")
         for page in self._live_md_files():
-            if page.name in ("unit-model.md", "ROADMAP.md"):
+            if page.name in ("plugin-model.md", "ROADMAP.md"):
                 continue
             text = page.read_text(encoding="utf-8")
             for fragment in km35_banned:
@@ -177,14 +177,14 @@ class TestAISpecs(unittest.TestCase):
             self.assertIn(status, allowed, f"Non-canonical status for {stage}: {status}")
 
     # ------------------------------------------------------------------
-    # Unit-model death registry (unit-model.md §7, two-step enforcement)
+    # Plugin-model death registry (plugin-model.md §7, two-step enforcement)
     # ------------------------------------------------------------------
 
     def test_death_registry_cleared(self):
-        """KM5 gate: the death registry (unit-model.md §7) must be EMPTY of
+        """KM5 gate: the death registry (plugin-model.md §7) must be EMPTY of
         un-enforced rows — every registered object has reached its execution
         stage and carries the (已执法) mark. 退役清单不空，KM5 不算完成."""
-        content = (self.wiki_dir / "unit-model.md").read_text(encoding="utf-8")
+        content = (self.wiki_dir / "plugin-model.md").read_text(encoding="utf-8")
         death_table_started = False
         for line in content.splitlines():
             if line.startswith("| 死刑对象"):
@@ -209,11 +209,11 @@ class TestAISpecs(unittest.TestCase):
         withdrawn (see ROADMAP KM5)."""
         root = self.root_dir
         # 1. §7 install.sh row marked enforced; the withdrawn cli.py row is gone.
-        content = (self.wiki_dir / "unit-model.md").read_text(encoding="utf-8")
+        content = (self.wiki_dir / "plugin-model.md").read_text(encoding="utf-8")
         rows = [line for line in content.splitlines() if line.startswith("|")]
         self.assertTrue(
             any("`install.sh` 安装器职责" in row and "KM5（已执法" in row for row in rows),
-            "death-row object 'install.sh' must be marked KM5（已执法） in unit-model.md §7",
+            "death-row object 'install.sh' must be marked KM5（已执法） in plugin-model.md §7",
         )
         self.assertFalse(
             any("硬编码专用命令" in row for row in rows),
@@ -243,15 +243,15 @@ class TestAISpecs(unittest.TestCase):
 
     def test_km3_module_death_row_enforced(self):
         """KM3 enforcement step: nyxuri/modules/ is physically deleted — the
-        dedicated business modules live on as configs/<unit>/hooks/ scripts,
+        dedicated business modules live on as configs/<plugin>/hooks/ scripts,
         the engine holds zero references, and §7 marks the row enforced.
         """
         # 1. §7 row marked enforced.
-        content = (self.wiki_dir / "unit-model.md").read_text(encoding="utf-8")
+        content = (self.wiki_dir / "plugin-model.md").read_text(encoding="utf-8")
         rows = [line for line in content.splitlines() if line.startswith("|")]
         self.assertTrue(
             any("nyxuri/modules/" in row and "KM3（已执法" in row for row in rows),
-            "death-row object 'nyxuri/modules/' must be marked KM3（已执法） in unit-model.md §7",
+            "death-row object 'nyxuri/modules/' must be marked KM3（已执法） in plugin-model.md §7",
         )
 
         # 2. Physical absence of the package.
@@ -270,15 +270,15 @@ class TestAISpecs(unittest.TestCase):
         llms_txt = (self.wiki_dir / "llms.txt").read_text(encoding="utf-8")
         self.assertNotIn("modules.md", llms_txt)
 
-        # 5. The unit-owned hook scripts took over.
-        hooks = self.root_dir / "units"
-        for unit, name in (
+        # 5. The plugin-owned hook scripts took over.
+        hooks = self.root_dir / "plugins"
+        for plugin, name in (
             ("fcitx5-rime", "activate"), ("fcitx5-rime", "deactivate"),
             ("fish", "install-fisher"), ("fish", "remove-fisher"),
             ("greeter", "activate"), ("greeter", "deactivate"),
             ("noctalia", "render-gtk"), ("noctalia", "remove-gtk-css"),
         ):
-            self.assertTrue((hooks / unit / "hooks" / name).is_file(), f"{unit}/hooks/{name}")
+            self.assertTrue((hooks / plugin / "hooks" / name).is_file(), f"{plugin}/hooks/{name}")
 
     def test_km1_death_row_enforced(self):
         """KM1 enforcement step: the three sidecar mechanisms are physically
@@ -286,20 +286,20 @@ class TestAISpecs(unittest.TestCase):
         the blueprint carries no trace, and the engine holds zero references.
         """
         # 1. §7 rows marked enforced.
-        content = (self.wiki_dir / "unit-model.md").read_text(encoding="utf-8")
+        content = (self.wiki_dir / "plugin-model.md").read_text(encoding="utf-8")
         rows = [line for line in content.splitlines() if line.startswith("|")]
         for name in (".optional-apps.toml", "starship.toml.module.toml", "*.module.toml"):
             self.assertTrue(
                 any(name in row and "KM1（已执法" in row for row in rows),
-                f"death-row object '{name}' must be marked KM1（已执法） in unit-model.md §7",
+                f"death-row object '{name}' must be marked KM1（已执法） in plugin-model.md §7",
             )
 
         # 2. Physical absence in the blueprint.
-        configs = self.root_dir / "units"
+        configs = self.root_dir / "plugins"
         self.assertFalse((configs / ".optional-apps.toml").exists())
         self.assertFalse((configs / "starship.toml").exists())
         self.assertEqual(list(configs.glob("**/*.module.toml")), [])
-        # The single-file degenerate was upgraded to a proper unit directory.
+        # The single-file degenerate was upgraded to a proper plugin directory.
         self.assertTrue((configs / "starship" / "starship.toml").is_file())
         self.assertTrue((configs / "starship" / "manifest.toml").is_file())
 
@@ -315,28 +315,30 @@ class TestAISpecs(unittest.TestCase):
 
     def test_km3_5_death_row_enforced(self):
         """KM3.5 enforcement step: the old world is physically gone — blueprint
-        renamed, assets bypass executed, zero-file fake units replaced by the
-        catalog, template registry deleted, kernel physically layered."""
+        renamed, assets bypass executed, zero-file fake plugins relocated,
+        template registry deleted, kernel physically layered. R0-2 supersedes
+        the catalog relocation: the declarations moved back into the blueprint
+        as manifest-only plugin dirs."""
         root = self.root_dir
         # 1. §7 rows marked enforced.
-        content = (self.wiki_dir / "unit-model.md").read_text(encoding="utf-8")
+        content = (self.wiki_dir / "plugin-model.md").read_text(encoding="utf-8")
         rows = [line for line in content.splitlines() if line.startswith("|")]
         for name in ("RETIREMENTS", "template_registry", "17 个零文件假单元",
-                     "`assets/` + `nyxuri/deploy/assets.py`", "蓝图正名 `configs/` → `units/`"):
+                     "`assets/` + `nyxuri/deploy/assets.py`", "蓝图正名 `configs/` → `units/`",
+                     "根 `catalog.toml`"):
+            stage = "KM3.5（已执法" if name != "根 `catalog.toml`" else "R0-2（已执法"
             self.assertTrue(
-                any(name in row and "KM3.5（已执法" in row for row in rows),
-                f"death-row object '{name}' must be marked KM3.5（已执法） in unit-model.md §7",
+                any(name in row and stage in row for row in rows),
+                f"death-row object '{name}' must be marked enforced in plugin-model.md §7",
             )
 
         # 2. Physical absence / presence.
         self.assertFalse((root / "configs").exists(), "blueprint must be renamed")
-        units = root / "units"
-        self.assertTrue(units.is_dir())
-        self.assertEqual(len([d for d in units.iterdir() if d.is_dir()]), 14,
-                         "blueprint = upstream 13 units + personal kitty-nyxuri")
+        plugins = root / "plugins"
+        self.assertTrue(plugins.is_dir())
         self.assertFalse((root / "assets").exists())
-        self.assertTrue((units / "wallpapers" / "hooks" / "install-pack").is_file())
-        self.assertTrue((units / "wallpapers" / "manifest.toml").is_file())
+        self.assertTrue((plugins / "wallpapers" / "hooks" / "install-pack").is_file())
+        self.assertTrue((plugins / "wallpapers" / "manifest.toml").is_file())
         self.assertFalse((root / "nyxuri" / "template_registry.py").exists())
         self.assertFalse((root / "nyxuri" / "deps.py").exists(), "supply must live in pkg/")
         self.assertFalse((root / "nyxuri" / "network.py").exists())
@@ -349,32 +351,47 @@ class TestAISpecs(unittest.TestCase):
             self.assertTrue((root / "nyxuri" / sub).is_dir(), sub)
         self.assertTrue((root / "packaging" / "gen-deps.py").is_file())
         self.assertFalse((root / "nyxuri" / "packaging").exists())
-        self.assertTrue((root / "catalog.toml").is_file())
+        self.assertFalse((root / "catalog.toml").exists(),
+                         "R0-2 catalog 并轨：供给声明住各插件 manifest，根清单处决")
+        self.assertFalse((root / "nyxuri" / "pkg" / "catalog.py").exists())
 
-        # 3. The 17 fake units are catalog entries, never blueprint dirs.
-        # KM4 adds quickshell: the shell runtime base, declared for setups
-        # that pick nyxuri-shell without the Noctalia AUR transitively
-        # pulling it in (shell/KNOWN-ISSUES closure).
-        fake_names = {"brave-origin", "flclash", "kdenlive", "libreoffice", "lutris",
-                      "missioncenter", "motrix", "nautilus", "obs", "protonplus",
-                      "qq", "shelly", "spotify", "steam", "telegram", "vscode", "wechat",
-                      "quickshell"}
-        self.assertEqual(fake_names & {d.name for d in units.iterdir()}, set())
-        catalog = (root / "catalog.toml").read_text(encoding="utf-8")
-        import tomllib
-        data = tomllib.loads(catalog)
-        self.assertEqual(fake_names, set(data), "catalog must carry exactly the 18 declarations")
+        # 3. The packages-only supply surface is executed: the 18 manifest-only
+        # recommendation plugins are gone, no shipped manifest declares the
+        # retired keys, and the blueprint is 13 real plugins.
+        retired_keys = ("deploy", "detect")
+        shipped = [d for d in plugins.iterdir() if d.is_dir()]
+        for d in shipped:
+            mpath = d / "manifest.toml"
+            if mpath.is_file():
+                text = mpath.read_text(encoding="utf-8")
+                for dead in retired_keys:
+                    for line in text.splitlines():
+                        self.assertNotRegex(
+                            line, rf"^\s*{dead}\s*=",
+                            f"{d.name} still declares the retired key '{dead}'",
+                        )
+        self.assertEqual(len(shipped), 14, "13 upstream plugins plus personal kitty-nyxuri")
+        for gone in ("telegram", "steam", "vscode", "nautilus", "shelly", "quickshell"):
+            self.assertFalse((plugins / gone).exists(), f"{gone} supply plugin must be gone")
 
         # 4. The engine holds zero references to the dead names.
         for py in sorted((root / "nyxuri").rglob("*.py")):
             text = py.read_text(encoding="utf-8")
             for dead in ("template_registry", "nyxuri.constants", "nyxuri.i18n",
-                         "nyxuri.deps", "nyxuri.network", "deploy_wallpapers"):
+                         "nyxuri.deps", "nyxuri.network", "deploy_wallpapers",
+                         "pkg.catalog", "install_optional_apps",
+                         "run_optional_apps_menu_loop", "deploy_declared"):
                 self.assertNotIn(dead, text, f"{py.relative_to(root)} still references {dead}")
+            # R0-2 步 5 追加：退役字段可能只剩「属性访问」消费者（字符串扫描
+            # 抓不到）——`m.detect` 漏网曾让组件菜单在真实运行中直接崩溃。
+            for dead_attr in (r"\.detect\b", r"\.deploy_declared\b"):
+                self.assertNotRegex(
+                    text, dead_attr,
+                    f"{py.relative_to(root)} still reads the retired attribute {dead_attr}",
+                )
 
-        # 5. Contract line: the package catalog is not a unit.
-        self.assertIn("catalog.toml", content)
-        self.assertIn("不是单元", content)
+        # 5. Contract line: declaration-only units keep their install path.
+        self.assertIn("declaration-only", content)
 
         # 6. Test tree mirrors the source tree.
         tests = root / "tests"
@@ -452,12 +469,12 @@ class TestAISpecs(unittest.TestCase):
                     )
 
     def test_docs_banned_dissolved_paths(self):
-        """Humans-wiki, READMEs, and unit READMEs must not reference dissolved paths."""
+        """Humans-wiki, READMEs, and plugin READMEs must not reference dissolved paths."""
         banned = ("configs/", "assets/wallpapers", "template_registry", "modules/gtktheme")
         doc_files = [
             self.root_dir / "README.md",
             self.root_dir / "README.zh-CN.md",
-            self.root_dir / "units" / "noctalia" / "README.md",
+            self.root_dir / "plugins" / "noctalia" / "README.md",
         ] + list((self.root_dir / "humans-wiki").glob("*.md"))
 
         for doc in doc_files:
@@ -497,27 +514,27 @@ class TestAISpecs(unittest.TestCase):
                     f"cli_help[{lang}] contains retired command reference: '{cmd}'",
                 )
 
-    def test_documented_presets_and_parts_contract(self):
-        """Presets and modular Parts must adhere to the documented contract."""
-        from nyxuri.desktop.presets import collect_presets
-        from nyxuri.deploy.preset import list_parts
+    def test_documented_forms_contract(self):
+        """Whole-axis forms and slot axes must adhere to the documented contract."""
+        from nyxuri.desktop.forms import collect_forms
+        from nyxuri.deploy.forms import list_slots
 
-        kitty_presets = [name for name, _, _ in collect_presets("kitty")]
-        self.assertIn("default", kitty_presets)
-        self.assertIn("transparent", kitty_presets)
+        kitty_forms = [name for name, _, _ in collect_forms("kitty")]
+        self.assertIn("default", kitty_forms)
+        self.assertIn("transparent", kitty_forms)
 
-        niri_presets = [name for name, _, _ in collect_presets("niri")]
-        self.assertEqual(niri_presets, ["default"])
+        niri_forms = [name for name, _, _ in collect_forms("niri")]
+        self.assertEqual(niri_forms, ["default"])
 
-        parts = list_parts("niri")
-        self.assertIn("glow", parts)
-        self.assertIn("effects", parts)
+        slots = list_slots("niri")
+        self.assertIn("glow", slots)
+        self.assertIn("effects", slots)
         self.assertEqual(
-            set(parts["glow"]["variants"]),
+            set(slots["glow"]["variants"]),
             {"default", "glow", "glow-material-you"},
         )
         self.assertEqual(
-            set(parts["effects"]["variants"]),
+            set(slots["effects"]["variants"]),
             {"default", "xray-blur"},
         )
 

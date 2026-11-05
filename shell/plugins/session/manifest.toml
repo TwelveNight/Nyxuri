@@ -1,0 +1,26 @@
+# Shell ui plugin (plugin-model.md §6): runtime-only — the switch lives
+# in the ledger and the running shell projects it; no files ship from here.
+schemaVersion = 1
+id = "shell.session"
+kinds = ["overlay"]
+label = "Session"
+order = 100
+
+[entryPoints]
+overlay = "SessionHost.qml"
+
+# Searchable fixed actions (manifest-schema.md): the search index's
+# include set for this plugin's IPC face.
+
+[[actions]]
+id = "nyxuri:power-menu:open"
+target = "power-menu"
+method = "open"
+confirmation = "power-menu"
+
+[actions.search]
+title = "Power menu"
+description = "Choose a session or power action"
+context = "SpotlightActions"
+icon = "power_settings_new"
+aliases = ["shutdown", "restart", "logout", "suspend"]

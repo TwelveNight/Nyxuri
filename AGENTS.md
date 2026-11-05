@@ -11,21 +11,22 @@
 - "能跑但脏" vs "慢一点但干净可控"——默认选后者。
 - 我懒得开局，一旦犹豫要不要动手，直接给个最小可执行起点，别等我把全部细节想清楚再问。
 - 别用"这已经很好了"敷衍，我要的是经得起自己回头看的东西；汇报说重点，不用每次背景铺垫。
+- 经用户标注/声明后能整抄成熟实现的绝不从零自研脑补：凡有成熟参考树、上游母体或既有规格的模块，坚守「先全量物理复制（`cp`）原件建立基线，再做减法剪裁适配」的 **Fork & Trim** 模式。
 
 ---
 
 ## 1. 真值体系与改动路由 (Task Routing)
 
-- **真值分工 (Source of Truth)**：运行时行为与实现细节以**源码（`units/` + `nyxuri/`）与契约测试（`tests/`）**为准；架构契约、设计决策与原因意图以 [llms-wiki/llms.txt](llms-wiki/llms.txt) 为准。
+- **真值分工 (Source of Truth)**：运行时行为与实现细节以**源码（`plugins/` + `nyxuri/`）与契约测试（`tests/`）**为准；架构契约、设计决策与原因意图以 [llms-wiki/llms.txt](llms-wiki/llms.txt) 为准。
 - **改动范围 ➔ 必读 Wiki 契约**：拒绝盲目全库勘探，按改动范围查阅对应契约：
 
-| 部署引擎 / 单元模型 (`nyxuri/deploy/`, `units/`) | `overview.md`, `unit-model.md`, `file-preservation.md` | `python3 -m unittest tests/deploy/test_deploy.py tests/test_unit_model.py` + 沙箱部署 |
-| 内核 / 单元事务 (`nyxuri/kernel/`) | `unit-model.md` | `python3 -m unittest tests/kernel/test_transaction.py` |
-| 包管理 / 供给 (`nyxuri/pkg/`, `catalog.toml`) | `manifest-schema.md`（catalog 同源）, `delayed-decisions.md` | `python3 -m unittest tests/pkg/` |
+| 部署引擎 / 插件模型 (`nyxuri/deploy/`, `plugins/`) | `overview.md`, `plugin-model.md`, `file-preservation.md` | `python3 -m unittest tests/deploy/test_deploy.py tests/test_plugin_model.py` + 沙箱部署 |
+| 内核 / 插件事务 (`nyxuri/kernel/`) | `plugin-model.md` | `python3 -m unittest tests/kernel/test_transaction.py` |
+| 包管理 / 供给 (`nyxuri/pkg/`, plugins-only 声明) | `manifest-schema.md`（可选供给节）, `delayed-decisions.md` | `python3 -m unittest tests/pkg/` |
 | 状态 / 快照 (`nyxuri/state/`) | `state-ops.md` | `python3 -m unittest tests/state/` |
 | CLI 命令 / 流程编排 (`cli.py`, `nyxuri/installer/`) | `operation-map.md`, `manifest-schema.md` | `python3 -m unittest tests/test_cli.py tests/test_ai_specs.py` |
 | 终端 UI / 桌面能力 (`tui.py`, `nyxuri/desktop/`) | `tui-charter.md` | 交互冒烟，检查退出 trap |
-| 预设机制 (`deploy/preset.py` + `desktop/presets.py`) | `preset-mechanism.md` | `python3 -m unittest tests/deploy/test_preset.py` |
+| 形态机制 (`deploy/forms.py` + `desktop/forms.py`) | `forms.md`, `plugin-model.md` | `python3 -m unittest tests/deploy/test_forms.py tests/kernel/test_transaction.py` |
 | 双语文案 / 提示信息 (`translations.toml`, `core.py`) | `i18n.md`, `writing-voice.md` | `python3 -m unittest tests/test_i18n.py` |
 | 文档体系 (`llms-wiki/`, `notes/`, `ROADMAP*`) | `docs-charter.md` | `python3 -m unittest tests/test_ai_specs.py` |
 | Nyxuri Shell (`shell/`) | `shell-rules` (`shell/AGENTS.md`), `shell/ROADMAP.md`, `llms-wiki/shell/` | `python3 -m unittest tests/shell/` + `compileall` |
@@ -40,7 +41,7 @@
 2. **Dunder 保留协议**：文件或目录名含 `__custom__`（如 `__custom__.kdl`）在更新/预设切换时必须保留；`monitor.kdl` 等按名引用走 manifest `preserve`。
 3. **纯标库与无未声明依赖**：`nyxuri/` 引擎坚守 Python 纯标准库（零 pip 依赖，需 3.11+ 因 `tomllib`）。
 4. **权限防御**：`install.sh` / `nyxuri` 严禁以 root 权限运行（`id -u == 0` 直接拒绝，系统级维护除外）。
-5. **模板占位符**：`units/` 模板里的 `/home/user` 必须由部署引擎替换为目标 `$HOME`，禁止硬编码。
+5. **模板占位符**：`plugins/` 模板里的 `/home/user` 必须由部署引擎替换为目标 `$HOME`，禁止硬编码。
 6. **硬件中立**：默认配置不指定特定 GPU 驱动变量，部署不按 PCI 设备改写驱动（历史案卷见 `llms-wiki/archive/nvidia-patch.md`）。
 
 ---
@@ -68,6 +69,7 @@
 - **改动原则**：
   - 3 步以下直接做；涉及卸载/破坏性操作先确认。
   - 只动请求范围，不顺手重构无关代码；文字遵循 `writing-voice.md`（像人说话、去 AI 味）。
+  - **整抄再裁（Fork & Trim）**：凡有上游参考树或成熟母体的模块，以「物理复制原件 ➔ 定向做减法/适配」为标准工作流，严禁自研缩水残卷冒充整抄。
 - **测试规范**：所有新测试必须使用 `tests/utils.py:TempEnv`，严禁写入真实 `~/.config`；外部命令必须有参数形状断言。
 - **完成检查**：
   1. 纯文档/文本：文本就绪、链接正确即完成（必要时 `test_ai_specs.py` 绿），零额外测试；

@@ -2,11 +2,11 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.app
-import qs.app.services
-import qs.units.settings
-import qs.units.sidebars.dashboard.infotools
-import qs.units.wallpaper
-import qs.shared.theme
+import qs.services
+import "../plugins/settings"
+import "../plugins/sidebars/dashboard/infotools"
+import "../plugins/wallpaper"
+import qs.commons
 
 // AppShell — the microkernel host (unit-model.md §6). It owns assembly
 // (SlotHost), host-level intent sources (corner gestures), the generic IPC
@@ -71,13 +71,13 @@ Item {
         onTriggered: (action, screenName) => {
             if (action === "overview") {
                 WidgetState.closeAllPopups();
-                NiriService.toggleOverview();
+                CompositorDriver.toggleOverview();
                 return;
             }
             const target = action.split(":");
             if (target.length === 2) {
-                if (NiriService.inOverview)
-                    NiriService.toggleOverview();
+                if (CompositorDriver.inOverview)
+                    CompositorDriver.toggleOverview();
                 ActionGateway.requestSidebarOpenOnScreen(target[0], target[1], screenName);
             }
         }
@@ -108,13 +108,8 @@ Item {
     }
 
     Loader {
-        active: DisplayConfigService.identify || DisplayConfigService.confirming
-        source: Qt.resolvedUrl("../units/settings/DisplayOverlays.qml")
-    }
-
-    Loader {
         active: ShortcutMapService.visible
-        source: Qt.resolvedUrl("../units/settings/ShortcutMap.qml")
+        source: Qt.resolvedUrl("../plugins/settings/ShortcutMap.qml")
         onLoaded: {
             if (item) {
                 item.targetScreen = ShortcutMapService.targetScreen;

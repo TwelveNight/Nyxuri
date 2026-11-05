@@ -19,7 +19,7 @@ class TestMangoAdaptation(unittest.TestCase):
     def setUp(self):
         self.ctx = TempEnv()
         self.ctx.__enter__()
-        self.mango_src = _REPO / "units" / "mango"
+        self.mango_src = _REPO / "plugins" / "mango"
 
     def tearDown(self):
         self.ctx.__exit__()
@@ -35,15 +35,14 @@ class TestMangoAdaptation(unittest.TestCase):
     def test_mango_manifest_contract(self):
         """Verify manifest.toml parameters for mango."""
         m = load_manifest(self.mango_src)
-        self.assertEqual(m.name, "mango")
+        self.assertEqual(m.id, "mango")
         self.assertEqual(m.packages_repo, ["mangowm"])
         self.assertEqual(m.packages_aur, [])
-        self.assertEqual(m.detect, "mango")
         self.assertEqual(m.label, "Mango WM")
         self.assertIn("monitors.conf", m.preserve)
         self.assertIn("noctalia.conf", m.preserve)
         self.assertIn("scripts/*.sh", m.chmod)
-        self.assertEqual(m.preset_reload, ["mmsg", "dispatch", "reload_config"])
+        self.assertEqual(m.form_reload, ["mmsg", "dispatch", "reload_config"])
         self.assertTrue(m.is_deployable)
         self.assertTrue(m.is_optional)
 
@@ -57,7 +56,7 @@ class TestMangoAdaptation(unittest.TestCase):
 
     def test_mango_portals_conf_exists_and_routes_wlr(self):
         """Verify mango-portals.conf configures wlr screencast/screenshot."""
-        portal_conf = _REPO / "units" / "xdg-desktop-portal" / "mango-portals.conf"
+        portal_conf = _REPO / "plugins" / "xdg-desktop-portal" / "mango-portals.conf"
         self.assertTrue(portal_conf.is_file())
         content = portal_conf.read_text(encoding="utf-8")
         self.assertIn("org.freedesktop.impl.portal.ScreenCast=wlr;", content)
@@ -117,13 +116,45 @@ class TestMangoAdaptation(unittest.TestCase):
     def test_detect_preferred_wm(self):
         """detect_preferred_wm returns running desktop or fallback."""
         import os
-        from nyxuri.core import detect_preferred_wm
+        from nyxuri.compositors import detect_preferred_wm
 
         with patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "mango"}):
             self.assertEqual(detect_preferred_wm(), "mango")
 
         with patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "niri"}):
             self.assertEqual(detect_preferred_wm(), "niri")
+
+    def test_compositor_registry_contract(self):
+        """S0-5: WM membership reads the registry, no scattered tuples.
+
+        The registry is the single place that knows which compositors
+        exist; doctor/menus/workflows must not re-hardcode the pair.
+        """
+        from nyxuri.compositors import COMPOSITORS, MAIN_WM, portal_conf_name, session_wm
+
+        self.assertEqual(set(COMPOSITORS), {"niri", "mango"})
+        self.assertEqual(MAIN_WM, "niri")
+        # Reload argv: parameter arrays, niri speaks niri msg, mango mmsg.
+        self.assertEqual(COMPOSITORS["niri"].reload_argv,
+                         ("niri", "msg", "action", "load-config-file"))
+        self.assertEqual(COMPOSITORS["mango"].reload_argv,
+                         ("mmsg", "dispatch", "reload_config"))
+        # Portal routing: known session -> own conf, unknown -> main.
+        self.assertEqual(portal_conf_name("mango"), "mango-portals.conf")
+        self.assertEqual(portal_conf_name("niri"), "niri-portals.conf")
+        self.assertEqual(portal_conf_name("sway"), "niri-portals.conf")
+        self.assertEqual(session_wm("mango"), "mango")
+        self.assertEqual(session_wm("gnome"), MAIN_WM)
+        # Death sentence: the old tuple must not resurface in the engine.
+        import subprocess
+        import sys
+        from pathlib import Path
+        repo = Path(__file__).resolve().parents[2]
+        result = subprocess.run(
+            ["grep", "-rn", "SUPPORTED_WMS", str(repo / "nyxuri")],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.stdout.strip(), "", "SUPPORTED_WMS must stay dead")
 
     def test_checkbox_list_radio_group_mutual_exclusion(self):
         """CheckboxList with radio_group enforces single selection."""

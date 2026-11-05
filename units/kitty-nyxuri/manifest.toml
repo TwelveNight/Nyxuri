@@ -1,2 +1,0 @@
-packages = ["kitty"]
-preserve = ["colors__custom__.conf"]

@@ -1,31 +1,29 @@
 """Interactive control panel and component selection."""
 
 import os
-import shutil
 import sys
 from typing import List, Optional
 
 from nyxuri.core import (
     PENDING_UPGRADE_ENV,
     PENDING_UPGRADE_MENU_ENV,
-    SUPPORTED_WMS,
-    detect_preferred_wm,
 )
+from nyxuri.compositors import COMPOSITORS, detect_preferred_wm
 from nyxuri.core import exec_cli, get_env
 from nyxuri.deploy import (
     discover_config_items,
     discover_manifest_apps,
     discover_optional_apps,
 )
-from nyxuri.desktop.presets import (
-    apply_preset,
-    collect_presets,
-    delete_preset,
-    edit_preset,
-    save_preset,
+from nyxuri.desktop.forms import (
+    apply_form,
+    collect_forms,
+    delete_form,
+    edit_form,
+    save_form,
 )
 from nyxuri.deploy.deploy import wallpapers_pack_present
-from nyxuri.pkg.deps import is_dep_installed, run_dep_menu_loop, run_optional_apps_menu_loop
+from nyxuri.pkg.deps import is_dep_installed, run_dep_menu_loop
 from nyxuri.sysdoctor import generate_bug_report, run_doctor
 from nyxuri.state import (
     backup_configs,
@@ -41,7 +39,7 @@ from nyxuri.tui import (
     CheckboxList,
     MenuItem,
     Menu,
-    PresetSwitcher,
+    FormSwitcher,
     drain_stdin,
     pad_display,
     press_any_key,
@@ -49,11 +47,12 @@ from nyxuri.tui import (
 
 def run_master_component_menu(is_update: bool = False, mode: str = "full") -> Optional[dict]:
     """Interactive checklist for choosing configs, wallpapers, and backup behavior."""
-    items = discover_config_items()
+    manifests = dict(discover_manifest_apps())
+    items = [name for name, m in manifests.items() if not m.is_merge and not m.is_runtime]
     entries: List[CheckboxEntry] = []
 
-    wm_items = [i for i in items if i in SUPPORTED_WMS]
-    app_items = [i for i in items if i not in SUPPORTED_WMS]
+    wm_items = [i for i in items if i in COMPOSITORS]
+    app_items = [i for i in items if i not in COMPOSITORS]
     preferred_wm = detect_preferred_wm()
 
     # 1. Window Managers (Radio - Single Selection)
@@ -90,7 +89,10 @@ def run_master_component_menu(is_update: bool = False, mode: str = "full") -> Op
             if item in optional_set:
                 m = manifests.get(item)
                 if m is not None:
-                    is_inst = is_dep_installed(m.detect)
+                    # 已装判定用声明包名（仓库包优先，退 AUR；flatpak 另有通道）
+                    probe = m.packages_repo[0] if m.packages_repo else (
+                        m.packages_aur[0] if m.packages_aur else item)
+                    is_inst = is_dep_installed(probe)
                     label = f"{label}  {msg('installed') if is_inst else msg('missing')}"
                     if not is_inst:
                         checked = False
@@ -158,66 +160,43 @@ def snapshot_menu_loop() -> None:
             break
 
 
-def deps_menu_loop() -> bool:
-    """Dependencies & Recommended apps submenu."""
-    if not sys.stdin.isatty():
-        print(msg("interactive_terminal_required"), file=sys.stderr)
-        return False
-    if not shutil.which("pacman"):
-        print(msg("deps_menu_unsupported"))
-        return False
-
-    while True:
-        items = [
-            MenuItem(label=msg("deps_sub_core")),
-            MenuItem(label=msg("deps_sub_apps")),
-            MenuItem(label=msg("deps_sub_back"), style="subtle"),
-        ]
-        menu = Menu("deps_menu_title", items, hint_key="submenu_hint", compact=True)
-        choice = menu.run()
-        if choice == 0: run_dep_menu_loop(); press_any_key()
-        elif choice == 1: run_optional_apps_menu_loop(); press_any_key()
-        elif choice == 2: break
-    return True
-
-
-def preset_switcher_loop() -> None:
-    """Interactive Preset Studio (§9). Left = apps, right = presets + in-place actions."""
+def form_switcher_loop() -> None:
+    """Interactive Form Studio. Left = plugins, right = forms + in-place actions."""
     if not sys.stdin.isatty():
         print(msg("interactive_terminal_required"), file=sys.stderr)
         return
 
-    from nyxuri.desktop.presets import get_preset_info
-    from nyxuri.deploy.preset import list_parts, get_active_part, apply_part
+    from nyxuri.desktop.forms import get_form_info
+    from nyxuri.deploy.forms import list_slots, get_active_slot, use_form
 
     apps = discover_config_items()
 
     def on_action(action: str, app: str, name: str) -> Optional[str]:
         if action == "apply":
-            ok = apply_preset(app, name)
+            ok = apply_form(app, name)
             return msg("preset_toast_applied", app, name) if ok else msg("preset_apply_failed", app, name)
-        elif action == "apply_part":
+        elif action == "apply_slot":
             slot, variant = name.split(":", 1)
-            ok = apply_part(app, slot, variant)
+            ok = use_form(app, slot, variant)
             return msg("preset_part_toast_applied", app, slot, variant) if ok else msg("preset_apply_failed", app, f"{slot}:{variant}")
         elif action == "save":
-            ok = save_preset(app, name)
+            ok = save_form(app, name)
             return msg("preset_toast_saved", app, name) if ok else None
         elif action == "delete":
-            ok = delete_preset(app, name)
+            ok = delete_form(app, name)
             return msg("preset_toast_deleted", app, name) if ok else None
         elif action == "edit":
-            edit_preset(app, name)
+            edit_form(app, name)
             return msg("preset_edit_opened", app, name)
         return None
 
-    PresetSwitcher(
+    FormSwitcher(
         apps=apps,
-        presets_for=collect_presets,
-        info_for=get_preset_info,
+        forms_for=collect_forms,
+        info_for=get_form_info,
         on_action=on_action,
-        parts_for=list_parts,
-        active_part_for=get_active_part,
+        slots_for=list_slots,
+        active_slot_for=get_active_slot,
     ).run()
 
 
@@ -239,8 +218,8 @@ def main_menu_loop() -> None:
             # 诊断
             MenuItem(label=msg("menu_opt5"), group_header=msg("menu_group_system")),
             MenuItem(label=msg("menu_opt6")),
-            # 单元
-            MenuItem(label=msg("menu_opt_workshop"), group_header=msg("menu_group_units")),
+            # 插件
+            MenuItem(label=msg("menu_opt_workshop"), group_header=msg("menu_group_plugins")),
             # 退出
             MenuItem(label=msg("menu_opt0"), style="subtle"),
         ]
@@ -250,9 +229,10 @@ def main_menu_loop() -> None:
         if choice == 0:
             install_configs_workflow("full")
         elif choice == 1:
-            preset_switcher_loop()
+            form_switcher_loop()
         elif choice == 2:
-            deps_menu_loop()
+            run_dep_menu_loop()
+            press_any_key()
         elif choice == 3:
             snapshot_menu_loop()
         elif choice == 4:
@@ -277,8 +257,8 @@ def main_menu_loop() -> None:
             generate_bug_report()
             press_any_key()
         elif choice == 8:
-            from nyxuri.tui import UnitWorkshop
-            UnitWorkshop().run()
+            from nyxuri.tui import PluginWorkshop
+            PluginWorkshop().run()
         elif choice == 9:
             sys.exit(0)
 

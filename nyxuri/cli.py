@@ -22,14 +22,15 @@ from nyxuri.core import (
 )
 
 from nyxuri.deploy import test_deploy
-from nyxuri.desktop.presets import (
-    apply_preset,
-    delete_preset,
-    edit_preset,
-    list_presets,
-    save_preset,
+from nyxuri.desktop.forms import (
+    apply_form,
+    delete_form,
+    edit_form,
+    list_forms,
+    save_form,
 )
-from nyxuri.pkg.deps import ensure_aur_helper, run_dep_menu_loop, run_optional_apps_menu_loop
+from nyxuri import sources as lifecycle
+from nyxuri.pkg.deps import run_dep_menu_loop
 from nyxuri.sysdoctor import generate_bug_report, run_doctor
 from nyxuri.kernel import ledger, registry, transaction
 from nyxuri.state import (
@@ -43,7 +44,7 @@ from nyxuri.core import msg
 from nyxuri.desktop import bridge
 from nyxuri.pkg.net import safe_git_checkout_ref, safe_git_pull
 from nyxuri.tui import press_any_key, prompt_confirm, select_language
-from nyxuri.installer.menus import deps_menu_loop, main_menu_loop
+from nyxuri.installer.menus import main_menu_loop
 from nyxuri.installer.workflows import (
     check_new_deps_post_update,
     install_configs_workflow,
@@ -63,7 +64,7 @@ def exit_usage(usage: str) -> None:
     sys.exit(2)
 
 
-# --- KM3 core verbs (unit-model.md §5) ----------------------------------------
+# --- KM3 core verbs (plugin-model.md §5) ----------------------------------------
 #
 # Four canonical verbs — list / on / off / doctor — are the market-facing
 # surface; every switch flip routes through nyxuri.transaction, and this
@@ -71,16 +72,16 @@ def exit_usage(usage: str) -> None:
 # was executed at KM3.5: old names are plain unknown commands.
 
 
-def _package_installer(unit_id: str, missing: List[str]) -> bool:
+def _package_installer(plugin_id: str, missing: List[str]) -> bool:
     """Thin alias: the shared transaction installer lives in deps (CLI and
     TUI must inject the exact same package-manager behavior)."""
-    from nyxuri.pkg.deps import unit_package_installer
+    from nyxuri.pkg.deps import plugin_package_installer
 
-    return unit_package_installer(unit_id, missing)
+    return plugin_package_installer(plugin_id, missing)
 
 
 def _report_steps(steps) -> int:
-    """Turn transaction Steps into bilingual prose; 0 only if every unit won."""
+    """Turn transaction Steps into bilingual prose; 0 only if every plugin won."""
     from nyxuri.tui import format_steps
 
     lines = format_steps(steps)
@@ -90,33 +91,33 @@ def _report_steps(steps) -> int:
 
 
 def _cmd_on(sub_args: List[str]) -> int:
-    """nyxuri on <unit> [--preset <name>] — disclose, then transact."""
-    usage = f"{CLI_CMD} on <unit> [--preset <name>]"
+    """nyxuri on <plugin> [--form <name>] — disclose, then transact."""
+    usage = f"{CLI_CMD} on <plugin> [--form <name>]"
     rest = list(sub_args)
-    unit = rest.pop(0) if rest and not rest[0].startswith("-") else ""
-    if not unit:
+    plugin = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    if not plugin:
         exit_usage(usage)
-    preset = None
+    form = None
     while rest:
         cur = rest.pop(0)
-        if cur == "--preset":
-            preset = rest.pop(0) if rest else ""
-            if not preset:
+        if cur == "--form":
+            form = rest.pop(0) if rest else ""
+            if not form:
                 exit_usage(usage)
         else:
             exit_usage(usage)
     try:
-        plan = transaction.plan_on(unit)
+        plan = transaction.plan_on(plugin)
     except KeyError:
-        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        print(msg("cli_unknown_plugin", plugin), file=sys.stderr)
         return 2
-    enabled = {u for u, rec in ledger.all_units().items() if rec.get("state") == "enabled"}
+    enabled = {u for u, rec in ledger.all_plugins().items() if rec.get("state") == "enabled"}
     incoming = [u for u in plan if u not in enabled]
     if incoming:
         print(msg("cli_plan_on", " → ".join(incoming)))
     need_install: List[str] = []
     for uid in incoming:
-        missing = transaction.missing_packages(registry.load_unit(uid))
+        missing = transaction.missing_packages(registry.load_plugin(uid))
         if missing:
             need_install.extend(missing)
             print(msg("cli_plan_packages", uid, ", ".join(missing)))
@@ -124,16 +125,16 @@ def _cmd_on(sub_args: List[str]) -> int:
         print(msg("cli_aborted"), file=sys.stderr)
         return 1
     return _report_steps(
-        transaction.unit_on(unit, preset=preset, install_packages=_package_installer)
+        transaction.plugin_on(plugin, form=form, install_packages=_package_installer)
     )
 
 
 def _cmd_off(sub_args: List[str]) -> int:
-    """nyxuri off <unit> [--cascade] — guard, disclose, then transact."""
-    usage = f"{CLI_CMD} off <unit> [--cascade]"
+    """nyxuri off <plugin> [--cascade] — guard, disclose, then transact."""
+    usage = f"{CLI_CMD} off <plugin> [--cascade]"
     rest = list(sub_args)
-    unit = rest.pop(0) if rest and not rest[0].startswith("-") else ""
-    if not unit:
+    plugin = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    if not plugin:
         exit_usage(usage)
     cascade = False
     while rest:
@@ -143,17 +144,80 @@ def _cmd_off(sub_args: List[str]) -> int:
         else:
             exit_usage(usage)
     try:
-        plan = transaction.plan_off(unit)
+        plan = transaction.plan_off(plugin)
     except KeyError:
-        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        print(msg("cli_unknown_plugin", plugin), file=sys.stderr)
         return 2
-    dependents = [u for u in plan if u != unit]
+    dependents = [u for u in plan if u != plugin]
     if dependents and not cascade:
-        print(msg("cli_off_blocked", unit, ", ".join(dependents)), file=sys.stderr)
+        print(msg("cli_off_blocked", plugin, ", ".join(dependents)), file=sys.stderr)
         return 1
     if dependents:
         print(msg("cli_plan_off_cascade", ", ".join(dependents)))
-    return _report_steps(transaction.unit_off(unit, cascade=cascade))
+    return _report_steps(transaction.plugin_off(plugin, cascade=cascade))
+
+
+def _cmd_add(sub_args: List[str]) -> int:
+    """nyxuri add <git-url|local-dir> [--enable] — install a third-party plugin."""
+    usage = f"{CLI_CMD} add <git-url|local-dir> [--enable]"
+    rest = list(sub_args)
+    source = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    enable = False
+    while rest:
+        cur = rest.pop(0)
+        if cur == "--enable":
+            enable = True
+        else:
+            exit_usage(usage)
+    if not source:
+        exit_usage(usage)
+    try:
+        result = lifecycle.add(source)
+    except ValueError as exc:
+        print(msg("cli_add_refused", source, str(exc)), file=sys.stderr)
+        return 2
+    print(msg("cli_add_done", result["id"], result["dir"]))
+    if enable:
+        print(msg("cli_add_enabling", result["id"]))
+        return _cmd_on([result["id"]])
+    print(msg("cli_add_off_hint", result["id"]))
+    return 0
+
+
+def _cmd_remove(sub_args: List[str]) -> int:
+    """nyxuri remove <plugin> [-y] — uninstall a third-party plugin."""
+    usage = f"{CLI_CMD} remove <plugin> [-y]"
+    rest = list(sub_args)
+    plugin = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    yes = False
+    while rest:
+        cur = rest.pop(0)
+        if cur in ("-y", "--yes"):
+            yes = True
+        else:
+            exit_usage(usage)
+    if not plugin:
+        exit_usage(usage)
+    try:
+        lifecycle.require_third_party(plugin)
+    except KeyError:
+        print(msg("cli_unknown_plugin", plugin), file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(msg("cli_remove_official", plugin, str(exc)), file=sys.stderr)
+        return 2
+    if not yes and sys.stdin.isatty():
+        if not prompt_confirm("cli_confirm_remove", "n", destructive=True):
+            print(msg("cli_aborted"), file=sys.stderr)
+            return 1
+    result = lifecycle.remove(plugin)
+    if result.get("off_failed"):
+        print(msg("cli_remove_off_failed", plugin), file=sys.stderr)
+        return 1
+    print(msg("cli_remove_done", plugin))
+    if result.get("backup"):
+        print(msg("cli_remove_backup", result["backup"]))
+    return 0
 
 
 def _state_cell(state: str, width: int) -> str:
@@ -168,32 +232,32 @@ def _state_cell(state: str, width: int) -> str:
 
 
 def _cmd_list(sub_args: List[str]) -> int:
-    """nyxuri list [unit] — the whole blueprint, or one unit in detail."""
+    """nyxuri list [plugin] — the whole blueprint, or one plugin in detail."""
     if len(sub_args) > 1:
-        exit_usage(f"{CLI_CMD} list [unit]")
+        exit_usage(f"{CLI_CMD} list [plugin]")
     if sub_args:
-        return _show_unit_detail(sub_args[0])
-    recs = ledger.all_units()
-    ids = sorted(set(registry.unit_ids()) | set(recs))
+        return _show_plugin_detail(sub_args[0])
+    recs = ledger.all_plugins()
+    ids = sorted(set(registry.plugin_ids()) | set(recs))
     if not ids:
         print(msg("cli_list_none"))
         return 0
     print(msg("cli_list_header"))
     for uid in ids:
         rec = recs.get(uid) or {}
-        print(f"  {uid:<24}{_state_cell(rec.get('state', ''), 12)}{rec.get('preset', '-')}")
+        print(f"  {uid:<24}{_state_cell(rec.get('state', ''), 12)}{rec.get('form', '-')}")
     return 0
 
 
-def _show_unit_detail(unit: str) -> int:
-    """One unit: manifest declarations joined with its ledger record."""
-    known = unit in registry.unit_ids()
-    if not known and unit not in ledger.all_units():
-        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+def _show_plugin_detail(plugin: str) -> int:
+    """One plugin: manifest declarations joined with its ledger record."""
+    known = plugin in registry.plugin_ids()
+    if not known and plugin not in ledger.all_plugins():
+        print(msg("cli_unknown_plugin", plugin), file=sys.stderr)
         return 2
-    print(f"{Colors.BOLD}{unit}{Colors.RESET}")
+    print(f"{Colors.BOLD}{plugin}{Colors.RESET}")
     if known:
-        m = registry.load_unit(unit)
+        m = registry.load_plugin(plugin)
         if m.label:
             print(f"  {msg('cli_detail_label')}: {m.label}")
         if m.category:
@@ -201,7 +265,7 @@ def _show_unit_detail(unit: str) -> int:
         if m.runtime:
             print(f"  {msg('cli_detail_runtime')}")
         else:
-            print(f"  {msg('cli_detail_target')}: {get_env().config_dir / (m.target or unit)}")
+            print(f"  {msg('cli_detail_target')}: {get_env().config_dir / (m.target or plugin)}")
         if m.dependencies:
             print(f"  {msg('cli_detail_dependencies')}: {', '.join(m.dependencies)}")
         pkgs = (*m.packages_repo, *m.packages_aur, *m.packages_flatpak)
@@ -210,10 +274,10 @@ def _show_unit_detail(unit: str) -> int:
         if m.requires_root or m.system_paths:
             paths = f" ({', '.join(m.system_paths)})" if m.system_paths else ""
             print(f"  {msg('cli_detail_privilege')}: root{paths}")
-    rec = ledger.get_unit(unit)
+    rec = ledger.get_plugin(plugin)
     if rec:
         print(f"  {msg('cli_detail_state')}: {rec.get('state', '-')}")
-        print(f"  {msg('cli_detail_preset')}: {rec.get('preset', '-')}")
+        print(f"  {msg('cli_detail_form')}: {rec.get('form', '-')}")
         if rec.get("vault"):
             print(f"  {msg('cli_detail_vault')}: {rec['vault']}")
         if rec.get("updated"):
@@ -221,11 +285,11 @@ def _show_unit_detail(unit: str) -> int:
     else:
         print(f"  {msg('cli_detail_never_switched')}")
     try:
-        audit = transaction.audit_units(unit)
+        audit = transaction.audit_plugins(plugin)
     except KeyError:
         audit = {}
-    if audit.get(unit):
-        print(f"  {msg('cli_detail_audit')}: {audit[unit]}")
+    if audit.get(plugin):
+        print(f"  {msg('cli_detail_audit')}: {audit[plugin]}")
     return 0
 
 
@@ -244,7 +308,7 @@ def _print_audit(report: dict) -> None:
         color, mark = marks.get(report[uid], (Colors.DIM, "[•]"))
         print(f"  {color}{mark}{Colors.RESET} {uid:<24}{report[uid]}")
     # The three states are verdicts with an action now (#139): drift is a
-    # protected user change, a ghost is an adoptable unit — say so.
+    # protected user change, a ghost is an adoptable plugin — say so.
     if transaction.STATE_DRIFTED in report.values():
         print(msg("cli_audit_drifted_hint"))
     if transaction.STATE_GHOST in report.values():
@@ -252,17 +316,17 @@ def _print_audit(report: dict) -> None:
 
 
 def _cmd_doctor(sub_args: List[str]) -> int:
-    """nyxuri doctor [unit] — audit first, system checkup as the annex."""
+    """nyxuri doctor [plugin] — audit first, system checkup as the annex."""
     if len(sub_args) > 1:
-        exit_usage(f"{CLI_CMD} doctor [unit]")
-    unit = sub_args[0] if sub_args else None
+        exit_usage(f"{CLI_CMD} doctor [plugin]")
+    plugin = sub_args[0] if sub_args else None
     try:
-        report = transaction.audit_units(unit)
+        report = transaction.audit_plugins(plugin)
     except KeyError:
-        print(msg("cli_unknown_unit", unit), file=sys.stderr)
+        print(msg("cli_unknown_plugin", plugin), file=sys.stderr)
         return 2
     _print_audit(report)
-    if unit is None:
+    if plugin is None:
         run_doctor()
     return 0
 
@@ -290,10 +354,17 @@ def _cmd_snapshot(sub_args: List[str]) -> int:
 
 
 def _cmd_rollback(sub_args: List[str]) -> int:
-    if len(sub_args) > 1:
-        exit_usage(f"{CLI_CMD} rollback [index]")
-    target = sub_args[0] if sub_args else ""
-    return 0 if rollback_configs(target) else 1
+    usage = f"{CLI_CMD} rollback [index] [--keep-custom]"
+    keep_custom = False
+    target = ""
+    for arg in sub_args:
+        if arg == "--keep-custom":
+            keep_custom = True
+        elif not target and not arg.startswith("-"):
+            target = arg
+        else:
+            exit_usage(usage)
+    return 0 if rollback_configs(target, keep_custom=keep_custom) else 1
 
 
 def _cmd_uninstall(sub_args: List[str]) -> int:
@@ -306,16 +377,9 @@ def _cmd_uninstall(sub_args: List[str]) -> int:
 
 
 def _cmd_deps(sub_args: List[str]) -> int:
-    sub = sub_args[0].lower() if sub_args else ""
-    if len(sub_args) > 1 or sub not in ("", "core", "apps", "opt", "optional"):
-        exit_usage(f"{CLI_CMD} deps [core|apps]")
-    if sub == "core":
-        ok = run_dep_menu_loop()
-    elif sub in ("apps", "opt", "optional"):
-        ok = run_optional_apps_menu_loop()
-    else:
-        ok = deps_menu_loop()
-    return 0 if ok else 1
+    if sub_args and (len(sub_args) > 1 or sub_args[0].lower() != "core"):
+        exit_usage(f"{CLI_CMD} deps [core]")
+    return 0 if run_dep_menu_loop() else 1
 
 
 def _cmd_bug(sub_args: List[str]) -> int:
@@ -331,9 +395,13 @@ def _cmd_test(sub_args: List[str]) -> int:
     return 0 if test_deploy() else 1
 
 
-def _cmd_preset(sub_args: List[str]) -> int:
-    """nyxuri preset <app> [list|apply <name>|save <name>|edit <name>|delete <name>|parts|part <slot> <name>]"""
-    usage = f"{CLI_CMD} preset <app> [list|apply <name>|save <name>|edit <name>|delete <name>|parts|part <slot> <name>]"
+def _cmd_use(sub_args: List[str]) -> int:
+    """nyxuri use <plugin> [list|<name>|save <name>|edit <name>|delete <name>|slots|slot <axis> <name>]
+
+    The form verb (R0-2): whole-config axis when the value names a variant,
+    slot axis via the explicit ``slot`` subaction.
+    """
+    usage = f"{CLI_CMD} use <plugin> [list|<name>|save <name>|edit <name>|delete <name>|slots|slot <axis> <name>]"
     if len(sub_args) < 2:
         exit_usage(usage)
     app = sub_args[0]
@@ -341,46 +409,54 @@ def _cmd_preset(sub_args: List[str]) -> int:
     name = sub_args[2] if len(sub_args) > 2 else ""
     if action == "list":
         if len(sub_args) > 2:
-            exit_usage(f"{CLI_CMD} preset {app} list")
-        list_presets(app)
+            exit_usage(f"{CLI_CMD} use {app} list")
+        list_forms(app)
         return 0
-    if action == "parts":
+    if action == "slots":
         if len(sub_args) > 2:
-            exit_usage(f"{CLI_CMD} preset {app} parts")
-        from nyxuri.deploy.preset import list_parts
-        from nyxuri.kernel.ledger import read_ledger
-        slots = list_parts(app)
+            exit_usage(f"{CLI_CMD} use {app} slots")
+        from nyxuri.deploy.forms import list_slots
+        from nyxuri.kernel.ledger import get_form_slots
+        slots = list_slots(app)
         if not slots:
-            print(f"[!] {app} 暂无可用零件插槽")
+            print(f"[!] {app} 暂无可用槽位轴")
             return 0
-        current_parts = read_ledger().get("parts", {})
-        print(f"\n── {app} 零件插槽 ──\n")
+        current_slots = get_form_slots(app)
+        print(f"\n── {app} 槽位轴 ──\n")
         for slot, info in slots.items():
-            curr = current_parts.get(f"{app}:{slot}", info.get("default", "default"))
+            curr = current_slots.get(slot, info.get("default", "default"))
             print(f"  [{slot}] 目标: {info.get('target', '')} (当前: {curr})")
             for var in info.get("variants", []):
                 mark = "*" if var == curr else " "
                 print(f"    {mark} {var}")
         print()
         return 0
-    if action == "part":
+    if action == "slot":
         if len(sub_args) != 4:
-            exit_usage(f"{CLI_CMD} preset {app} part <slot> <name>")
+            exit_usage(f"{CLI_CMD} use {app} slot <axis> <name>")
         slot = sub_args[2]
         part_name = sub_args[3]
-        from nyxuri.deploy.preset import apply_part
-        if apply_part(app, slot, part_name):
-            print(f"[✓] 已切换 {app} 零件 [{slot}]: {part_name}")
+        from nyxuri.deploy.forms import use_form
+        if use_form(app, slot, part_name):
+            print(f"[✓] 已切换 {app} 槽位 [{slot}]: {part_name}")
             return 0
         else:
-            print(f"[✗] 切换 {app} 零件 [{slot}]: {part_name} 失败")
+            print(f"[✗] 切换 {app} 槽位 [{slot}]: {part_name} 失败")
             return 1
-    if action in ("apply", "save", "edit", "delete"):
+    if action in ("save", "edit", "delete"):
         if not name or len(sub_args) > 3:
-            exit_usage(f"{CLI_CMD} preset {app} {action} <name>")
-        fn = {"apply": apply_preset, "save": save_preset, "edit": edit_preset, "delete": delete_preset}[action]
+            exit_usage(f"{CLI_CMD} use {app} {action} <name>")
+        fn = {"save": save_form, "edit": edit_form, "delete": delete_form}[action]
         return 0 if fn(app, name) else 1
-    exit_usage(usage)
+    # bare value = switch the whole-config axis
+    if len(sub_args) > 2 or not _is_safe_component_arg(action):
+        exit_usage(usage)
+    return 0 if apply_form(app, action) else 1
+
+
+def _is_safe_component_arg(value: str) -> bool:
+    """Reject option-shaped tokens before they reach the form engine."""
+    return not value.startswith("-")
 
 
 def _cmd_theme(sub_args: List[str]) -> int:
@@ -457,7 +533,67 @@ def _cmd_shell(sub_args: List[str]) -> int:
         exit_usage(usage)
 
 
+def _cmd_update_plugin(sub_args: List[str]) -> int:
+    """nyxuri update <plugin> [-y] — third-party plugin update (参数分派)."""
+    usage = f"{CLI_CMD} update <plugin> [-y]"
+    rest = list(sub_args)
+    plugin = rest.pop(0) if rest and not rest[0].startswith("-") else ""
+    yes = False
+    while rest:
+        cur = rest.pop(0)
+        if cur in ("-y", "--yes"):
+            yes = True
+        else:
+            exit_usage(usage)
+    if not plugin:
+        exit_usage(usage)
+    try:
+        preview = lifecycle.update(plugin)
+    except KeyError:
+        print(msg("cli_unknown_plugin", plugin), file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(msg("cli_update_refused", plugin, str(exc)), file=sys.stderr)
+        return 1
+    print(msg("cli_update_preview", plugin, preview["ref"]))
+    diff = preview.get("diff") or ""
+    if diff:
+        print(diff)
+    else:
+        print(msg("cli_update_no_diff"))
+        return 0
+    if not yes and sys.stdin.isatty():
+        if not prompt_confirm("cli_confirm_update", "y"):
+            print(msg("cli_aborted"), file=sys.stderr)
+            return 1
+    try:
+        applied = lifecycle.update_apply(plugin, preview)
+    except ValueError as exc:
+        print(msg("cli_update_refused", plugin, str(exc)), file=sys.stderr)
+        return 1
+    print(msg("cli_update_done", plugin))
+    if applied.get("redeployed"):
+        print(msg("cli_update_redeployed", plugin))
+    else:
+        print(msg("cli_update_disabled_hint", plugin))
+    return 0
+
+
 def _cmd_update(sub_args: List[str]) -> int:
+    # 参数分派（S1-0 裁决）: a positional token that names a REGISTERED
+    # plugin routes to the third-party lifecycle; anything else (bare
+    # flags, --to values, unknown tokens) keeps the engine self-update
+    # untouched. `update --to kitty` stays an engine checkout.
+    skip_next = False
+    for cur in sub_args:
+        if skip_next:
+            skip_next = False
+            continue
+        if cur == "--to":
+            skip_next = True
+            continue
+        if not cur.startswith("-") and registry.plugin_dir(cur) is not None:
+            return _cmd_update_plugin(sub_args)
     usage = f"{CLI_CMD} update [--force|--no-deploy] [--to <tag|commit>]"
     flag = ""
     to_ref = ""
@@ -517,25 +653,27 @@ def _cmd_help(sub_args: List[str]) -> int:
 
 
 COMMANDS = {
-    "on":        (_cmd_on,        f"{CLI_CMD} on <unit> [--preset <name>]"),
-    "enable":    (_cmd_on,        f"{CLI_CMD} on <unit> [--preset <name>]"),
-    "off":       (_cmd_off,       f"{CLI_CMD} off <unit> [--cascade]"),
-    "disable":   (_cmd_off,       f"{CLI_CMD} off <unit> [--cascade]"),
-    "list":      (_cmd_list,      f"{CLI_CMD} list [unit]"),
+    "on":        (_cmd_on,        f"{CLI_CMD} on <plugin> [--form <name>]"),
+    "enable":    (_cmd_on,        f"{CLI_CMD} on <plugin> [--form <name>]"),
+    "off":       (_cmd_off,       f"{CLI_CMD} off <plugin> [--cascade]"),
+    "disable":   (_cmd_off,       f"{CLI_CMD} off <plugin> [--cascade]"),
+    "use":       (_cmd_use,       f"{CLI_CMD} use <plugin> [list|<name>|save <name>|edit <name>|delete <name>|slots|slot <axis> <name>]"),
+    "add":       (_cmd_add,       f"{CLI_CMD} add <git-url|local-dir> [--enable]"),
+    "remove":    (_cmd_remove,    f"{CLI_CMD} remove <plugin> [-y]"),
+    "list":      (_cmd_list,      f"{CLI_CMD} list [plugin]"),
     "pkg":       (_cmd_pkg,       f"{CLI_CMD} pkg <install|upgrade|remove|search|info|installed>"),
     "clean":     (_cmd_clean,     f"{CLI_CMD} clean [-n] [--only <tasks>]"),
     "install":   (_cmd_install,   f"{CLI_CMD} install [full|config]"),
     "snapshot":  (_cmd_snapshot,  f"{CLI_CMD} snapshot [note|list|delete [index]]"),
-    "rollback":  (_cmd_rollback,  f"{CLI_CMD} rollback [index]"),
+    "rollback":  (_cmd_rollback,  f"{CLI_CMD} rollback [index] [--keep-custom]"),
     "uninstall": (_cmd_uninstall, f"{CLI_CMD} uninstall [--all|standard|restore|purge]"),
-    "doctor":    (_cmd_doctor,    f"{CLI_CMD} doctor [unit]"),
-    "deps":      (_cmd_deps,      f"{CLI_CMD} deps [core|apps]"),
+    "doctor":    (_cmd_doctor,    f"{CLI_CMD} doctor [plugin]"),
+    "deps":      (_cmd_deps,      f"{CLI_CMD} deps [core]"),
     "bug":       (_cmd_bug,       f"{CLI_CMD} bug"),
     "test":      (_cmd_test,      f"{CLI_CMD} test"),
-    "preset":    (_cmd_preset,    f"{CLI_CMD} preset <app> [list|apply <name>|save <name>|edit <name>|delete <name>|parts|part <slot> <name>]"),
     "theme":     (_cmd_theme,     f"{CLI_CMD} theme [toggle|dark|light|sync|status]"),
     "shell":     (_cmd_shell,     f"{CLI_CMD} shell [get|set <noctalia|nyxuri-shell> [bin_path]|switch [<noctalia|nyxuri-shell> [bin_path]]|status] [EXPERIMENTAL]"),
-    "update":    (_cmd_update,    f"{CLI_CMD} update [--force|--no-deploy] [--to <tag|commit>]"),
+    "update":    (_cmd_update,    f"{CLI_CMD} update [<plugin> [-y] | --force|--no-deploy] [--to <tag|commit>]"),
     "help":      (_cmd_help,      f"{CLI_CMD} help"),
 }
 
@@ -559,9 +697,9 @@ def main() -> None:
         if not args or args[0].lower() in ("install", "deploy", "update"):
             print("Personal desktop: use nyxuri install/update through the personal launcher.", file=sys.stderr)
             sys.exit(2)
-    # The event delivery is the outer layer's job (unit-model.md §6): wire
+    # The event delivery is the outer layer's job (plugin-model.md §6): wire
     # the Shell bridge once so every verb (CLI, TUI, installer menus) that
-    # lands a unit transaction notifies the running shell over its own IPC.
+    # lands a plugin transaction notifies the running shell over its own IPC.
     bridge.wire()
     ensure_nyxuri_symlink()
 

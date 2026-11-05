@@ -13,18 +13,18 @@ from typing import List, Optional
 
 from nyxuri.core import (
     FCITX_THEME,
-    MAIN_WM,
     PROJECT_NAME,
     THEME_ENGINE,
     get_env_var,
 )
+from nyxuri.compositors import COMPOSITORS, MAIN_WM, portal_conf_name, session_wm
 from nyxuri.core import get_env, get_pics_dir, log_msg, timed_run
 from nyxuri.core import msg, text
 
 
 def _check_compositor(env) -> None:
     xdg_curr = os.environ.get("XDG_CURRENT_DESKTOP", "")
-    if xdg_curr.lower() in (MAIN_WM.lower(), "mango"):
+    if xdg_curr.lower() in COMPOSITORS:
         print(msg("doctor_ok", text(f"合成器: {xdg_curr} 正在运行", f"Compositor: {xdg_curr} is running")))
     else:
         current = xdg_curr or text("未知", "Unknown")
@@ -35,7 +35,7 @@ def _check_compositor(env) -> None:
 
 def _check_wayland_session(env) -> None:
     xdg_curr = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
-    target_wm = "mango" if xdg_curr == "mango" else MAIN_WM
+    target_wm = session_wm(xdg_curr)
     sess_file = Path(f"/usr/share/wayland-sessions/{target_wm}.desktop")
     if sess_file.is_file():
         print(msg("doctor_ok", text(f"会话: {target_wm} Wayland 入口已注册", f"Session: {target_wm} Wayland entry is registered")))
@@ -158,7 +158,7 @@ def _check_orbit(env) -> None:
     if active_shell() != "noctalia":
         return
     launcher = env.config_dir / THEME_ENGINE / "tools" / "orbit-launcher.py"
-    src_launcher = env.units_src / THEME_ENGINE / "tools" / "orbit-launcher.py"
+    src_launcher = env.plugins_src / THEME_ENGINE / "tools" / "orbit-launcher.py"
     if not launcher.is_file() and not src_launcher.is_file():
         return
     try:
@@ -237,7 +237,7 @@ def _check_portal_gtk(env) -> None:
 
 def _check_portal_config(env) -> None:
     xdg_curr = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
-    target = f"{xdg_curr}-portals.conf" if xdg_curr in ("mango", "niri") else "niri-portals.conf"
+    target = portal_conf_name(xdg_curr)
     portal_conf = env.config_dir / "xdg-desktop-portal" / target
     portal_conf2 = env.config_dir / "xdg-desktop-portal" / "portals.conf"
     if portal_conf.is_file():
@@ -271,16 +271,16 @@ def _check_disk_space(env) -> None:
     except Exception:
         pass
 
-def _unit_state(uid: str) -> str:
-    """Ledger state of one unit ('enabled' / 'disabled' / '' when never switched)."""
+def _plugin_state(uid: str) -> str:
+    """Ledger state of one plugin ('enabled' / 'disabled' / '' when never switched)."""
     from nyxuri.kernel import ledger
-    rec = ledger.get_unit(uid)
+    rec = ledger.get_plugin(uid)
     return (rec or {}).get("state", "")
 
 
 def _check_fcitx_skin(env) -> None:
     if shutil.which("fcitx5") or (env.config_dir / "fcitx5" / "conf" / "classicui.conf").is_file():
-        if _unit_state("fcitx5-rime") == "enabled":
+        if _plugin_state("fcitx5-rime") == "enabled":
             print(msg("doctor_ok", text("Fcitx5: NyxMellow 皮肤已启用", "Fcitx5: NyxMellow skin is enabled")))
         else:
             print(msg("doctor_warn", text(
@@ -316,6 +316,20 @@ def _check_gtk_theme(env) -> None:
         )))
     else:
         print(msg("doctor_warn", text("GTK 主题: 未注册", "GTK theme: not registered")))
+
+    adw_installed = Path("/usr/share/themes/adw-gtk3").is_dir() or Path("/usr/share/themes/adw-gtk3-dark").is_dir()
+    gtk3_ini = env.config_dir / "gtk-3.0" / "settings.ini"
+    targets_adw = False
+    if gtk3_ini.is_file():
+        try:
+            targets_adw = "adw-gtk3" in gtk3_ini.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            pass
+    if (targets_adw or rendered or registered) and not adw_installed:
+        print(msg("doctor_warn", text(
+            "GTK 主题: 缺少 adw-gtk-theme（GTK3 应用将回退原生 Adwaita，运行 nyxuri on theme 补齐）",
+            "GTK theme: adw-gtk-theme is missing (GTK3 apps fallback to default Adwaita; run nyxuri on theme)",
+        )))
 
 def _check_vm(env) -> None:
     if shutil.which("lspci"):
@@ -363,30 +377,22 @@ def _check_path_occlusion(env) -> None:
         check_path_occlusion()
 
 
-def _check_preset_drift(env) -> None:
-    """Warn if an app's active preset is no longer in repo or user presets.
+def _check_form_drift(env) -> None:
+    """Warn if a plugin's active whole-axis form is no longer in repo or user forms.
 
-    Lets users catch 'your kitty transparent preset was removed upstream' even
-    without running update — the dest is frozen, but doctor surfaces it. §11
+    Lets users catch 'your kitty transparent form was removed upstream' even
+    without running update — the dest is frozen, but doctor surfaces it.
     """
     from nyxuri.deploy import discover_config_items
-    from nyxuri.deploy import InvalidActivePresetError, read_active_preset
-    from nyxuri.deploy.preset import _find_preset_src
+    from nyxuri.deploy.forms import _find_form_src, read_active_form
     for app in discover_config_items():
-        try:
-            active = read_active_preset(app)
-        except InvalidActivePresetError:
-            print(msg("doctor_warn", text(
-                f"{app}: 活动预设状态无效，当前 ~/.config/{app} 已冻结，未重新部署",
-                f"{app}: active preset state is invalid; ~/.config/{app} is frozen, not redeployed",
-            )))
-            continue
+        active = read_active_form(app)
         if active == "default":
             continue
-        if _find_preset_src(app, active) is None:
+        if _find_form_src(app, active) is None:
             print(msg("doctor_warn", text(
-                f"{app}: 活动预设 '{active}' 已不在仓库（~/.config/{app} 已冻结，未重新部署）",
-                f"{app}: active preset '{active}' is gone from the repo (~/.config/{app} frozen, not redeployed)",
+                f"{app}: 活动形态 '{active}' 已不在仓库（~/.config/{app} 已冻结，未重新部署）",
+                f"{app}: active form '{active}' is gone from the repo (~/.config/{app} frozen, not redeployed)",
             )))
 
 
@@ -426,7 +432,7 @@ DOCTOR_SECTIONS = [
         _check_gtk_theme,
         _check_greeter,
         _check_path_occlusion,
-        _check_preset_drift,
+        _check_form_drift,
     ]),
 ]
 
@@ -601,7 +607,7 @@ def generate_bug_report() -> Optional[Path]:
         if len(lines) >= 2:
             health_lines.append(f"home free space: {lines[1].split()[3]}")
     if shutil.which("fcitx5") or (env.config_dir / "fcitx5" / "conf" / "classicui.conf").is_file():
-        health_lines.append(f"fcitx5 nyxmellow: {'enabled' if _unit_state('fcitx5-rime') == 'enabled' else 'NOT enabled'}")
+        health_lines.append(f"fcitx5 nyxmellow: {'enabled' if _plugin_state('fcitx5-rime') == 'enabled' else 'NOT enabled'}")
     health_checks = "\n".join(health_lines)
 
     # Noctalia Hook Log

@@ -28,11 +28,14 @@ Nyxuri Shell 以完整 Clavis 母体为起点，就地净化、重构；当前�
 
 ## 当前红线
 
-1. **完整母体上动刀**：在现有代码树内改造，保留 QML 上下文、级联和绑定；禁止另开
-   孤立实现、从零切片搬运、猜测接口或添加未经验证的 shim。实验可以暂时不可运行，
-   但必须保留恢复点；可运行检查点与阶段合并必须通过验收。
-2. **先启动与架构**：Cava、复杂天气地图、歌词等重型附加功能封存。封存意味着不进入
-   核心加载闭包、不实例化后台、不参与默认构建；`visible: false` 不算封存。
+1. **完整母体上动刀与物理整抄（Fork & Trim）**：在现有代码树内改造，保留 QML 上下文、
+   级联和绑定；禁止另开孤立实现、从零切片搬运、猜测接口或添加未经验证的 shim。凡引入上游
+   参考树能力（如插件注册表、API 门面、成熟控件套件）时，**必须全量物理复制（`cp`）原件作为代码基线，
+   再进行定向剪裁与去耦合**；严禁从零手写极简残卷冒充整抄、丢失原版防崩溃与进程守护细节。
+   实验可以暂时不可运行，但必须保留恢复点；可运行检查点与阶段合并必须通过验收。
+2. **先启动与架构**：重型附加功能不得进入冷启动路径、不实例化后台、不参与默认构建；
+   `visible: false` 不算隔离。实况：复杂天气地图已删除；Cava、歌词以按需消费者形态
+   保留（媒体页可见且播放时才激活，停用即释放实例与进程）。
 3. **视觉守护**：保留原版几何精度、流体动画与质感；删依赖、删字体不能换来裁切、错位、
    图标缺失或简陋占位。保留资产来源和许可证。
 4. **原版 Niri 基线**：支持官方原版 Niri，不要求用户安装魔改合成器。
@@ -54,43 +57,55 @@ Nyxuri Shell 以完整 Clavis 母体为起点，就地净化、重构；当前�
 封存只解决当前隔离，不能代替最终清理。记录保留理由、入口、依赖、检查范围和重新启用
 条件；无消费者且无保留理由的代码核实后删除。重新启用须验证接口、依赖、生命周期与视觉。
 
-## 三层边界与单元目录（KM4.5 拆迁正名后）
+## 五层边界与插件目录（S0-1 五件套迁移后）
 
-目标运行代码严格分为 `app/`、`units/`、`shared/` 三层（原 `native/` 层已于 R4-C 彻底解耦并物理删除，全库转为纯 QML/JS/Script 架构；原 `modules/` 层已于 KM4.5 整体正名为 `units/`，代码与 `manifest.toml` 同目录——目录即单元，内核 registry 以目录名派生 `shell.<domain>` id）。遗留母体结构 `Modules/`、`Components/`、`Widgets/`、`Common/`、`Services/` 与 `core/` 已全面清算归并。KM4.6 起 `assets/` Junk Drawer 解散——单元自有 shader 归 `units/<domain>/shaders/`，宿主数据（i18n 词典、icons、内置模板注册表）归 `app/`，第三方许可证与溯源记录折入 `LICENSE` 第三方附录；`fallback/`、`packaging/` 同阶段处决。所有单元与深层目录严格遵循全小写规范，根目录已消除上游独立发行残余（`install.sh`、`scripts/ci/`）。测试、资源、工具和许可证保留各自合理位置。
+目标运行代码严格分为 `app/`（纯装配与宿主数据）、`services/`、`plugins/`、`commons/`、`ui/` 五层（原 `native/` 层已于 R4-C 彻底解耦并物理删除，全库转为纯 QML/JS/Script 架构；原 `modules/` 层已于 KM4.5 整体正名为 `units/`，S0-1 随五件套迁移改 `plugins/`——代码与 `manifest.toml` 同目录，目录即插件，内核 registry 以目录名派生 `shell.<domain>` id；原 `shared/` 与 `units/` 于 S0-1 消解为 `commons/`、`ui/` 与 `plugins/`）。遗留母体结构 `Modules/`、`Components/`、`Widgets/`、`Common/`、`Services/` 与 `core/` 已全面清算归并。KM4.6 起 `assets/` Junk Drawer 解散——插件自有 shader 归 `plugins/<domain>/shaders/`，宿主数据（i18n 词典、icons、内置模板注册表）归 `app/`，第三方许可证与溯源记录折入 `LICENSE` 第三方附录；`fallback/`、`packaging/` 同阶段处决。所有插件与深层目录严格遵循全小写规范，根目录已消除上游独立发行残余（`install.sh`、`scripts/ci/`）。测试、资源、工具和许可证保留各自合理位置。
 
-- **app**：顶层装配（`AppShell`/`SlotHost`/`UnitCatalog`）、环境与能力感知、IPC、全局快捷键意图、生命周期与存储协调；业务执行归明确 backend，不把 app 变成包揽所有业务的控制中心。`app/services/` 同时承载宿主能力面（`HotCorners`、`FilePickerWindow`、`IdleInhibitorSurface`）与直读 app 单例的跨单元渲染边（`SystemCardContent`、`SystemClockCard`、`SidebarCookieClock` 等）。
-- **units**：功能域自治，一单元一目录（`manifest.toml` + 视图、模型和专属 backend 内聚），通过显式属性注入依赖。禁止跨域随手调用全局 Service；跨单元协调由 app 的窄接口完成。新增单元 = 加目录 + manifest + 代码，零宿主代码改动。
-- **shared**：复用的原子控件（`controls/`）、纯展示系统卡片（`cards/`）、几何、动画和纯计算（`utils/`）。不得读取配置/环境、写文件、发请求、起进程或持有业务连接；接收注入的色板、字体、尺寸与数据。凡需直读 app 单例的卡片不进 `shared/`，留 `app/services/`。
-- **支撑代码归宿**（KM4.5 裁决，不设第四棵树）：宿主能力面归 `app/services/`；单消费者组件并入唯一消费单元（如 `sidebars/quicksettings/`）；跨单元纯展示组件归 `shared/cards|controls/`。
+- **app**：纯装配与宿主数据层（`AppShell`/`SlotHost`/`Paths`/`WidgetState`/`ActionGateway`/`icons`/`templates`）、环境与能力感知、IPC、全局快捷键意图、生命周期与存储协调；业务执行归明确 backend，不把 app 变成包揽所有业务的控制中心。
+- **services**：服务层——域服务与配置存储（`ThemeService`、`NotificationService`、`PersonalizationConfig`、`UiPreferences` 等）、宿主能力面（`HotCorners`、`FilePickerWindow`、`IdleInhibitorSurface`）与直读 app 单例的跨单元渲染边（`SystemCardContent`、`SystemClockCard`、`SidebarCookieClock` 等五个系统卡片）。
+- **plugins**：功能域自治，一插件一目录（`manifest.toml` + 视图、模型和专属 backend 内聚），通过显式属性注入依赖。禁止跨域随手调用全局 Service；跨插件协调由 app 的窄接口完成。新增插件 = 加目录 + manifest + 代码，零宿主代码改动。**设置页随插件**（S0-3a）：域插件在自身 manifest 声明 `[[settings]]` 路由并携带页面文件，聚合窗按注册表 `sourceUrl` 跨插件装载（file:// URL）；无 owning 域的宿主级页面（account/theme/connectivity/language/shortcuts/shell/about）留守聚合插件。**schema 形态**（S0-3b）：路由声明 `controls` 控件词表（五型封闭，见 [manifest-schema](../llms-wiki/manifest-schema.md)）而无页面文件时，宿主用 ui/ 原子通用渲染，值落 `PluginSettings` 存储——与 panel 形态并存，第三方插件几行声明即有设置页。
+- **commons / ui**：纯展示层。`ui/` 为平面原子控件库（含 `shapes/` 具名模块桩）；`commons/` 为设计 Token 与注入数据、纯算法 JS、`i18n/`（词典 + I18n 单例）、纯展示系统卡片 `cards/`。不得读取配置/环境、写文件、发请求、起进程或持有业务连接；接收注入的色板、字体、尺寸与数据。凡需直读 app 单例的卡片不进 `commons/`，留 `services/`。
+- **支撑代码归宿**（KM4.5 裁决，S0-1 路径对位）：宿主能力面归 `services/`；单消费者组件并入唯一消费单元（如 `sidebars/quicksettings/`）；跨单元纯展示组件归 `commons/cards|ui/`。
 
 UI 只呈现和响应输入；桌面意图经 Action Gateway 执行。命令、文件修改、网络请求
 由明确 backend/执行器承担并登记 owner，不在展示组件深处执行。外部命令使用参数数组，
 不 eval、不拼 shell 字符串；后台订阅也必须有归属，不能绕过生命周期管理。
 每个域迁移时同步检查旧路径，验收后移除被替代实现，避免新旧两套长期共存。
 
-## 微内核宿主与几何插槽（KM4 契约，迁自 unit-model §6）
+## 微内核宿主与几何插槽（KM4 契约，迁自 plugin-model §6）
 
 Shell 是极致精简的**微内核宿主**：宿主只保留装配（`SlotHost`）、动作网关
-（`ActionGateway`，含 `executeIntent` 跨域意图路由）、会话协议（`NiriService`）、
+（`ActionGateway`，含 `executeIntent` 跨域意图路由）、合成器驱动面
+（`CompositorDriver` 单例投影 + `NiriDriver` 实现——S0-5 起 niri 方言
+（socket env、`niri msg` argv、版本探针）只许活在 `NiriDriver.qml` 一个文件，
+消费者一律绑 `CompositorDriver`），
 主题代币（`ThemeTokens`/ThemeService）与账本投影（`StateProjection`）。内核侧
-三条（同一账本、单一事件通道、点分 ID）冻结在 unit-model §6，此处承载实现契约。
+三条（同一账本、单一事件通道、点分 ID）冻结在 plugin-model §6，此处承载实现契约。
 
-- **六大几何插槽**：所有 Shell 单元（`shell/units/<domain>/`，`runtime = true`，
-  manifest 与代码同目录——目录即单元，KM4.5 后 modules/ 已正名并入）
-  向唯一的 6 种几何插槽声明挂载——`edge`（bar/dock）、`island`（keystone）、
+- **六大几何插槽**：所有 Shell 插件（一方 `shell/plugins/<domain>/`，三方
+  `~/.local/share/nyxuri/plugins/<id>/`——S1-3 起二根扫描）向唯一的 6 种几何插槽
+  声明挂载——`edge`（bar/dock）、`island`（keystone）、
   `overlay`（launcher/lock/session/settings/regionselector）、`drawer`（sidebars）、
   `surface:desktop`（desktopcards/wallpaper）、`popup:notification`（notifications）。
-  插槽归属数据在 `app/UnitCatalog.qml`，与 `shell/units/` 由
-  `shell/tests/test_unit_catalog.py` 强制同步。
+  插槽归属数据在插件自己的 `manifest.toml`（kinds + `[entryPoints]`），由
+  `services/PluginRegistry.qml` 运行时读取聚合（S1-3 心脏 = Omarchy 806 行
+  `PluginRegistry.qml` 物理整抄后定向剪裁，基线 commit `c91fc6a`：守护三件套与
+  分段流解析原样保留，shell.json 开关机器删除——开关真相唯一留在引擎账本；
+  三方 id 必须 reverse-DNS、`shell.` / `nyxuri.` 命名空间保留），与
+  `shell/plugins/` 的同步由 `shell/tests/test_plugin_manifests.py` 强制。
 - **数据驱动装载**：`AppShell.qml` 不按名实例化任何单元组件；`SlotHost` 以
-  `Repeater + Loader` 依目录装配，`active` 只读 `StateProjection`。单元 `disabled`
+  `Repeater + Loader` 依目录装配，`active` 只读 `StateProjection`，且以投影
+  `primed`（首次账本吸收落定）为闸门——禁用单元冷启动零实例化、不闪挂（S1-3
+  探针撞出的竞态）。单元 `disabled`
   即 `Loader.active = false`：实例销毁，Process/Timer/Socket/回调全部注销；冷启动
-  未启用域零读文件、零实例化。槽仲裁归宿主：lock 持有期间禁卸载（延迟至解锁）；
-  keystone 在场时独占 `popup:notification` 槽。
+  未启用域零读文件、零实例化。槽仲裁归宿主且按 kind 判定：lock 持有期间禁卸载
+  （延迟至解锁）；keystone 在场时独占 `popup:notification` 槽——任意非 keystone 的
+  popup:notification 行（三方同规）让位。
 - **单一开关真相**：Shell 永不直写账本。开关只经 `UnitControlService` 派发
-  `nyxuri on/off shell.<domain>`，UI 不乐观翻转——`unit-changed` 事件
+  `nyxuri on/off <unitId>`（完整账本键：一方 `shell.<domain>`，三方 reverse-DNS
+  全名），UI 不乐观翻转——`unit-changed` 事件
   （`qs ipc call unit reload`，宿主 `IpcHandler target: "unit"` 接收）到达后由
-  `StateProjection` 重投影。账本无记录 = 默认启用；账本损坏 = 全启用降级 + 诊断
+  `StateProjection` 重投影（读账本顶层 `plugins` 键）。账本无记录 = 默认启用；账本损坏 = 全启用降级 + 诊断
   横幅。外观轴（位置/样式/覆盖等）仍归 PersonalizationConfig，与开关轴正交。
 - **单元自有 IPC**：单元的 IPC surface 属单元（lock/spotlight/power-menu/
   control-center/settings/keystone），随单元装载生死；宿主只保留通用面
@@ -99,11 +114,16 @@ Shell 是极致精简的**微内核宿主**：宿主只保留装配（`SlotHost`
   （`niri-actions.json` 目录 207 条）经 `nyxuri-shell --ipc <target> <method>
   [args…]` PATH 稳定网关分发，合成器 binds 不再引用 quickshell 配置名。
 - **Quickshell 0.3.2 运行时约束**（KM4 实测，quickshell 升级后重估）：
-  ① Loader 动态装载的组件首次解析 qs.* import 图不可靠——单元以「module not
-  installed / X is not a type」不确定地整单元暴毙（与 QML 磁盘缓存无关）。
+  ① Loader 动态装载的组件解析 qs.* import 必挂——qmldir 只为启动扫描闭包
+  （shell.qml import 语句静态递归）内的目录合成，Loader source URL 不在其中，
+  缺 qmldir 即「module not installed / X is not a type」整单元 compiled empty；
+  清缓存冷启动下确定性失败（S0-0 实证 0/20），历史上的「游移」是磁盘缓存交互
+  的假象。qs: scheme 装载的组件连同目录隐式类型都不可用。根因、装载形态定案
+  （file:// URL 装载）与复跑命令见 [loader-form](../llms-wiki/shell/loader-form.md)。
   对策：SlotHost 静态预热 import 全部 12 个单元模块（只注册不实例化），装载仍
   纯 Loader 驱动；禁用单元零实例化、零窗口、零驻留内存不变，代价是预热注册的
-  仅解析成本。**推广（KM4.6 实机验收教训）**：任何新建的 qs.* 合成池（如
+  仅解析成本。S0-2 运行时注册表起按 loader-form 定案以 file:// URL 装载，预热
+  名单随四件套退役。**推广（KM4.6 实机验收教训）**：任何新建的 qs.* 合成池（如
   `qs.app.cards`）只要被单元组件消费，就必须进 SlotHost 预热名单——全库没有
   顶层文件 import 它时，首次解析必然发生在 Loader 内，单元确定性 compiled
   empty；宿主自愈重试两次后放弃并在日志明示，unit-changed 重新武装。
@@ -153,11 +173,14 @@ Shell 是极致精简的**微内核宿主**：宿主只保留装配（`SlotHost`
 
 ## QML、构建与文案
 
-- 保留 Quickshell root-relative import 语义，不给纯 QML 目录手写 qmldir。
-  native 的 qmldir、qmltypes 和 plugin 由 CMake/Qt 生成，不手改生成物或用户安装目录。
+- 保留 Quickshell root-relative import 语义。纯 QML 目录不写类型清单 qmldir；
+  **唯一例外**：含 `pragma Singleton` 文件的目录必须有 qmldir 单例登记表
+  （`singleton <名> 1.0 <文件>.qml`，只登记单例——隐式/相对解析没有登记就
+  拿到空壳类型对象，机制与证据见 [loader-form](../llms-wiki/shell/loader-form.md)，
+  契约由 test_plugin_manifests 焊接）。native 的 qmldir、qmltypes 和 plugin 由 CMake/Qt 生成，不手改生成物或用户安装目录。
 - 静态 import 不因 Loader inactive 自动变成可选。缺插件路径必须用真实独立组件
   验证隔离；默认构建不 require 封存依赖。
-- `shared/` 由 `theme/`（设计 Token 与注入数据）、`controls/`（原子控件与区域几何）和 `utils/`（纯计算）构成，不读取环境、发现系统字体/图标或监听文件。主题 IO、字体加载与发现、图标解析归 `app/services/`，路径归 `app/Paths.qml`；`Resources` 与 `Fonts` 仅承载 app 注入的展示数据。设置搜索锚点归 settings，面板协调状态归 app；共享控件的 Connections 只能观察注入对象和自身几何。
+- `ui/` 与 `commons/` 由设计 Token 与注入数据、原子控件与区域几何（`ui/`）、纯算法 JS 与 `i18n/`、纯展示卡片 `cards/`（均 `commons/`）构成，不读取环境、发现系统字体/图标或监听文件。主题 IO、字体加载与发现、图标解析归 `services/`，路径归 `app/Paths.qml`；`Resources` 与 `Fonts` 仅承载 app 注入的展示数据。设置搜索锚点归 `services/`（S0-3a 升格：`SettingsSearchAnchor` 原子 + `SettingsSearch` 状态机、`PluginSettings` schema 值存储均为宿主-页面契约面，任何插件的页面经 `qs.services` 使用，不 import 聚合插件），面板协调状态归 app；共享控件的 Connections 只能观察注入对象和自身几何。
 - 删除内嵌字体时同步处理 family、时钟、图标与排版回退，禁止启动时联网下载。
 - UI 文案沿用 qsTr/qsTranslate、占位符与 Qt numerus；修改时同步相关翻译。
   语言切换不改变地区、单位或用户数据。宿主文案遵循 writing-voice 与 i18n 契约。

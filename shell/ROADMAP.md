@@ -7,6 +7,8 @@
 > [shell-roadmap-ledger](../llms-wiki/archive/shell-roadmap-ledger.md)。
 > 当前整体处于**实验性阶段**（BUG 多、外观未开发、暂不推荐日常使用）；
 > 已知 BUG 与暂缓的基础设施缺口见 [KNOWN-ISSUES.md](KNOWN-ISSUES.md)。
+> 下一卷跨域骨架演进（Omarchy 插件协议整抄、小写五件套、设置去中心化）归根
+> [ROADMAP](../ROADMAP.md) 的 S0/S1 管；本页 T3 剩余验收与资产收编随其迁移一并走。
 
 ## 目标与边界
 
@@ -98,7 +100,7 @@ hooks 的实机行为证据与视觉验收待作者确认。镜像色板是否�
 
 ### 3. 视窗与主从框架规范（对齐 Caelestia 实测值，NexusStyle 1:1）
 
-- **token 真相**：`units/settings/NexusStyle.qml` 为设置界面唯一几何/字号源——
+- **token 真相**：`units/settings/NexusStyle.qml`（S0-1 随五件套迁 `ui/NexusStyle.qml`）为设置界面唯一几何/字号源——
   tokens.hpp 值 1:1 移植（rounding 4/8/12/16/20/28/32/48、padding/spacing 同梯、
   字号 11–28 + Medium 权重表、图标 24/20、比例常量 0.7 / 16:9 / 600 / 800 / 800×500），
   **脱离全局 0.85 缩放**，契约测试逐值钉死；颜色仍归 `Appearance`。
@@ -141,8 +143,8 @@ hooks 的实机行为证据与视觉验收待作者确认。镜像色板是否�
 | M0 | 配置轴 3 ➔ 2 收敛与向后兼容；路由元数据补充顶层 `description`；单测守住基线 | 已完成 |
 | M1 | 偏好原子套件纯 QML 拷入与重构（`ConnectedRect`、`PreferenceToggle` 等 11 个原件落地并过原子单测） | 已完成 |
 | M2 | 视窗外壳与 NavPane 双行导航骨架落地，接入药丸搜索（原版占位形态）与胶囊高亮，处决旧 `NavigationRail*`；fidelity 修订对齐 Caelestia 实测值并新增 About 页 | 已完成 |
-| M3 | 核心页面首批积木化翻新（`AccountPage`、`ThemePage`、`WallpaperPage`、`DisplaysPage`） | 待验收 |
-| M4 | 全页面覆盖、废弃代码清算与全量测试冒烟验收 | 待开始 |
+| M3 | 核心页面首批积木化翻新（`AccountPage`、`ThemePage`、`WallpaperPage`、`DisplaysPage`） | 待验收（机器证据已随 S0-4 收窄版产出；视觉过目待作者） |
+| M4 | 全页面覆盖、废弃代码清算与全量测试冒烟验收（批 A–F 已落地；清算档 dashboard 双轨合并已划掉——双轨终局保留，其余候选整档挂起；冒烟证据随 S0-4 收窄版产出） | 待验收 |
 
 ## 后续阶段
 
@@ -169,7 +171,11 @@ hooks 的实机行为证据与视觉验收待作者确认。镜像色板是否�
 
 - 自有 C++ 构建链已移除；运行实现收敛为纯 QML/JS/脚本，公开标识统一为 `nyxuri`。
 - 原版参考树仅本地查阅，不进入运行时；上游历史材料与 Nyxuri 契约分开维护。
-- Cava、地图、歌词和窗口预览不属于核心能力，相关死代码已清理。
+- Cava、地图、歌词和窗口预览不属于核心能力。旧卷「相关死代码已清理」与代码不符，
+  实况（2026-10-31 清算）：地图与窗口预览**采集面**已清（native 面、WeatherMapBridge、
+  WindowPreviewService 拔除，Dock 缩略图采集恒关，悬停窗口卡仍活）；Cava 与歌词
+  **以按需消费者形态活着**——媒体页可见且播放时才拉起 `cava` 进程、歌词面板按需订阅
+  拉取，冷启动不拉起、无常驻后台。归档台账同句按冻结条款不改，以本条为准。
 - 资源策略区分运行时资产、生成文件、缓存和测试 fixture；天气图标采用 Material Symbols。
 - 文档体系按 [docs-charter](../llms-wiki/docs-charter.md) 分层治理；归档只进不改。
 
@@ -196,7 +202,7 @@ SidebarCookieClock、NetworkInterfaceHistoryService）→ `app/services/`，其�
 SlotHost 预热 12 行 + UnitCatalog source ×12 + 工具链与测试）。
 
 **契约同步**：shell/AGENTS 三层边界重写（app/units/shared + 支撑代码归宿规则）；
-architecture-matrix 重写（12 单元矩阵）；unit-model §6 承载修订；shell/development
+architecture-matrix 重写（12 单元矩阵）；plugin-model §6 承载修订；shell/development
 分层词表；audit-lifecycle / generate-search-catalog / run-tests / check.sh /
 test_unit_catalog 路径改判；契约测试改测新真相（test_shell 61 绿、
 test_bugfix_regressions 109 绿，含 app/ 56 文件收敛断言与 units/ 死刑断言：

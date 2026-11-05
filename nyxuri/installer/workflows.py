@@ -5,7 +5,7 @@ import subprocess
 import sys
 from typing import Dict, List, Optional
 
-from nyxuri.core import SUPPORTED_WMS, detect_preferred_wm
+from nyxuri.compositors import COMPOSITORS, detect_preferred_wm
 from nyxuri.core import get_env, log_msg
 from nyxuri.deploy import (
     config_item_dest,
@@ -16,14 +16,14 @@ from nyxuri.deploy import (
     run_user_hooks,
 )
 from nyxuri.deploy.deploy import (
-    enable_theme_unit as _enable_theme,
-    enable_wallpapers_unit as _enable_wallpapers,
+    enable_theme_plugin as _enable_theme,
+    enable_wallpapers_plugin as _enable_wallpapers,
     wallpapers_pack_present,
 )
-from nyxuri.pkg.deps import get_missing_deps, install_selected_deps
+from nyxuri.pkg.deps import get_missing_deps, install_selected_deps, plugin_package_installer
 from nyxuri.kernel import transaction
 from nyxuri.core import msg
-from nyxuri.tui import MenuItem, Menu, prompt_confirm
+from nyxuri.tui import MenuItem, Menu, format_steps, prompt_confirm
 from nyxuri.installer.menus import run_master_component_menu
 from nyxuri.deploy.atomic import CarryPolicy
 
@@ -71,7 +71,7 @@ def _finish_successful_deploy(mode: str, **completion_args) -> None:
 def _update_carry_policy(items: List[str]) -> "CarryPolicy":
     """Update-grade ownership carry (#139): ledger baselines, 宁可错保.
 
-    ``unknown=True``: a unit without an enabled record (Ghost) has every
+    ``unknown=True``: a plugin without an enabled record (Ghost) has every
     dest entry carried — the update must never guess wrong about files it
     cannot attribute. Adoption paths (install/``on``) use ``unknown=False``.
     """
@@ -79,15 +79,15 @@ def _update_carry_policy(items: List[str]) -> "CarryPolicy":
 
 
 def _resnapshot_after_deploy(items: List[str], policy: Optional[CarryPolicy]) -> None:
-    """Re-baseline enabled units after an out-of-band deploy + hook replay."""
+    """Re-baseline enabled plugins after an out-of-band deploy + hook replay."""
     if policy is None:
-        transaction.resnapshot_units(items, carried={})
+        transaction.resnapshot_plugins(items, carried={})
     else:
-        transaction.resnapshot_units(items, carried=policy.carried)
+        transaction.resnapshot_plugins(items, carried=policy.carried)
 
 
 def _ghost_notices(items: List[str], policy: Optional[CarryPolicy]) -> List[str]:
-    """Per-unit notices for deployed-but-unregistered (Ghost) units (#139)."""
+    """Per-plugin notices for deployed-but-unregistered (Ghost) plugins (#139)."""
     baselines = policy.baselines if policy is not None else transaction.carry_baselines(items)
     notices = []
     for item in items:
@@ -144,24 +144,25 @@ def install_configs_workflow(mode: str = "full") -> bool:
         preferred_wm = detect_preferred_wm()
         chosen_configs = [
             item for item in all_items
-            if item not in SUPPORTED_WMS or item == preferred_wm
+            if item not in COMPOSITORS or item == preferred_wm
         ]
         do_wallpapers = not wallpapers_pack_present()
         do_backup = False
 
     # Safety: ensure at most one WM is selected
-    selected_wms = [c for c in chosen_configs if c in SUPPORTED_WMS]
+    selected_wms = [c for c in chosen_configs if c in COMPOSITORS]
     if len(selected_wms) > 1:
         preferred = detect_preferred_wm()
         chosen_wm = preferred if preferred in selected_wms else selected_wms[0]
-        chosen_configs = [c for c in chosen_configs if c not in SUPPORTED_WMS or c == chosen_wm]
+        chosen_configs = [c for c in chosen_configs if c not in COMPOSITORS or c == chosen_wm]
 
     _phase_preflight_check(mode, chosen_configs, do_wallpapers, do_backup)
 
     # Step counting
-    steps = 3 if do_wallpapers else 2  # configs [+ wallpapers] + unit hooks
+    steps = 1
     if mode == "full":
         steps += 1  # deps
+    steps += 1  # component transactions
     cur_step = 0
 
     # 1. Deps
@@ -172,64 +173,51 @@ def install_configs_workflow(mode: str = "full") -> bool:
         if missing and not install_selected_deps(missing):
             return False
 
-    # 2. Configs
+    # 2. Component transactions (single activation pipeline)
     cur_step += 1
     print(msg("install_step_configs", f"{cur_step}/{steps}"))
-    preserved_log: List[str] = []
-    if chosen_configs:
-        # Install is adoption (#139): payload names are claimed, user-placed
-        # extras are carried. An already-enabled unit's ledger record acts as
-        # the drift baseline so a re-install never eats edits.
-        carry_policy = CarryPolicy(
-            baselines=transaction.carry_baselines(chosen_configs), unknown=False
+    if do_backup:
+        from nyxuri.state.backup import backup_configs
+        backup_configs(note="auto_snapshot_before_deploy", interactive=False)
+
+    known_plugins = set(transaction.registry.plugin_ids())
+    plugins_to_enable = [uid for uid in chosen_configs if uid in known_plugins]
+    for uid in chosen_configs:
+        if uid not in known_plugins:
+            log_msg("WARN", f"unknown plugin skipped: {uid}")
+    # Optional blueprint assists: only when their plugin is actually present
+    # in this install (manifest-only supplies may have retired the directory).
+    if do_wallpapers and "wallpapers" in known_plugins and "wallpapers" not in plugins_to_enable:
+        plugins_to_enable.append("wallpapers")
+    if "theme" in known_plugins and "theme" not in plugins_to_enable:
+        plugins_to_enable.append("theme")
+
+    failed_items: List[str] = []
+    wallpaper_ok: Optional[bool] = None
+    for uid in plugins_to_enable:
+        steps_res = transaction.plugin_on(uid, install_packages=plugin_package_installer)
+        if not steps_res or not all(s.ok for s in steps_res):
+            failed_items.append(uid)
+        for line in format_steps(steps_res):
+            print(f"  {line}")
+        if uid == "wallpapers":
+            wallpaper_ok = bool(steps_res) and all(s.ok for s in steps_res)
+
+    if failed_items:
+        render_completion_screen(
+            mode=mode,
+            chosen_items=chosen_configs,
+            preserved_lines=[],
+            wallpaper_ok=wallpaper_ok,
+            failed_items=failed_items,
         )
-        failed_items = deploy_selected_configs(
-            do_backup=do_backup,
-            items_to_deploy=chosen_configs,
-            preserved_log=preserved_log,
-            carry_policy=carry_policy,
-        )
-        if failed_items:
-            render_completion_screen(
-                mode=mode,
-                chosen_items=chosen_configs,
-                preserved_lines=preserved_log,
-                failed_items=failed_items,
-            )
-            return False
-
-    # 3. Wallpapers — the unit path: `on wallpapers` syncs the blueprint
-    # fallback into the shared living area (no-clobber). The external pack
-    # is user-domain content (units/wallpapers/hooks/install-pack), never
-    # an install phase. The theme pool (shared template living area) rides
-    # the same unit path: `on theme` no-clobber merges the blueprint
-    # templates; user-edited templates are never clobbered.
-    wallpaper_ok = None
-    if do_wallpapers:
-        cur_step += 1
-        print(msg("install_step_wallpapers", f"{cur_step}/{steps}"))
-        wallpaper_ok = _enable_wallpapers()
-    _enable_theme()
-
-    # 4. Unit hook replay: already-enabled units re-run their declared
-    # on-side hooks (skins, renders). Activation of NEW units belongs to
-    # `nyxuri on <unit>` — the installer never invents switch state.
-    cur_step += 1
-    print(msg("install_step_unit_hooks", f"{cur_step}/{steps}"))
-    for step in transaction.replay_enabled_hooks():
-        if not step.ok:
-            log_msg("WARN", f"unit hook replay failed for {step.unit}: {step.detail}")
-
-    # Hook products and template renders changed the laid truth under any
-    # already-enabled unit: re-baseline so the next audit stays honest (#139).
-    if chosen_configs:
-        _resnapshot_after_deploy(chosen_configs, carry_policy)
+        return False
 
     # Completion
     _finish_successful_deploy(
         mode=mode,
         chosen_items=chosen_configs,
-        preserved_lines=preserved_log,
+        preserved_lines=[],
         wallpaper_ok=wallpaper_ok,
     )
     return True
@@ -257,7 +245,7 @@ def offer_overwrite_upgrade(flag: str = "") -> bool:
         wallpaper_ok = _enable_wallpapers()
         _enable_theme()
         transaction.replay_enabled_hooks()
-        # Re-baseline every deployed unit so the drift the user just
+        # Re-baseline every deployed plugin so the drift the user just
         # reviewed clears instead of haunting doctor forever.
         _resnapshot_after_deploy(items, force_policy)
         _finish_successful_deploy("update", wallpaper_ok=wallpaper_ok)

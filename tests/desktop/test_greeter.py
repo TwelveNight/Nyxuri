@@ -1,4 +1,4 @@
-"""Behavior contracts for the Noctalia Greeter unit hooks (KM3).
+"""Behavior contracts for the Noctalia Greeter plugin hooks (KM3).
 
 The hooks live at configs/greeter/hooks/{activate,deactivate} and are
 imported as modules — same helper names as the retired nyxuri.modules
@@ -21,7 +21,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _load_hook(name: str):
-    path = REPO / "units" / "greeter" / "hooks" / name
+    path = REPO / "plugins" / "greeter" / "hooks" / name
     mod_name = f"greeter_hook_{name}"
     spec = importlib.util.spec_from_file_location(mod_name, path, loader=SourceFileLoader(mod_name, str(path)))
     module = importlib.util.module_from_spec(spec)

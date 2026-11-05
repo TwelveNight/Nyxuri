@@ -8,12 +8,7 @@ from typing import Dict, List, Optional
 from nyxuri.core import AUR_DEPS, CORE_DEPS
 from nyxuri.core import log_msg
 from nyxuri.core import msg
-from nyxuri.deploy.manifest import discover_manifest_apps
-from nyxuri.pkg.catalog import CatalogEntry, catalog_entries, get_entry
 from nyxuri.tui import (
-    CategoryAppEntry,
-    CategoryCheckboxList,
-    CategoryGroup,
     CheckboxEntry,
     CheckboxList,
     pad_display,
@@ -21,7 +16,6 @@ from nyxuri.tui import (
 )
 
 from nyxuri import pkg
-from nyxuri.pkg import FLATHUB_REMOTE_URL
 from nyxuri.pkg.detection import DependencyProbe
 
 
@@ -131,9 +125,9 @@ def check_mpvpaper_leak() -> None:
         else:
             print(msg("mpvpaper_upgrade_skip"))
 
-def unit_package_installer(unit_id: str, missing: List[str]) -> bool:
+def plugin_package_installer(plugin_id: str, missing: List[str]) -> bool:
     """Installer injected into the transaction by every surface (CLI/TUI): the
-    unit's own manifest declares the three-way split, this layer owns the
+    plugin's own manifest declares the three-way split, this layer owns the
     package-manager calls (AUR via an ensured helper, Flatpak via its own
     channel)."""
     repo = missing
@@ -142,7 +136,7 @@ def unit_package_installer(unit_id: str, missing: List[str]) -> bool:
     try:
         from nyxuri.kernel import registry
 
-        manifest = registry.load_unit(unit_id)
+        manifest = registry.load_plugin(plugin_id)
         repo = [p for p in missing if p in manifest.packages_repo]
         aur = [p for p in missing if p in manifest.packages_aur]
         flat = [p for p in missing if p in manifest.packages_flatpak]
@@ -198,107 +192,3 @@ def run_dep_menu_loop() -> bool:
         return True
     print(msg("installing_selected"))
     return bool(install_selected_deps(chosen))
-
-def install_optional_apps(selected_apps: List[str]) -> bool:
-    """Install the package declarations of the selected supply items.
-
-    Items are catalog entries (packages-only software) or optional real
-    units. Unit activation (and its declared hooks) belongs to
-    ``nyxuri on <unit>`` via the transaction path (KM3)."""
-    repo_pkgs, aur_pkgs, flatpak_ids = [], [], []
-    for app in selected_apps:
-        entry = get_entry(app)
-        if entry is not None:
-            repo_pkgs.extend(entry.packages_repo)
-            aur_pkgs.extend(entry.packages_aur)
-            flatpak_ids.extend(entry.packages_flatpak)
-            continue
-        manifest = dict(discover_manifest_apps()).get(app)
-        if manifest is None:
-            continue
-        repo_pkgs.extend(manifest.packages_repo)
-        aur_pkgs.extend(manifest.packages_aur)
-        flatpak_ids.extend(manifest.packages_flatpak)
-    if not repo_pkgs and not aur_pkgs and not flatpak_ids:
-        print(msg("opt_apps_none_selected"))
-        return True
-    print(msg("installing_selected_apps"))
-    if flatpak_ids:
-        repo_pkgs.append("flatpak")
-    ok = pkg.install(repo_pkgs)
-    if aur_pkgs:
-        helper = ensure_aur_helper()
-        ok = bool(helper and pkg.install(aur_pkgs, source="aur", manager=helper)) and ok
-    if flatpak_ids:
-        ok = pkg.install_flatpaks(flatpak_ids) and ok
-    print(msg("opt_apps_install_done" if ok else "log_official_pkgs_partial_fail"))
-    return ok
-
-
-def _supply_items() -> List[dict]:
-    """The optional software surface: catalog entries + optional real units.
-
-    One shape for both sources so the menu and the installer never special-
-    case where a declaration came from."""
-    items: List[dict] = []
-    for entry in catalog_entries():
-        items.append({
-            "key": entry.name,
-            "category": entry.category,
-            "repo": entry.packages_repo,
-            "aur": entry.packages_aur,
-            "flat": entry.packages_flatpak,
-            "detect": entry.detect,
-        })
-    manifests = dict(discover_manifest_apps())
-    for app, manifest in manifests.items():
-        if not manifest.is_optional:
-            continue
-        items.append({
-            "key": app,
-            "category": manifest.category,
-            "repo": manifest.packages_repo,
-            "aur": manifest.packages_aur,
-            "flat": manifest.packages_flatpak,
-            "detect": manifest.detect,
-        })
-    return items
-
-
-def run_optional_apps_menu_loop() -> bool:
-    """Open the category accordion checklist for recommended applications."""
-    if not sys.stdin.isatty():
-        print(msg("interactive_terminal_required"), file=sys.stderr)
-        return False
-
-    probe = DependencyProbe()
-    grouped: Dict[str, List[CategoryAppEntry]] = {}
-    for item in _supply_items():
-        is_inst = probe.installed(item["detect"])
-        if not is_inst and item["flat"]:
-            is_inst = all(fid in probe.flatpaks for fid in item["flat"])
-        entry = CategoryAppEntry(
-            key=item["key"],
-            label=msg(f"app_{item['key'].replace('-', '_')}"),
-            checked=False,
-            installed=is_inst,
-            source_tag="Flatpak" if item["flat"] else "",
-        )
-        grouped.setdefault(item["category"] or "other", []).append(entry)
-
-    # Discovery is name-sorted: categories and entries inside each group
-    # are both plain alphabetical — zero curated order to maintain.
-    cat_order = sorted(grouped)
-
-    cat_groups = [
-        CategoryGroup(key=cat, label=msg(f"apps_cat_{cat}"), entries=grouped[cat])
-        for cat in cat_order
-    ]
-
-    chk = CategoryCheckboxList("opt_apps_menu_title", cat_groups, hint_key="opt_apps_menu_hint")
-    chosen = chk.run()
-    if chosen:
-        install_optional_apps(chosen)
-    else:
-        print(msg("opt_apps_none_selected"))
-    return True

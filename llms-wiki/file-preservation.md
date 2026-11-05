@@ -11,7 +11,7 @@
 
 1. **名字含 `__custom__`** → 用户的（Dunder walk，机制 1）
 2. **在 manifest `preserve` 列表** → 运行时管的（机制 2）
-3. **其余文件对照账本基线**（该单元 ledger `files`，即引擎上次铺设的哈希）——
+3. **其余文件对照账本基线**（该插件 ledger `files`，即引擎上次铺设的哈希）——
    **领地按账本划，不按 payload 划**：
    - 基线有此路径 + dest == 基线 + 这次 payload 也不含 → 引擎这次不再铺设
      （钩子产物正是此类）→ **随 swap 消失，钩子重放重铺**（KM3 语义恢复：
@@ -20,7 +20,7 @@
    - dest == 新模板内容 → 已是目标态，无事可做
    - 基线有此路径但 dest != 基线 → **用户改过 → 原样搬入**（报"你的改动"）
    - 基线没有此路径 → 用户自放 → **原样搬入**（报"用户文件"）
-   - 整单元无账本记录（Ghost）→ 来源不明 → update 立场**原样搬入**
+   - 整插件无账本记录（Ghost）→ 来源不明 → update 立场**原样搬入**
      （报"来源不明"，宁可错保）；install/`on` 是收编立场，payload 名字归引擎
 
 `__pycache__` 与 `*.pyc` 在两侧 walk 一律剪除——字节码缓存既非模板产物亦非用户
@@ -28,19 +28,19 @@
 
 两条不变式：
 - **账本只记引擎铺设的模板产物**，搬入的文件永不入账——否则下次部署会把它当
-  "引擎铺设过且未被动过"的文件覆盖掉，账本自吞用户数据（详见 unit-model.md §3）。
+  "引擎铺设过且未被动过"的文件覆盖掉，账本自吞用户数据（详见 plugin-model.md §3）。
 - **所有权只经 `on` 增长**。`update` 永不把新路径登记为受管；`update --force`
   是唯一的"模板优先"动词（payload 名字全部采纳 + 重登记清账），但它不是清剿——
   用户自放文件在 force 下照样搬入。
 
 零交互是刻意的：宁可错保，不可错删；报告按判定分组全量交底（受保护文件 /
-你的改动 / 用户文件 / 来源不明各自成节），不做中途确认弹窗。Ghost 单元由
-update 报告逐单元提示 `nyxuri on <unit>` 收编。
+你的改动 / 用户文件 / 来源不明各自成节），不做中途确认弹窗。Ghost 插件由
+update 报告逐插件提示 `nyxuri on <plugin>` 收编。
 
 ## 机制 1：Dunder `__custom__`（模板预留槽的命名约定）
 
 `atomic_replace_item` 在 swap 前扫描 **dest** 里所有名字含 `__custom__` 的文件和目录
-（任意深度），把它们的当前内容继承进新部署的 tmp 目录。与 src 是哪个预设**无关**——
+（任意深度），把它们的当前内容继承进新部署的 tmp 目录。与 src 是哪个形态**无关**——
 不管切到 transparent 还是 default，dest 里的 `__custom__` 都原样保留。
 `preserve_custom=False` 是回滚的精确恢复模式，不继承当前配置的自定义内容。
 
@@ -110,18 +110,20 @@ manifest 的 `preserve_values` 可在保留新模板其他内容的同时，携�
 
 ## 存储路径与命名边界
 
-Nyxuri 元数据只许在 `~/.config/nyxuri/`（backups、presets、active 状态、hooks）。
+Nyxuri 元数据只许在 `~/.config/nyxuri/`（backups、用户形态、hooks）。
 `~/.config/<app>/` 里不塞 Nyxuri 自己的东西——`__custom__` 是约定保留名，属 app 配置一部分，
 不算"拉屎"。`manifest.toml` 是仓库元数据，deploy 时被 `_deploy_ignore_factory` 跳过，不进 dest。
 
 ## 动词语义表（谁传什么立场）
 
-| 调用方 | carry | 基线 | unknown 立场 |
-|---|---|---|---|
-| `update`（普通） | ✓ | 账本 | True（宁可错保，Ghost 冻结 + 提示） |
-| `update --force` | ✓ | 无 | False（模板认领 payload 名，自放文件仍搬入） |
-| `install` / `on` | ✓ | 账本 | False（收编：payload 名归引擎，自放文件搬入） |
-| `nyxuri test` | ✓ | 账本 | False（"对齐仓库"语义，含硬件中立清洗） |
-| 预设切换 / 零件切换 / 回滚 | ✗ | — | 原样模板替换（显式选择/精确还原；回滚另传 `preserve_custom=False`） |
+| 调用方 | carry | 基线 | unknown 立场 | Dunder 保留 (`preserve_custom`) |
+|---|---|---|---|---|
+| `update`（普通） | ✓ | 账本 | True（宁可错保，Ghost 冻结 + 提示） | ✓ |
+| `update --force` | ✓ | 无 | False（模板认领 payload 名，自放文件仍搬入） | ✓ |
+| `install` / `on` | ✓ | 账本 | False（收编：payload 名归引擎，自放文件搬入） | ✓ |
+| `nyxuri test` | ✓ | 账本 | False（"对齐仓库"语义，含硬件中立清洗） | ✓ |
+| `rollback`（默认精确恢复，#56） | ✗ | — | 纯快照还原 | ✗（历史快照覆盖实机，零穿透） |
+| `rollback --keep-custom`（显式保留，#56） | ✗ | — | 快照还原 + 显式保留 | ✓（当前 `__custom__` 搬入新树并报告） |
+| 形态切换（整型轴 / 槽位轴） | ✗ | — | 原样模板替换（显式选择形态） | ✓ |
 
 原语默认 `carry=False`：裸调用保持纯模板替换语义，工作流显式选择立场。

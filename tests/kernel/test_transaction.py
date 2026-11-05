@@ -22,25 +22,26 @@ from unittest.mock import patch
 
 
 def _stage(ctx, spec):
-    """Create unit dirs under a temp units_src and point the env at it.
+    """Create plugin dirs under a temp plugins_src and point the env at it.
 
-    spec maps unit id -> {"manifest": toml text | None, "files": {rel: content}}.
+    spec maps plugin id -> {"manifest": toml text | None, "files": {rel: content}}.
     """
     configs = ctx.home / "configs-src"
     configs.mkdir(exist_ok=True)
     for uid, entry in spec.items():
-        unit = configs / uid
-        unit.mkdir(exist_ok=True)
+        plugin = configs / uid
+        plugin.mkdir(exist_ok=True)
         if entry.get("manifest") is not None:
-            (unit / "manifest.toml").write_text(entry["manifest"], encoding="utf-8")
+            text = f'schemaVersion = 1\nid = "{uid}"\nkinds = ["config"]\n' + entry["manifest"]
+            (plugin / "manifest.toml").write_text(text, encoding="utf-8")
         for rel, content in entry.get("files", {}).items():
-            p = unit / rel
+            p = plugin / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content, encoding="utf-8")
-    ctx.env.units_src = configs
+    ctx.env.plugins_src = configs
 
 
-class TestUnitOn(unittest.TestCase):
+class TestPluginOn(unittest.TestCase):
     """Enable transaction: resolve → preflight → swap → ledger → event."""
 
     def setUp(self):
@@ -53,14 +54,14 @@ class TestUnitOn(unittest.TestCase):
     def test_on_deploys_and_records_five_fields(self):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"kitty.conf": "font_size 11\n"}}})
-            steps = transaction.unit_on("kitty")
+            steps = transaction.plugin_on("kitty")
             self.assertEqual([s.ok for s in steps], [True], str(steps))
             dest = ctx.home / ".config/kitty/kitty.conf"
             self.assertTrue(dest.is_file())
-            rec = ledger.get_unit("kitty")
-            self.assertEqual(set(rec), {"state", "preset", "files", "vault", "updated"})
+            rec = ledger.get_plugin("kitty")
+            self.assertEqual(set(rec), {"state", "form", "files", "vault", "updated"})
             self.assertEqual(rec["state"], "enabled")
-            self.assertEqual(rec["preset"], "default")
+            self.assertEqual(rec["form"], "default")
             self.assertIsNone(rec["vault"])
             self.assertEqual(
                 rec["files"], {"kitty.conf": hashlib.sha256(dest.read_bytes()).hexdigest()}
@@ -73,19 +74,19 @@ class TestUnitOn(unittest.TestCase):
                 "base": {"files": {"b.conf": "b"}},
             })
             order = []
-            real = ledger.set_unit
+            real = ledger.set_plugin
 
-            def spy(unit_id, **kw):
-                order.append(unit_id)
-                return real(unit_id, **kw)
+            def spy(plugin_id, **kw):
+                order.append(plugin_id)
+                return real(plugin_id, **kw)
 
-            with mock.patch.object(ledger, "set_unit", spy):
-                steps = transaction.unit_on("shell")
+            with mock.patch.object(ledger, "set_plugin", spy):
+                steps = transaction.plugin_on("shell")
             self.assertTrue(all(s.ok for s in steps), str(steps))
             self.assertEqual(order, ["base", "shell"])
             self.assertTrue((ctx.home / ".config/base/b.conf").is_file())
             self.assertTrue((ctx.home / ".config/shell/s.conf").is_file())
-            self.assertEqual(ledger.get_unit("base")["state"], "enabled")
+            self.assertEqual(ledger.get_plugin("base")["state"], "enabled")
 
     def test_on_missing_packages_aborts_without_touching_machine(self):
         with TempEnv() as ctx:
@@ -93,12 +94,12 @@ class TestUnitOn(unittest.TestCase):
                                  "files": {"a.conf": "a"}}})
             with mock.patch.object(transaction, "missing_packages",
                                    return_value=["missing-pkg"]):
-                steps = transaction.unit_on("app")
+                steps = transaction.plugin_on("app")
             self.assertFalse(steps[0].ok)
             self.assertIn("missing-packages", steps[0].detail)
             self.assertIn("missing-pkg", steps[0].detail)
             self.assertFalse((ctx.home / ".config/app").exists())
-            self.assertIsNone(ledger.get_unit("app"))
+            self.assertIsNone(ledger.get_plugin("app"))
 
     def test_on_injected_installer_unblocks_preflight(self):
         with TempEnv() as ctx:
@@ -112,7 +113,7 @@ class TestUnitOn(unittest.TestCase):
 
             with mock.patch.object(transaction, "missing_packages",
                                    side_effect=[["missing-pkg"], []]):
-                steps = transaction.unit_on("app", install_packages=installer)
+                steps = transaction.plugin_on("app", install_packages=installer)
             self.assertTrue(steps[0].ok, str(steps))
             self.assertEqual(calls, [("app", ["missing-pkg"])])
             self.assertTrue((ctx.home / ".config/app/a.conf").is_file())
@@ -120,44 +121,44 @@ class TestUnitOn(unittest.TestCase):
     def test_on_already_enabled_is_noop(self):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"kitty.conf": "x"}}})
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             with mock.patch.object(transaction, "_phase_atomic_deployment",
                                    wraps=transaction._phase_atomic_deployment) as dep:
-                steps = transaction.unit_on("kitty")
+                steps = transaction.plugin_on("kitty")
             self.assertEqual(steps[0].detail, "already-enabled")
             dep.assert_not_called()
 
     def test_on_single_file_unit_roundtrip(self):
-        """target= units ride the same transaction (deploy.py result-binding fix)."""
+        """target= plugins ride the same transaction (deploy.py result-binding fix)."""
         with TempEnv() as ctx:
             _stage(ctx, {"starship": {"manifest": 'target = "starship.toml"\n',
                                       "files": {"starship.toml": "$schema\n"}}})
-            steps = transaction.unit_on("starship")
+            steps = transaction.plugin_on("starship")
             self.assertTrue(steps[0].ok, str(steps))
             dest = ctx.home / ".config/starship.toml"
             self.assertTrue(dest.is_file())
-            rec = ledger.get_unit("starship")
+            rec = ledger.get_plugin("starship")
             self.assertEqual(set(rec["files"]), {"starship.toml"})
-            self.assertEqual(transaction.audit_units("starship"), {"starship": "Synced"})
-            steps = transaction.unit_off("starship")
+            self.assertEqual(transaction.audit_plugins("starship"), {"starship": "Synced"})
+            steps = transaction.plugin_off("starship")
             self.assertTrue(steps[0].ok, str(steps))
             self.assertFalse(dest.exists())
-            self.assertEqual(ledger.get_unit("starship")["state"], "disabled")
+            self.assertEqual(ledger.get_plugin("starship")["state"], "disabled")
 
     def test_unknown_unit_raises(self):
         with TempEnv() as ctx:
             _stage(ctx, {})
             with self.assertRaises(KeyError):
-                transaction.unit_on("ghost")
+                transaction.plugin_on("ghost")
             with self.assertRaises(KeyError):
-                transaction.unit_off("ghost")
+                transaction.plugin_off("ghost")
 
 
-class TestUnitOff(unittest.TestCase):
+class TestPluginOff(unittest.TestCase):
     """Disable transaction: guard → vault in → white-paper wipe → ledger."""
 
     def setUp(self):
-        # unit_on setup steps must not depend on host package state either.
+        # plugin_on setup steps must not depend on host package state either.
         patcher = mock.patch.object(transaction, "missing_packages", return_value=[])
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -168,17 +169,17 @@ class TestUnitOff(unittest.TestCase):
                 "manifest": 'preserve = ["monitor.kdl"]\n',
                 "files": {"niri.conf": "spawn {}\n", "monitor.kdl": "output eDP-1\n"},
             }})
-            transaction.unit_on("niri")
+            transaction.plugin_on("niri")
             dest = ctx.home / ".config/niri"
             (dest / "theme__custom__.conf").write_text("my own\n")
             (dest / "monitor.kdl").write_text("output eDP-1 position 0 0\n")
-            steps = transaction.unit_off("niri")
+            steps = transaction.plugin_off("niri")
             self.assertTrue(steps[0].ok, str(steps))
             self.assertFalse(dest.exists(), "enabled area must be wiped to white paper")
             vault = ctx.home / ".local/state/nyxuri/vault/niri"
             self.assertEqual((vault / "theme__custom__.conf").read_text(), "my own\n")
             self.assertEqual((vault / "monitor.kdl").read_text(), "output eDP-1 position 0 0\n")
-            rec = ledger.get_unit("niri")
+            rec = ledger.get_plugin("niri")
             self.assertEqual(rec["state"], "disabled")
             self.assertEqual(rec["files"], {})
             self.assertTrue(rec["vault"].endswith("vault/niri"))
@@ -190,13 +191,13 @@ class TestUnitOff(unittest.TestCase):
                 "shell": {"manifest": 'dependencies = ["base"]\n', "files": {"s.conf": "s"}},
                 "base": {"files": {"b.conf": "b"}},
             })
-            transaction.unit_on("panel")
-            steps = transaction.unit_off("base")
+            transaction.plugin_on("panel")
+            steps = transaction.plugin_off("base")
             self.assertFalse(steps[0].ok)
             self.assertIn("blocked-by-enabled-dependents", steps[0].detail)
             self.assertIn("panel", steps[0].detail)
             self.assertIn("shell", steps[0].detail)
-            self.assertEqual(ledger.get_unit("base")["state"], "enabled")
+            self.assertEqual(ledger.get_plugin("base")["state"], "enabled")
             self.assertTrue((ctx.home / ".config/base/b.conf").is_file())
 
     def test_off_cascade_disables_dependents_first(self):
@@ -206,34 +207,34 @@ class TestUnitOff(unittest.TestCase):
                 "shell": {"manifest": 'dependencies = ["base"]\n', "files": {"s.conf": "s"}},
                 "base": {"files": {"b.conf": "b"}},
             })
-            transaction.unit_on("panel")
+            transaction.plugin_on("panel")
             order = []
-            real = ledger.set_unit
+            real = ledger.set_plugin
 
-            def spy(unit_id, **kw):
-                order.append(unit_id)
-                return real(unit_id, **kw)
+            def spy(plugin_id, **kw):
+                order.append(plugin_id)
+                return real(plugin_id, **kw)
 
-            with mock.patch.object(ledger, "set_unit", spy):
-                steps = transaction.unit_off("base", cascade=True)
+            with mock.patch.object(ledger, "set_plugin", spy):
+                steps = transaction.plugin_off("base", cascade=True)
             self.assertTrue(all(s.ok for s in steps), str(steps))
             self.assertEqual(order, ["panel", "shell", "base"])
             for uid in ("panel", "shell", "base"):
-                self.assertEqual(ledger.get_unit(uid)["state"], "disabled")
+                self.assertEqual(ledger.get_plugin(uid)["state"], "disabled")
                 self.assertFalse((ctx.home / f".config/{uid}").exists())
 
     def test_off_survives_foreign_files_and_reports_them(self):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"k.conf": "x"}}})
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             dest = ctx.home / ".config/kitty"
             (dest / "my-notes.txt").write_text("keep me\n")
-            steps = transaction.unit_off("kitty")
+            steps = transaction.plugin_off("kitty")
             self.assertTrue(steps[0].ok)
             self.assertIn("foreign-left: my-notes.txt", steps[0].detail)
             self.assertTrue((dest / "my-notes.txt").is_file(), "user files must never be eaten")
             self.assertFalse((dest / "k.conf").exists())
-            self.assertEqual(transaction.audit_units("kitty"), {"kitty": "Ghost"})
+            self.assertEqual(transaction.audit_plugins("kitty"), {"kitty": "Ghost"})
 
     def test_off_without_ledger_wipes_blueprint_keeps_foreign(self):
         """No snapshot: blueprint-named files are withdrawn, foreign survive.
@@ -248,20 +249,20 @@ class TestUnitOff(unittest.TestCase):
             dest.mkdir(parents=True)
             (dest / "k.conf").write_text("deployed by old installer\n")
             (dest / "my-notes.txt").write_text("keep me\n")
-            steps = transaction.unit_off("kitty")
+            steps = transaction.plugin_off("kitty")
             self.assertTrue(steps[0].ok)
             self.assertFalse((dest / "k.conf").exists(), "blueprint-named files are ours to withdraw")
             self.assertTrue((dest / "my-notes.txt").is_file(), "user files must never be eaten")
             self.assertIn("foreign-left: my-notes.txt", steps[0].detail)
 
     def test_off_never_eats_unregistered_single_file(self):
-        """Single-file unit: a dest file outside the managed snapshot survives."""
+        """Single-file plugin: a dest file outside the managed snapshot survives."""
         with TempEnv() as ctx:
             _stage(ctx, {"starship": {"manifest": 'target = "starship.toml"\n',
                                       "files": {"starship.toml": "$schema\n"}}})
             dest = ctx.home / ".config/starship.toml"
             dest.write_text("user's own\n", encoding="utf-8")
-            steps = transaction.unit_off("starship")
+            steps = transaction.plugin_off("starship")
             self.assertTrue(steps[0].ok)
             self.assertIn("foreign-left: starship.toml", steps[0].detail)
             self.assertEqual(dest.read_text(), "user's own\n")
@@ -274,22 +275,22 @@ class TestUnitOff(unittest.TestCase):
                 "manifest": 'preserve = ["functions"]\n',
                 "files": {"config.fish": "set -x PATH\n"},
             }})
-            transaction.unit_on("fish")
+            transaction.plugin_on("fish")
             dest = ctx.home / ".config/fish"
             (dest / "functions/fisher.fish").parent.mkdir(parents=True)
             (dest / "functions/fisher.fish").write_text("plugin\n", encoding="utf-8")
             self.assertTrue(
                 transaction._is_user_owned("functions/fisher.fish",
-                                           transaction.registry.load_unit("fish")),
+                                           transaction.registry.load_plugin("fish")),
                 "every file under a preserved directory is user-owned by prefix")
 
-            steps = transaction.unit_off("fish")
+            steps = transaction.plugin_off("fish")
             self.assertTrue(steps[0].ok, str(steps))
             vault = ctx.home / ".local/state/nyxuri/vault/fish"
             self.assertEqual((vault / "functions/fisher.fish").read_text(), "plugin\n")
             self.assertFalse(dest.exists())
 
-            transaction.unit_on("fish")
+            transaction.plugin_on("fish")
             self.assertEqual((dest / "functions/fisher.fish").read_text(), "plugin\n",
                              "the preserved tree must ride the Vault back")
 
@@ -297,35 +298,35 @@ class TestUnitOff(unittest.TestCase):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"k.conf": "x"}}})
             dest = ctx.home / ".config/kitty"
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             (dest / "theme__custom__.conf").write_text("v1\n")
-            transaction.unit_off("kitty")
+            transaction.plugin_off("kitty")
             self.assertFalse((dest / "theme__custom__.conf").exists())
-            steps = transaction.unit_on("kitty")
+            steps = transaction.plugin_on("kitty")
             self.assertTrue(steps[0].ok, str(steps))
             self.assertEqual((dest / "theme__custom__.conf").read_text(), "v1\n")
             vault = ctx.home / ".local/state/nyxuri/vault/kitty"
             self.assertFalse(vault.exists(), "archive must be consumed on restore")
-            rec = ledger.get_unit("kitty")
+            rec = ledger.get_plugin("kitty")
             self.assertEqual(rec["state"], "enabled")
             self.assertIsNone(rec["vault"])
             # deleted customs stay deleted: an empty archive must not resurrect
             (dest / "theme__custom__.conf").unlink()
-            transaction.unit_off("kitty")
-            transaction.unit_on("kitty")
+            transaction.plugin_off("kitty")
+            transaction.plugin_on("kitty")
             self.assertFalse((dest / "theme__custom__.conf").exists())
 
     def test_off_never_enabled_is_noop(self):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"k.conf": "x"}}})
-            steps = transaction.unit_off("kitty")
+            steps = transaction.plugin_off("kitty")
             self.assertEqual(steps[0].detail, "already-disabled")
-            self.assertIsNone(ledger.get_unit("kitty"))
+            self.assertIsNone(ledger.get_plugin("kitty"))
 
 
 class TestOwnershipCarryLedger(unittest.TestCase):
     """Ledger doctrine (#139): the ledger records what the engine laid,
-    never what it carried. Update re-baselines through ``resnapshot_units``;
+    never what it carried. Update re-baselines through ``resnapshot_plugins``;
     ``on`` is adoption (payload names claimed, extras stay user-owned)."""
 
     def setUp(self):
@@ -333,8 +334,8 @@ class TestOwnershipCarryLedger(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _make_hook(self, unit_dir: Path, name: str, body: str) -> Path:
-        hooks = unit_dir / "hooks"
+    def _make_hook(self, plugin_dir: Path, name: str, body: str) -> Path:
+        hooks = plugin_dir / "hooks"
         hooks.mkdir(exist_ok=True)
         script = hooks / name
         script.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
@@ -347,10 +348,10 @@ class TestOwnershipCarryLedger(unittest.TestCase):
                 "kitty": {"files": {"k.conf": "x"}},
                 "fish": {"files": {"f.conf": "y"}},
             })
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             baselines = transaction.carry_baselines(["kitty", "fish"])
             self.assertEqual(set(baselines["kitty"]), {"k.conf"})
-            self.assertIsNone(baselines["fish"], "Ghost units have no baseline")
+            self.assertIsNone(baselines["fish"], "Ghost plugins have no baseline")
 
     def test_on_adopts_claiming_payload_and_keeps_extras(self):
         with TempEnv() as ctx:
@@ -359,28 +360,28 @@ class TestOwnershipCarryLedger(unittest.TestCase):
             dest.mkdir(parents=True)
             (dest / "a.conf").write_text("user's own take\n", encoding="utf-8")
             (dest / "extra.conf").write_text("user's tool\n", encoding="utf-8")
-            steps = transaction.unit_on("app")
+            steps = transaction.plugin_on("app")
             self.assertTrue(steps[0].ok, str(steps))
             # Adoption: the engine claims its payload name…
             self.assertEqual((dest / "a.conf").read_text(), "template\n")
             # …and the user's extra file survives as user-owned.
             self.assertEqual((dest / "extra.conf").read_text(), "user's tool\n")
-            rec = ledger.get_unit("app")
+            rec = ledger.get_plugin("app")
             self.assertEqual(set(rec["files"]), {"a.conf"},
                              "carried extras must never enter the snapshot")
-            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+            self.assertEqual(transaction.audit_plugins("app"), {"app": "Synced"})
 
     def test_update_carry_then_resnapshot_rebaselines_laid_only(self):
         from nyxuri.deploy.atomic import CarryPolicy
 
         with TempEnv() as ctx:
             _stage(ctx, {"app": {"files": {"a.conf": "v1\n"}}})
-            transaction.unit_on("app")
+            transaction.plugin_on("app")
             dest = ctx.home / ".config/app"
             (dest / "a.conf").write_text("my edit\n", encoding="utf-8")
             (dest / "extra.conf").write_text("user's tool\n", encoding="utf-8")
             # Template moves on (the repo pull).
-            (ctx.env.units_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
+            (ctx.env.plugins_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
 
             policy = CarryPolicy(
                 baselines=transaction.carry_baselines(["app"]), unknown=True
@@ -392,20 +393,20 @@ class TestOwnershipCarryLedger(unittest.TestCase):
             self.assertEqual(policy.carried["app"]["a.conf"], "modified")
             self.assertEqual(policy.carried["app"]["extra.conf"], "user")
 
-            transaction.resnapshot_units(["app"], policy.carried)
-            rec = ledger.get_unit("app")
+            transaction.resnapshot_plugins(["app"], policy.carried)
+            rec = ledger.get_plugin("app")
             self.assertNotIn("a.conf", rec["files"],
                              "a carried file must never read as engine-laid")
             self.assertNotIn("extra.conf", rec["files"])
             # Drift is judged per ledger entry, so carried files are not noise.
-            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+            self.assertEqual(transaction.audit_plugins("app"), {"app": "Synced"})
 
             # Force is the adopt verb: template side wins and is re-baselined.
             self.assertNotIn("app", transaction._phase_atomic_deployment(["app"]))
-            transaction.resnapshot_units(["app"], carried={})
+            transaction.resnapshot_plugins(["app"], carried={})
             self.assertEqual((dest / "a.conf").read_text(), "v2\n")
             self.assertEqual(
-                ledger.get_unit("app")["files"]["a.conf"],
+                ledger.get_plugin("app")["files"]["a.conf"],
                 hashlib.sha256((dest / "a.conf").read_bytes()).hexdigest(),
             )
 
@@ -418,15 +419,15 @@ class TestOwnershipCarryLedger(unittest.TestCase):
             _stage(ctx, {"app": {"manifest": 'packages = []\npost_install = "seed"\n',
                                  "files": {"a.conf": "v1\n"}}})
             self._make_hook(
-                ctx.env.units_src / "app", "seed",
+                ctx.env.plugins_src / "app", "seed",
                 'printf "hooked\\n" > "$NYXURI_UNIT_DEST/hooked.conf"',
             )
-            self.assertTrue(transaction.unit_on("app")[0].ok)
+            self.assertTrue(transaction.plugin_on("app")[0].ok)
             dest = ctx.home / ".config/app"
-            self.assertIn("hooked.conf", ledger.get_unit("app")["files"])
+            self.assertIn("hooked.conf", ledger.get_plugin("app")["files"])
 
             # Template moves on; the payload still has no hooked.conf.
-            (ctx.env.units_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
+            (ctx.env.plugins_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
             from nyxuri.deploy.atomic import CarryPolicy
             policy = CarryPolicy(
                 baselines=transaction.carry_baselines(["app"]), unknown=True
@@ -437,22 +438,22 @@ class TestOwnershipCarryLedger(unittest.TestCase):
             self.assertEqual(policy.carried.get("app"), {})
 
             # Hook replay re-lays it; resnapshot re-owns it.
-            self.assertTrue(transaction._run_unit_hook(
-                "app", transaction.registry.load_unit("app"), "seed"))
-            transaction.resnapshot_units(["app"], policy.carried)
-            self.assertIn("hooked.conf", ledger.get_unit("app")["files"])
-            self.assertEqual(transaction.audit_units("app"), {"app": "Synced"})
+            self.assertTrue(transaction._run_plugin_hook(
+                "app", transaction.registry.load_plugin("app"), "seed"))
+            transaction.resnapshot_plugins(["app"], policy.carried)
+            self.assertIn("hooked.conf", ledger.get_plugin("app")["files"])
+            self.assertEqual(transaction.audit_plugins("app"), {"app": "Synced"})
 
     def test_preset_switch_on_enabled_unit_respects_baseline(self):
-        """A re-deploy over an enabled unit carries edits made after `on`."""
+        """A re-deploy over an enabled plugin carries edits made after `on`."""
         from nyxuri.deploy.atomic import CarryPolicy
 
         with TempEnv() as ctx:
             _stage(ctx, {"app": {"files": {"a.conf": "v1\n"}}})
-            transaction.unit_on("app")
+            transaction.plugin_on("app")
             dest = ctx.home / ".config/app"
             (dest / "a.conf").write_text("tuned\n", encoding="utf-8")
-            (ctx.env.units_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
+            (ctx.env.plugins_src / "app" / "a.conf").write_text("v2\n", encoding="utf-8")
             policy = CarryPolicy(
                 baselines=transaction.carry_baselines(["app"]), unknown=False
             )
@@ -475,49 +476,49 @@ class TestAudit(unittest.TestCase):
                 "kitty": {"files": {"k.conf": "x"}},
                 "fish": {"files": {"f.conf": "y"}},
             })
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             (ctx.home / ".config/kitty/k.conf").write_text("tampered\n")
             fish_dir = ctx.home / ".config/fish"
             fish_dir.mkdir()
             (fish_dir / "f.conf").write_text("residue\n")
-            report = transaction.audit_units()
+            report = transaction.audit_plugins()
             self.assertEqual(report["kitty"], "Drifted")
             self.assertEqual(report["fish"], "Ghost")
             # healed → Synced
             (ctx.home / ".config/kitty/k.conf").write_text("x")
-            self.assertEqual(transaction.audit_units("kitty"), {"kitty": "Synced"})
+            self.assertEqual(transaction.audit_plugins("kitty"), {"kitty": "Synced"})
             # off + white paper → declaration matches reality → Synced
-            transaction.unit_off("kitty")
-            self.assertEqual(transaction.audit_units("kitty"), {"kitty": "Synced"})
-            # never-switched white units have nothing to reconcile
+            transaction.plugin_off("kitty")
+            self.assertEqual(transaction.audit_plugins("kitty"), {"kitty": "Synced"})
+            # never-switched white plugins have nothing to reconcile
             _stage(ctx, {"bare": {"files": {"b.conf": "b"}}})
-            self.assertNotIn("bare", transaction.audit_units())
+            self.assertNotIn("bare", transaction.audit_plugins())
 
     def test_missing_managed_file_is_drifted(self):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"k.conf": "x"}}})
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             (ctx.home / ".config/kitty/k.conf").unlink()
-            self.assertEqual(transaction.audit_units("kitty"), {"kitty": "Drifted"})
+            self.assertEqual(transaction.audit_plugins("kitty"), {"kitty": "Drifted"})
 
     def test_audit_unknown_unit_raises(self):
         with TempEnv() as ctx:
             _stage(ctx, {})
             with self.assertRaises(KeyError):
-                transaction.audit_units("ghost")
+                transaction.audit_plugins("ghost")
 
     def test_audit_is_read_only(self):
         with TempEnv() as ctx:
             _stage(ctx, {"kitty": {"files": {"k.conf": "x"}}})
-            transaction.unit_on("kitty")
+            transaction.plugin_on("kitty")
             state_path = ctx.home / ".local/state/nyxuri/state.json"
             before = state_path.read_text()
-            transaction.audit_units()
+            transaction.audit_plugins()
             self.assertEqual(state_path.read_text(), before)
 
 
 class TestEventPort(unittest.TestCase):
-    """One unit-changed event per ledger landing; sink failure never fails."""
+    """One plugin-changed event per ledger landing; sink failure never fails."""
 
     def setUp(self):
         patcher = mock.patch.object(transaction, "missing_packages", return_value=[])
@@ -533,8 +534,8 @@ class TestEventPort(unittest.TestCase):
             events = []
             transaction.set_event_sink(lambda uid, state: events.append((uid, state)))
             try:
-                transaction.unit_on("shell")
-                transaction.unit_off("base", cascade=True)
+                transaction.plugin_on("shell")
+                transaction.plugin_off("base", cascade=True)
             finally:
                 transaction.set_event_sink(None)
             self.assertEqual(events, [
@@ -553,12 +554,12 @@ class TestEventPort(unittest.TestCase):
 
             transaction.set_event_sink(boom)
             try:
-                steps = transaction.unit_on("kitty")
+                steps = transaction.plugin_on("kitty")
             finally:
                 transaction.set_event_sink(None)
             self.assertTrue(steps[0].ok, str(steps))
             self.assertTrue((ctx.home / ".config/kitty/k.conf").is_file())
-            self.assertEqual(ledger.get_unit("kitty")["state"], "enabled")
+            self.assertEqual(ledger.get_plugin("kitty")["state"], "enabled")
 
 
 def _imported_modules(text: str) -> set:
@@ -577,7 +578,7 @@ def _imported_modules(text: str) -> set:
 
 
 class TestKernelLayering(unittest.TestCase):
-    """The frozen star layering (unit-model.md §2) holds on every commit."""
+    """The frozen star layering (plugin-model.md §2) holds on every commit."""
 
     def _source(self, name: str) -> str:
         kernel = Path(importlib.import_module("nyxuri").__file__).parent / "kernel"
@@ -625,11 +626,11 @@ class TestKernelLayering(unittest.TestCase):
                 self.assertNotIn("quickshell", node.value.lower())
 
 
-class TestUnitHooks(unittest.TestCase):
-    """KM3 hook contract: unit-owned scripts, declared in the manifest.
+class TestPluginHooks(unittest.TestCase):
+    """KM3 hook contract: plugin-owned scripts, declared in the manifest.
 
     - post_install runs BEFORE the ledger snapshot, so products the hook
-      lands inside the unit's own living area become transaction-managed
+      lands inside the plugin's own living area become transaction-managed
       (``off`` wipes them through the normal white-paper path).
     - post_remove runs AFTER the wipe (effects outside the living area).
     - hooks never ship to the living area and never count as deployable.
@@ -640,8 +641,8 @@ class TestUnitHooks(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _make_hook(self, unit_dir: Path, name: str, body: str) -> Path:
-        hooks = unit_dir / "hooks"
+    def _make_hook(self, plugin_dir: Path, name: str, body: str) -> Path:
+        hooks = plugin_dir / "hooks"
         hooks.mkdir(exist_ok=True)
         script = hooks / name
         script.write_text("#!/bin/sh\n" + body + "\n", encoding="utf-8")
@@ -655,21 +656,21 @@ class TestUnitHooks(unittest.TestCase):
                 "files": {"a.conf": "a"},
             }})
             self._make_hook(
-                ctx.env.units_src / "app", "seed",
+                ctx.env.plugins_src / "app", "seed",
                 'printf "hooked\\n" > "$NYXURI_UNIT_DEST/hooked.conf"',
             )
-            steps = transaction.unit_on("app")
+            steps = transaction.plugin_on("app")
             self.assertTrue(steps[0].ok, str(steps))
             self.assertNotIn("hook-failed", steps[0].detail)
             dest = ctx.home / ".config/app"
             self.assertTrue((dest / "hooked.conf").is_file())
-            rec = ledger.get_unit("app")
+            rec = ledger.get_plugin("app")
             self.assertIn("hooked.conf", rec["files"], "hook products must enter the managed snapshot")
 
     def test_on_hook_failure_surfaces_in_detail_without_blocking(self):
         with TempEnv() as ctx:
             _stage(ctx, {"app": {"manifest": 'post_install = "nope"\n', "files": {"a.conf": "a"}}})
-            steps = transaction.unit_on("app")
+            steps = transaction.plugin_on("app")
             self.assertTrue(steps[0].ok)
             self.assertIn("hook-failed: nope", steps[0].detail)
             self.assertTrue((ctx.home / ".config/app/a.conf").is_file())
@@ -681,15 +682,15 @@ class TestUnitHooks(unittest.TestCase):
                 "files": {"a.conf": "a"},
             }})
             calls = []
-            original = transaction._run_unit_hook
+            original = transaction._run_plugin_hook
 
             def spy(uid, manifest, spec):
                 calls.append((uid, spec, (ctx.home / ".config/app").exists()))
                 return original(uid, manifest, spec)
 
-            with mock.patch.object(transaction, "_run_unit_hook", side_effect=spy):
-                transaction.unit_on("app")
-                steps = transaction.unit_off("app")
+            with mock.patch.object(transaction, "_run_plugin_hook", side_effect=spy):
+                transaction.plugin_on("app")
+                steps = transaction.plugin_off("app")
             self.assertTrue(steps[0].ok, str(steps))
             self.assertEqual(calls[-1], ("app", "clean", False),
                              "post_remove must run after the wipe")
@@ -700,10 +701,10 @@ class TestUnitHooks(unittest.TestCase):
             _stage(ctx, {"app": {"manifest": 'post_install = "identity"\n', "files": {"a.conf": "a"}}})
             marker = ctx.home / "hook-env.txt"
             self._make_hook(
-                ctx.env.units_src / "app", "identity",
+                ctx.env.plugins_src / "app", "identity",
                 f'env | grep -E "^NYXURI_UNIT" > "{marker}"',
             )
-            steps = transaction.unit_on("app")
+            steps = transaction.plugin_on("app")
             self.assertTrue(steps[0].ok, str(steps))
             content = marker.read_text(encoding="utf-8")
             self.assertIn("NYXURI_UNIT=app", content)
@@ -714,14 +715,72 @@ class TestUnitHooks(unittest.TestCase):
         from nyxuri.deploy.manifest import load_manifest
 
         with TempEnv() as ctx:
-            _stage(ctx, {"ghost-unit": {"manifest": 'packages = ["x"]\n'}})
-            self._make_hook(ctx.env.units_src / "ghost-unit", "hook", "true")
-            m = load_manifest(ctx.env.units_src / "ghost-unit")
+            _stage(ctx, {"ghost-plugin": {"manifest": 'packages = ["x"]\n'}})
+            self._make_hook(ctx.env.plugins_src / "ghost-plugin", "hook", "true")
+            m = load_manifest(ctx.env.plugins_src / "ghost-plugin")
             self.assertFalse(m.is_deployable, "manifest + hooks only must stay non-deployable")
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestDeclarationOnlyUnits(unittest.TestCase):
+    """Greeter 形态：仅声明（可选 + 装包 + hooks），无生活区。
+
+    R0-2 的 packages-only 供给面（``deploy = false``）已随常用推荐软件菜单
+    处决——剩下的 declaration-only 单元走同一条事务路径：``on`` = 装包 +
+    落账（无生活区、无 Vault 进出）; ``off`` = 纯落账; doctor 恒 Synced。
+    退役键 ``deploy`` 是解析错误（见 test_manifest）。
+    """
+
+    def setUp(self):
+        patcher = mock.patch.object(transaction, "missing_packages", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_on_installs_packages_and_lands_ledger_without_living_area(self):
+        with TempEnv() as ctx:
+            _stage(ctx, {"declunit": {"manifest": 'optional = true\npackages = ["declunit"]\n'}})
+            calls = []
+            with mock.patch.object(transaction, "missing_packages",
+                                   side_effect=[["declunit"], []]):
+                steps = transaction.plugin_on(
+                    "declunit", install_packages=lambda uid, pkgs: calls.append((uid, pkgs)) or True)
+            self.assertTrue(steps[0].ok, str(steps))
+            self.assertEqual(calls, [("declunit", ["declunit"])])
+            rec = ledger.get_plugin("declunit")
+            self.assertEqual(rec["state"], "enabled")
+            self.assertEqual(rec["files"], {})
+            self.assertIsNone(rec["vault"])
+            self.assertFalse((ctx.home / ".config/declunit").exists(),
+                             "declaration-only units ship no living area")
+            self.assertEqual(transaction.audit_plugins("declunit"), {"declunit": "Synced"})
+            steps = transaction.plugin_off("declunit")
+            self.assertTrue(steps[0].ok)
+            rec = ledger.get_plugin("declunit")
+            self.assertEqual(rec["state"], "disabled")
+            self.assertIsNone(rec["vault"], "nothing was archived — no phantom vault pointer")
+
+    def test_stray_file_flips_content_scan_to_deployable(self):
+        # ``deploy = false`` 的声明否决已死：目录内容即契约，多出的文件会让
+        # 单元变成可部署插件（content scan wins, no veto anymore）。
+        with TempEnv() as ctx:
+            _stage(ctx, {"declunit": {
+                "manifest": 'optional = true\npackages = ["declunit"]\n',
+                "files": {"accident.conf": "x"},
+            }})
+            m = transaction.registry.load_plugin("declunit")
+            self.assertTrue(m.is_deployable,
+                            "a real file makes the unit deployable — the veto key is gone")
+            from nyxuri.deploy.manifest import discover_deployable_apps
+            self.assertIn("declunit", discover_deployable_apps())
+
+    def test_deleted_plugin_ledger_record_audits_ghost(self):
+        # 供给面处决的升级路径：插件目录已从蓝图删除，但账本记录仍在——
+        # doctor 必须报 Ghost，而不是 KeyError 崩溃。
+        with TempEnv() as ctx:
+            ledger.set_plugin("ghostunit", state="enabled", files={}, vault=None)
+            self.assertEqual(transaction.audit_plugins("ghostunit"),
+                             {"ghostunit": "Ghost"})
+            report = transaction.audit_plugins()
+            self.assertEqual(report.get("ghostunit"), "Ghost")
 
 
 class TestLedgerResilience(unittest.TestCase):
@@ -756,3 +815,130 @@ class TestLedgerResilience(unittest.TestCase):
                 os.waitpid(pid, 0)
             data = ledger.read_ledger()
             self.assertEqual([data.get(f"k{i}") for i in range(6)], list(range(6)))
+
+
+class TestR03ActivationPipeline(unittest.TestCase):
+    """R0-3 Single Activation Pipeline regressions (#143, #145, #147, #149)."""
+
+    def setUp(self):
+        patcher = mock.patch.object(transaction, "missing_packages", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_on_renders_templates_into_transaction_issue_143(self):
+        """Issue #143: nyxuri on replaces /home/user templates and snapshots rendered content."""
+        with TempEnv() as ctx:
+            _stage(ctx, {
+                "noctalia": {
+                    "files": {
+                        "noctalia-config.toml": 'directory = "/home/user/图片/Wallpapers"\nvideo_directory = "/home/user/图片/Wallpapers/video"\n',
+                    }
+                }
+            })
+            steps = transaction.plugin_on("noctalia")
+            self.assertTrue(steps[0].ok, str(steps))
+            rendered_path = ctx.home / ".config/noctalia/noctalia-config.toml"
+            self.assertTrue(rendered_path.is_file())
+            content = rendered_path.read_text(encoding="utf-8")
+            self.assertNotIn("/home/user", content, "template placeholder must be rendered during on")
+            self.assertIn(str(ctx.home), content)
+            # Doctor must audit Synced (snapshot matches rendered file)
+            self.assertEqual(transaction.audit_plugins("noctalia"), {"noctalia": "Synced"})
+
+    def test_greeter_hook_only_avoids_invalid_form_warning_issue_147(self):
+        """Issue #147: hook-only units (like greeter) do not trigger invalid form warnings."""
+        with TempEnv() as ctx:
+            _stage(ctx, {
+                "greeter": {
+                    "manifest": 'morphology = "hook-only"\noptional = true\npackages = ["greetd"]\npost_install = "activate"\n',
+                    "hooks": {"activate": "#!/bin/sh\nexit 0\n"},
+                }
+            })
+            steps = transaction.plugin_on("greeter")
+            self.assertTrue(steps[0].ok, str(steps))
+            # No living area created
+            self.assertFalse((ctx.home / ".config/greeter").exists())
+            self.assertEqual(transaction.audit_plugins("greeter"), {"greeter": "Synced"})
+
+    def test_wallpapers_declares_install_pack_issue_145(self):
+        """Issue #145: wallpapers manifest declares install-pack post_install hook."""
+        from nyxuri.kernel import registry
+        m = registry.load_plugin("wallpapers")
+        self.assertEqual(m.post_install, "install-pack")
+
+    def test_installer_workflow_dispatches_transactions_issue_149(self):
+        """Issue #149: installer component selection dispatches transaction.plugin_on."""
+        from nyxuri.installer.workflows import install_configs_workflow
+        with TempEnv() as ctx:
+            _stage(ctx, {
+                "demo_app": {
+                    "manifest": 'packages = ["demo-pkg"]\n',
+                    "files": {"demo.conf": "hello = 1\n"},
+                }
+            })
+            installed_packages = []
+            def fake_installer(uid, pkgs):
+                installed_packages.append((uid, pkgs))
+                return True
+
+            with mock.patch("nyxuri.installer.workflows.run_master_component_menu",
+                            return_value={"configs": ["demo_app"], "wallpapers": False, "backup": False}), \
+                 mock.patch("nyxuri.installer.workflows._finish_successful_deploy"), \
+                 mock.patch("nyxuri.installer.workflows.plugin_package_installer", side_effect=fake_installer), \
+                 mock.patch.object(transaction, "missing_packages", side_effect=lambda m: ["demo-pkg"] if m.id == "demo_app" and not installed_packages else []):
+                ok = install_configs_workflow(mode="config")
+            self.assertTrue(ok)
+            self.assertEqual(installed_packages, [("demo_app", ["demo-pkg"])])
+            self.assertEqual(ledger.get_plugin("demo_app")["state"], "enabled")
+
+    def test_installer_skips_absent_optional_plugins_instead_of_crashing(self):
+        """#149 follow-up: a non-interactive run must not dispatch an optional
+        plugin (wallpapers) that this install does not ship.
+
+        The non-TTY path derives wallpaper intent from the pack's presence on
+        disk, so the target list can name a plugin the registry has never
+        heard of; dispatching it used to raise KeyError mid-install, after the
+        configs were already deployed.
+        """
+        from nyxuri.installer.workflows import install_configs_workflow
+        with TempEnv() as ctx:
+            _stage(ctx, {"demo_app": {"manifest": "", "files": {"demo.conf": "hello = 1\n"}}})
+            self.assertNotIn("wallpapers", transaction.registry.plugin_ids())
+
+            with mock.patch("nyxuri.installer.workflows.wallpapers_pack_present", return_value=False), \
+                 mock.patch("nyxuri.installer.workflows._finish_successful_deploy"), \
+                 mock.patch.object(transaction, "missing_packages", return_value=[]):
+                ok = install_configs_workflow(mode="config")
+
+            self.assertTrue(ok)
+            self.assertEqual(ledger.get_plugin("demo_app")["state"], "enabled")
+            self.assertIsNone(ledger.get_plugin("wallpapers"))
+
+    def test_registry_and_vault_reject_unsafe_ids_r0_4(self):
+        """R0-4: registry and transaction reject traversal or unsafe plugin ids (#48 lesson)."""
+        from nyxuri.kernel import registry
+        with TempEnv() as ctx:
+            _stage(ctx, {"valid": {"files": {"v.conf": "1"}}})
+            self.assertIsNone(registry.plugin_dir(".."))
+            self.assertIsNone(registry.plugin_dir("../../escaped"))
+            self.assertIsNone(registry.plugin_dir("shell/bar"))
+            with self.assertRaises(KeyError):
+                registry.load_plugin("..")
+            with self.assertRaises(KeyError):
+                registry.load_plugin("../../escaped")
+            with self.assertRaises(ValueError):
+                transaction.vault_dir("..")
+            with self.assertRaises(ValueError):
+                transaction.vault_dir("../../escaped")
+
+    def test_hook_script_rejects_unsafe_spec_r0_4(self):
+        """R0-4: plugin hook resolution rejects path traversal."""
+        with TempEnv() as ctx:
+            _stage(ctx, {"app": {"files": {"a.conf": "1"}}})
+            self.assertIsNone(transaction._hook_script("app", "../outside.sh"))
+            self.assertIsNone(transaction._hook_script("app", "/bin/sh"))
+            self.assertIsNone(transaction._hook_script("app", ""))
+
+
+if __name__ == "__main__":
+    unittest.main()

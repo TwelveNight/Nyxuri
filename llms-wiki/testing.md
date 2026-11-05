@@ -9,7 +9,7 @@
 TempEnv 把 HOME 指向 tmpdir、建目录骨架、override `XDG_*` 环境变量、reset `core._ENV` 和
 模块级缓存（core 的 `_PICS_DIR_CACHE`、deploy 的 `_CONFIG_ITEMS_CACHE`、
 manifest 的 `_MANIFEST_CACHE`、deps 的 pacman/fc-list/GI/AUR 助手缓存、greeter 状态缓存）
-防止跨测试泄漏。反例：早期测试把实仓库 `units/niri/config.kdl` 写成桩文件——已修。
+防止跨测试泄漏。反例：早期测试把实仓库 `plugins/niri/config.kdl` 写成桩文件——已修。
 
 ## 验证哲学：纯本地秒级收归，零云端 CI 依赖
 
@@ -37,7 +37,7 @@ argv[0]（shebang 直启下是解释器名，不是脚本名），验证恒假�
 
 | 功能领域 | 契约与测试形状 | 测试文件 |
 |---|---|---|
-| 预设与通用零件插槽 | 四分支解析、写时序、零件热插拔、`_reconcile_active_parts` 防覆写、账本写入 | `tests/deploy/test_preset.py` |
+| 形态机制（整型轴 + 槽位轴） | 四分支解析、写时序、槽位热插拔、单一 apply 路径重放、账本写入 | `tests/deploy/test_forms.py` |
 | 桌面外壳路由与网关 | `active_shell` 路由、自研 Shell 崩溃回退告警、账本记录 | `tests/shell/test_shell.py` |
 | 线性迁移与品牌重命名 | 历史 `NyxNiri` 小写迁移、静态 Tombstone 孤儿清理、软链接自愈 | `tests/deploy/test_migrations.py` |
 | Fcitx5 与输入法生态 | 雾凇方案挂载与预编译、皮肤解耦激活、深浅切换无损跟随、对等卸载 | `tests/desktop/test_fcitx.py` |
@@ -50,7 +50,6 @@ argv[0]（shebang 直启下是解释器名，不是脚本名），验证恒假�
 | 硬件诊断与驱动中立 | PCI 设备分类、默认不强制 NVIDIA 环境变量、跨应用隔离 | `tests/deploy/test_hardware.py` |
 | i18n 完整性约束 | AST 符号 vs `translations.toml`，无孤儿、无缺失，参数对齐 | `tests/test_i18n.py` |
 | 包管理抽象与 Shelly 适配 | 后端分流、超时控制、取消不重试、Shelly 解析 | `tests/pkg/test_pkg.py`, `tests/pkg/test_deps.py` |
-| 划词翻译工具 | 渠道协议与解析、定位几何、ResultRelay、凭据脱敏、TUI（含 PTY）、Alt+E / Orbit 入口契约；经 `tests/tools/translate/support.py` 套 `TempEnv` | `tests/tools/translate/` |
 | 网络弹性 | HTTP 超时、多镜像回退、网络中断软降级 | `tests/pkg/test_network.py` |
 
 ## 验证分级（按需测试，拒绝无谓浪费）
@@ -61,7 +60,7 @@ argv[0]（shebang 直启下是解释器名，不是脚本名），验证恒假�
 - **发版或重大引擎重构全量把关**：
   ```bash
   python3 -m compileall nyxuri                                    # 语法/静态检查
-  bash -n install.sh units/noctalia/*.sh units/niri/scripts/*.sh
+  bash -n install.sh plugins/noctalia/*.sh plugins/niri/scripts/*.sh
   shellcheck install.sh
   python3 -m unittest discover -s tests -q                        # 全量行为契约
   HOME=$(mktemp -d) python3 -m nyxuri test                        # 沙箱隔离部署
@@ -69,3 +68,15 @@ argv[0]（shebang 直启下是解释器名，不是脚本名），验证恒假�
 
 个人分支的无头模板渲染测试固定 gsettings 的深色读取结果，与深色调色板断言一致；
 不从宿主或新 D-Bus 会话的浅色默认值推断主题，运行逻辑不变。
+
+## 同步型测试门禁与对抗性验证（架构重塑卷新增）
+
+- **禁新增「手工同步」型测试**：凡断言两处副本必须人工保持一致的测试（如旧
+  `UnitCatalog.qml` 手写镜像的同步测试）视为伪解耦信号，不予合入；存量此类测试
+  随 S0 改造为构建期代码生成或运行时发现。
+- **宣称必须配对抗性测试**：任何「零宿主改动 / 自动发现」类架构宣称，须以真实
+  临时插件做端到端断言（塞入 → 发现 → 启用 → 移除，全程零宿主文件改动），
+  不得以目录存在或字符串匹配充当证明。
+- **契约宣称配行为断言**：wiki 写明的账本字段语义、状态机分支，测试断到同一级别
+  （范式：`tests/test_ai_specs.py` 的形态契约测试）——链接门禁查得出
+  死链，查不出语义失实。

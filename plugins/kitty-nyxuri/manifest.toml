@@ -1,0 +1,6 @@
+schemaVersion = 1
+id = "kitty-nyxuri"
+kinds = ["config"]
+preserve = ["colors__custom__.conf"]
+
+packages = ["kitty"]

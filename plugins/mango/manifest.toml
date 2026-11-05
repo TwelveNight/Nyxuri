@@ -1,0 +1,13 @@
+# Mango Wayland Compositor manifest
+schemaVersion = 1
+id = "mango"
+kinds = ["config"]
+optional = true
+packages = ["mangowm"]
+label = "Mango WM"
+category = "system"
+preserve = ["monitors.conf", "noctalia.conf"]
+chmod = ["scripts/*.sh", "scripts/*.py"]
+
+[forms]
+reload = ["mmsg", "dispatch", "reload_config"]

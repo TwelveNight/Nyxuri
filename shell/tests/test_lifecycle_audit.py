@@ -51,8 +51,8 @@ class TestLifecycleAudit(unittest.TestCase):
         self.assertIn("LIFE003", codes)
         life003_list = [v for v in violations if v.code == "LIFE003"]
         messages = " ".join(v.message for v in life003_list)
-        self.assertIn("Process is prohibited in shared/", messages)
-        self.assertIn("importing services is prohibited in shared/", messages)
+        self.assertIn("Process is prohibited in commons/ui/", messages)
+        self.assertIn("importing services is prohibited in commons/ui/", messages)
 
     def test_life004_direct_exec(self):
         target = self.fixtures_dir / "invalid" / "life004_direct_exec.qml"
@@ -107,24 +107,36 @@ class TestLifecycleAudit(unittest.TestCase):
         self.assertIn("Forbidden cross-domain import", v.message)
         self.assertIn("Domain 'launcher' cannot import domain 'settings'", v.message)
 
+    def test_arch001_cross_domain_relative_form(self):
+        # S0-2: plugins speak relative directory imports; the cross-domain
+        # gate sees through the path form just the same.
+        target = self.fixtures_dir / "invalid" / "arch001_cross_domain_relative.qml"
+        violations = audit.check_file_violations(
+            target, self.shell_root, force=True, module_domain_override="launcher"
+        )
+        codes = [v.code for v in violations]
+        self.assertIn("ARCH001", codes)
+        v = next(v for v in violations if v.code == "ARCH001")
+        self.assertEqual(v.line_number, 2)
+        self.assertIn("Domain 'launcher' cannot import domain 'settings'", v.message)
+
     def test_excluded_paths(self):
         self.assertTrue(audit.is_path_excluded("references/clavis-15403b9/AppShell.qml"))
         self.assertTrue(audit.is_path_excluded("vendor/somelib/Module.qml"))
         self.assertTrue(audit.is_path_excluded("tests/fixtures/lifecycle/invalid/life001.qml"))
         self.assertTrue(audit.is_path_excluded("build/qml/Module.qml"))
-        self.assertTrue(audit.is_path_excluded("generated/SearchCatalog.js"))
-        self.assertFalse(audit.is_path_excluded("app/services/SystemMonitorService.qml"))
-        self.assertFalse(audit.is_path_excluded("units/bar/Bar.qml"))
-        self.assertFalse(audit.is_path_excluded("shared/controls/RippleButton.qml"))
-        self.assertFalse(audit.is_path_excluded("app/services/I18nService.qml"))
+        self.assertFalse(audit.is_path_excluded("services/SystemMonitorService.qml"))
+        self.assertFalse(audit.is_path_excluded("plugins/bar/Bar.qml"))
+        self.assertFalse(audit.is_path_excluded("ui/RippleButton.qml"))
+        self.assertFalse(audit.is_path_excluded("services/I18nService.qml"))
 
         vendor_fixture = self.fixtures_dir / "excluded" / "vendor" / "IgnoredVendor.qml"
         violations = audit.check_file_violations(vendor_fixture, self.shell_root, force=False)
         self.assertEqual(violations, [], "Excluded vendor files must be ignored without force flag")
 
     def test_stable_sorting(self):
-        v1 = audit.AuditViolation("LIFE002", "units/b.qml", 20, "msg2")
-        v2 = audit.AuditViolation("LIFE001", "units/b.qml", 10, "msg1")
+        v1 = audit.AuditViolation("LIFE002", "plugins/b.qml", 20, "msg2")
+        v2 = audit.AuditViolation("LIFE001", "plugins/b.qml", 10, "msg1")
         v3 = audit.AuditViolation("LIFE004", "app/a.qml", 5, "msg0")
         sorted_list = sorted([v1, v2, v3], key=lambda v: v.to_tuple())
         self.assertEqual(sorted_list, [v3, v2, v1])
@@ -140,7 +152,7 @@ class TestLifecycleAudit(unittest.TestCase):
         self.assertNotIn("NativeConsumer", types)
         self.assertIn("IPC", types)
 
-        i18n_service = self.shell_root / "app" / "services" / "I18nService.qml"
+        i18n_service = self.shell_root / "services" / "I18nService.qml"
         i18n_entries = audit.build_inventory_entry(i18n_service, self.shell_root)
         i18n_types = [e["resource_type"] for e in i18n_entries]
         self.assertNotIn("NativeConsumer", i18n_types)

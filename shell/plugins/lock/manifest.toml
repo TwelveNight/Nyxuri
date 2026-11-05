@@ -1,0 +1,25 @@
+# Shell ui plugin (plugin-model.md §6): runtime-only — the switch lives
+# in the ledger and the running shell projects it; no files ship from here.
+schemaVersion = 1
+id = "shell.lock"
+kinds = ["overlay"]
+label = "Lock Screen"
+order = 90
+
+[entryPoints]
+overlay = "Lock.qml"
+
+# Searchable fixed actions (manifest-schema.md): the search index's
+# include set for this plugin's IPC face.
+
+[[actions]]
+id = "nyxuri:lock:open"
+target = "lock"
+method = "open"
+
+[actions.search]
+title = "Lock screen"
+description = "Lock the current session"
+context = "SpotlightActions"
+icon = "lock"
+aliases = ["lock", "secure"]

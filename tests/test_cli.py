@@ -16,7 +16,7 @@ from tests.utils import TempEnv
 
 class TestRetiredModuleCommands(unittest.TestCase):
     """KM3 execution: module verbs are physically gone; invoking them still
-    points at their unit-verb replacements instead of dying silently."""
+    points at their plugin-verb replacements instead of dying silently."""
 
     def setUp(self):
         self._ctx = TempEnv()
@@ -48,18 +48,22 @@ class TestRetiredModuleCommands(unittest.TestCase):
         with open("nyxuri/cli.py", encoding="utf-8") as fh:
             source = fh.read()
         self.assertNotIn("RETIREMENTS", source, "the alias table must stay dead")
-        retired = ("deploy", "backup", "restore", "remove", "purge", "recommended",
+        retired = ("deploy", "backup", "restore", "purge", "recommended",
                    "wp", "report", "apps", "wallpapers", "greeter", "fcitx",
-                   "gtk", "fisher", "-h", "--help")
+                   "gtk", "fisher", "preset", "-h", "--help")
         for name in retired:
             self.assertNotIn(name, COMMANDS, name)
             code, _, err = self._run(name, "extra")
             self.assertEqual(code, 2, name)
             self.assertNotIn("KM5", err, name)
+        # "remove" left the KM3.5 grave: S1 resurrected it with third-party
+        # plugin lifecycle semantics (operation-map 插件动词表) — a new
+        # surface, not a ghost pointer of the old config-removal verb.
+        self.assertIn("remove", COMMANDS)
 
 
 class TestUpdateForcePath(unittest.TestCase):
-    """update --force deploys wallpapers and replays enabled-unit hooks."""
+    """update --force deploys wallpapers and replays enabled-plugin hooks."""
 
     def setUp(self):
         self._ctx = TempEnv()
@@ -98,12 +102,12 @@ class TestUserHookEntrypoints(unittest.TestCase):
         with patch("nyxuri.installer.workflows.deploy_selected_configs", side_effect=lambda **_: events.append("configs") or []), \
              patch("nyxuri.installer.workflows._enable_wallpapers", side_effect=lambda: events.append("wallpapers") or True), \
              patch("nyxuri.installer.workflows.transaction.replay_enabled_hooks",
-                   side_effect=lambda: events.append("unit-hooks")), \
+                   side_effect=lambda: events.append("plugin-hooks")), \
              patch("nyxuri.installer.workflows.run_user_hooks", side_effect=lambda: events.append("hooks") or []), \
              patch("nyxuri.installer.workflows.render_completion_screen", side_effect=lambda *_, **__: events.append("completion")):
             self.assertTrue(offer_overwrite_upgrade("--force"))
 
-        self.assertEqual(events, ["configs", "wallpapers", "unit-hooks", "hooks", "completion"])
+        self.assertEqual(events, ["configs", "wallpapers", "plugin-hooks", "hooks", "completion"])
 
     def test_failed_and_code_only_updates_skip_hooks(self):
         from nyxuri.installer.workflows import offer_overwrite_upgrade
@@ -369,18 +373,31 @@ class TestDistroGuard(unittest.TestCase):
 
         self.assertTrue(result)  # cancelled-by-user path, not the distro guard
 
-    def test_deps_menu_blocked_without_pacman(self):
-        from nyxuri.installer.menus import deps_menu_loop
+    def test_component_menu_probes_declared_packages(self):
+        """组件菜单对可选插件做已装判定：走声明包名，不再读退役的 detect 字段。
 
-        with patch("sys.stdin.isatty", return_value=True), \
-             patch("nyxuri.installer.menus.shutil.which", return_value=None), \
-             patch("nyxuri.installer.menus.Menu") as menu, \
-             patch("builtins.print") as prn:
-            deps_menu_loop()
+        回归用例：R0-2 步 5 处决 ``detect`` 后，菜单曾因 ``m.detect`` 直接
+        AttributeError 崩溃（`nyxuri` 主菜单 → 应用配置）。
+        """
+        from nyxuri.installer.menus import run_master_component_menu
+        from nyxuri.deploy.manifest import discover_manifest_apps
 
-        menu.assert_not_called()
-        printed = " ".join(str(c.args[0]) for c in prn.call_args_list)
-        self.assertIn("pacman", printed)
+        probed = []
+
+        with patch("nyxuri.installer.menus.discover_optional_apps",
+                   return_value=["zed"]), \
+             patch("nyxuri.installer.menus.discover_config_items",
+                   return_value=["zed"]), \
+             patch("nyxuri.installer.menus.is_dep_installed",
+                   side_effect=lambda name: probed.append(name) or True), \
+             patch("nyxuri.installer.menus.CheckboxList") as chk, \
+             patch("nyxuri.installer.menus.discover_manifest_apps",
+                   return_value=[("zed", discover_manifest_apps() and
+                                  dict(discover_manifest_apps())["zed"])]):
+            chk.return_value.run.return_value = []
+            run_master_component_menu(is_update=False, mode="config")
+
+        self.assertIn("zed", probed)
 
 
 class TestPreflightSudo(unittest.TestCase):
@@ -493,7 +510,11 @@ class TestCoreVerbs(unittest.TestCase):
         code, _, _ = self._run("on")
         self.assertEqual(code, 2)
 
-    def test_on_rejects_preset_without_value(self):
+    def test_on_rejects_form_flag_without_value(self):
+        code, _, _ = self._run("on", "kitty", "--form")
+        self.assertEqual(code, 2)
+
+    def test_on_rejects_deprecated_preset_flag_without_value(self):
         code, _, _ = self._run("on", "kitty", "--preset")
         self.assertEqual(code, 2)
 
@@ -502,14 +523,14 @@ class TestCoreVerbs(unittest.TestCase):
         self.assertEqual(code, 2)
 
     def test_on_unknown_unit_exits_2_with_hint(self):
-        code, _, err = self._run("on", "no-such-unit")
+        code, _, err = self._run("on", "no-such-plugin")
         self.assertEqual(code, 2)
-        self.assertIn("Unknown unit", err)
+        self.assertIn("Unknown plugin", err)
 
     def test_list_detail_unknown_unit_exits_2(self):
-        code, _, err = self._run("list", "no-such-unit")
+        code, _, err = self._run("list", "no-such-plugin")
         self.assertEqual(code, 2)
-        self.assertIn("Unknown unit", err)
+        self.assertIn("Unknown plugin", err)
 
     def test_doctor_rejects_second_argument(self):
         code, _, _ = self._run("doctor", "kitty", "extra")
@@ -517,28 +538,33 @@ class TestCoreVerbs(unittest.TestCase):
 
     # -- verb wiring ----------------------------------------------------
 
-    def test_on_forwards_preset_and_injected_installer(self):
+    def test_on_forwards_form_and_injected_installer(self):
         from nyxuri.cli import _package_installer
         from nyxuri.kernel.transaction import Step
         captured = {}
 
-        def fake_unit_on(unit, *, preset=None, install_packages=None):
-            captured.update(unit=unit, preset=preset, installer=install_packages)
-            return [Step(unit, True, "enabled")]
+        def fake_unit_on(plugin, *, form=None, install_packages=None):
+            captured.update(plugin=plugin, form=form, installer=install_packages)
+            return [Step(plugin, True, "enabled")]
 
-        with patch("nyxuri.cli.transaction.unit_on", side_effect=fake_unit_on), \
+        with patch("nyxuri.cli.transaction.plugin_on", side_effect=fake_unit_on), \
              patch("nyxuri.cli.transaction.missing_packages", return_value=[]):
-            code, out, _ = self._run("on", "kitty", "--preset", "dark")
+            code, out, _ = self._run("on", "kitty", "--form", "dark")
         self.assertEqual(code, 0)
-        self.assertEqual(captured["unit"], "kitty")
-        self.assertEqual(captured["preset"], "dark")
+        self.assertEqual(captured["plugin"], "kitty")
+        self.assertEqual(captured["form"], "dark")
         self.assertIs(captured["installer"], _package_installer)
         self.assertIn("enabled", out)
+
+    def test_on_rejects_deprecated_preset_flag_at_r0_3(self):
+        """R0-3 sweep: --preset flag is retired, rejected with exit 2."""
+        code, _, _ = self._run("on", "kitty", "--preset", "dark")
+        self.assertEqual(code, 2)
 
     def test_on_reports_missing_packages_failure(self):
         from nyxuri.kernel.transaction import Step
         steps = [Step("kitty", False, "missing-packages: kitty, fish")]
-        with patch("nyxuri.cli.transaction.unit_on", return_value=steps), \
+        with patch("nyxuri.cli.transaction.plugin_on", return_value=steps), \
              patch("nyxuri.cli.transaction.missing_packages", return_value=[]):
             code, out, _ = self._run("on", "kitty")
         self.assertEqual(code, 1)
@@ -547,7 +573,7 @@ class TestCoreVerbs(unittest.TestCase):
     def test_off_forwards_cascade_flag(self):
         from nyxuri.kernel.transaction import Step
         with patch("nyxuri.cli.transaction.plan_off", return_value=["kitty"]) as plan, \
-             patch("nyxuri.cli.transaction.unit_off",
+             patch("nyxuri.cli.transaction.plugin_off",
                    return_value=[Step("kitty", True, "disabled")]) as off:
             code, out, _ = self._run("off", "kitty", "--cascade")
         plan.assert_called_once_with("kitty")
@@ -557,7 +583,7 @@ class TestCoreVerbs(unittest.TestCase):
 
     def test_off_blocked_without_cascade_never_transacts(self):
         with patch("nyxuri.cli.transaction.plan_off", return_value=["kitty", "bar"]) as plan, \
-             patch("nyxuri.cli.transaction.unit_off") as off:
+             patch("nyxuri.cli.transaction.plugin_off") as off:
             code, _, err = self._run("off", "kitty")
         plan.assert_called_once_with("kitty")
         off.assert_not_called()
@@ -573,7 +599,7 @@ class TestCoreVerbs(unittest.TestCase):
         self.assertIn("niri", out)
 
     def test_doctor_bare_prints_audit_then_checkup(self):
-        with patch("nyxuri.cli.transaction.audit_units",
+        with patch("nyxuri.cli.transaction.audit_plugins",
                    return_value={"kitty": "Synced", "fish": "Ghost"}) as audit, \
              patch("nyxuri.cli.run_doctor", return_value=True) as checkup:
             code, out, _ = self._run("doctor")
@@ -584,7 +610,7 @@ class TestCoreVerbs(unittest.TestCase):
         self.assertIn("Ghost", out)
 
     def test_doctor_unit_arg_skips_system_checkup(self):
-        with patch("nyxuri.cli.transaction.audit_units", return_value={}) as audit, \
+        with patch("nyxuri.cli.transaction.audit_plugins", return_value={}) as audit, \
              patch("nyxuri.cli.run_doctor", return_value=True) as checkup:
             code, _, _ = self._run("doctor", "kitty")
         audit.assert_called_once_with("kitty")

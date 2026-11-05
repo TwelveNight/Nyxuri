@@ -8,15 +8,15 @@ exactly like the original, and every new user-visible string resolves in zh_CN.
 Geometry and type come from NexusStyle (unscaled Caelestia token parity).
 """
 
-import json
 import re
+import tomllib
 import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SHELL = REPO_ROOT / "shell"
-SETTINGS = SHELL / "units" / "settings"
-CONTROLS = SETTINGS / "controls"
+SETTINGS = SHELL / "plugins" / "settings"
+CONTROLS = SHELL / "ui"
 
 EXECUTED = (
     "NavigationRailButton.qml",
@@ -43,7 +43,7 @@ WINDOW_API = (
 
 
 def _runtime_sources():
-    for sub in ("app", "units", "shared"):
+    for sub in ("app", "commons", "ui", "services", "plugins"):
         for pattern in ("*.qml", "*.js"):
             yield from (SHELL / sub).rglob(pattern)
 
@@ -170,13 +170,21 @@ class TestNavPaneComposition(unittest.TestCase):
 
     def test_nav_files_live_in_the_settings_unit_root(self):
         for name in ("NexusNavPane.qml", "NexusNavRow.qml"):
-            self.assertTrue((SETTINGS / name).is_file(), f"{name} missing from units/settings")
+            self.assertTrue((SETTINGS / name).is_file(), f"{name} missing from plugins/settings")
             self.assertFalse((CONTROLS / name).exists(),
                              f"{name} must not leak into the atom pool")
 
     def test_atom_pool_is_untouched_by_the_shell(self):
-        shipped = sorted(p.name for p in CONTROLS.glob("*.qml"))
-        self.assertEqual(len(shipped), 11, f"atom pool must stay at eleven: {shipped}")
+        # S0-1: the eleven M1 atoms live flat in ui/ beside the control
+        # library; the standalone settings/controls pool must stay gone.
+        try:
+            from tests.shell.test_preference_atoms import ATOMS
+        except ImportError:
+            from test_preference_atoms import ATOMS
+        for name in ATOMS:
+            self.assertTrue((CONTROLS / name).is_file(), f"{name} missing from ui/")
+        self.assertFalse((SETTINGS / "controls").exists(),
+                         "the old settings/controls pool must stay gone (S0-1)")
 
     def test_pane_composes_the_atoms(self):
         source = _read("NexusNavPane.qml")
@@ -224,14 +232,20 @@ class TestNavPaneComposition(unittest.TestCase):
         self.assertIn("signal activated", source)
 
     def test_grouping_covers_every_top_level_route(self):
+        # S0-2: the grouping geometry derives from the manifest `group` key
+        # (consecutive same-group rows form one connected cluster) — there is
+        # no host-side table left to keep in sync, so the contract is every
+        # top-level route declaring a group plus the table staying dead.
+        # S0-3a: the route set is the union of every plugin manifest.
         pane = _read("NexusNavPane.qml")
-        table = pane[pane.index("readonly property var groupTable"):pane.index("readonly property var navModel")]
-        grouped = set(re.findall(r'"([a-z.-]+)"', table))
-        document = json.loads((SETTINGS / "settings-routes.json").read_text(encoding="utf-8"))
-        top_level = {route["id"] for route in document["routes"] if len(route["path"]) == 1}
-        self.assertTrue(top_level <= grouped,
-                        f"routes missing from the grouping table (they would join the "
-                        f"trailing leftovers group): {sorted(top_level - grouped)}")
+        self.assertNotIn("groupTable", pane, "the host-side grouping table must stay dead")
+        top_level = []
+        for domain in sorted(d.name for d in SETTINGS.parent.iterdir() if d.is_dir()):
+            manifest = tomllib.loads((SETTINGS.parent / domain / "manifest.toml").read_text(encoding="utf-8"))
+            top_level.extend(entry for entry in manifest.get("settings", []) if "route" not in entry)
+        self.assertGreaterEqual(len(top_level), 16)
+        missing = [entry["id"] for entry in top_level if not str(entry.get("group", "")).strip()]
+        self.assertEqual(missing, [], f"routes without a manifest group: {missing}")
 
     def test_no_hardcoded_colors_in_the_new_chrome(self):
         for name in ("ControlCenterWindow.qml", "NexusNavPane.qml", "NexusNavRow.qml"):
@@ -239,7 +253,7 @@ class TestNavPaneComposition(unittest.TestCase):
                               f"{name} hardcodes a hex color")
 
     def test_new_strings_resolve_in_zh_cn(self):
-        zh = (SHELL / "app" / "i18n" / "zh_CN.toml").read_text(encoding="utf-8")
+        zh = (SHELL / "commons" / "i18n" / "zh_CN.toml").read_text(encoding="utf-8")
         for key in ("Edit configuration file", "Copy configuration path", "About",
                     "Compositor", "System information and versions"):
             self.assertIn(f'"{key}"', zh)
@@ -249,8 +263,8 @@ class TestAboutPage(unittest.TestCase):
     """The About page is the first page built entirely from the atom suite."""
 
     def test_route_is_registered(self):
-        document = json.loads((SETTINGS / "settings-routes.json").read_text(encoding="utf-8"))
-        route = next((r for r in document["routes"] if r["id"] == "about"), None)
+        manifest = tomllib.loads((SETTINGS / "manifest.toml").read_text(encoding="utf-8"))
+        route = next((entry for entry in manifest["settings"] if entry["id"] == "about"), None)
         self.assertIsNotNone(route, "about route missing")
         self.assertEqual(route["icon"], "info")
         self.assertEqual(route["source"], "AboutPage.qml")
@@ -282,7 +296,7 @@ class TestAboutPage(unittest.TestCase):
         # SystemIdentityService with a fixed argv.
         self.assertNotIn("Process {", _read("AboutPage.qml"),
                          "views route I/O through services, not their own processes")
-        service = (SHELL / "app" / "services" / "SystemIdentityService.qml").read_text(encoding="utf-8")
+        service = (SHELL / "services" / "SystemIdentityService.qml").read_text(encoding="utf-8")
         self.assertIn('command: ["quickshell", "--version"]', service)
 
 

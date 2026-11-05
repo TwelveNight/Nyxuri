@@ -8,7 +8,7 @@ carry (#139): dest entries the engine cannot explain as its own template
 output are carried into the new directory verbatim — a swap never destroys
 what it cannot account for. The carry verdict is judged against the ledger
 baseline injected by the caller; this module never reads the ledger itself
-(star layering, unit-model.md §2).
+(star layering, plugin-model.md §2).
 """
 
 import fnmatch
@@ -28,11 +28,11 @@ from nyxuri.core import msg
 class CarryPolicy:
     """Ownership-carry directive threaded from the transaction layer (#139).
 
-    ``baselines`` maps unit id → the ledger ``files`` snapshot (hashes of what
-    the engine last laid) or None for units with no record (Ghost). ``unknown``
+    ``baselines`` maps plugin id → the ledger ``files`` snapshot (hashes of what
+    the engine last laid) or None for plugins with no record (Ghost). ``unknown``
     decides the baseline-absent case: True = carry (update — 宁可错保), False =
     the engine claims its payload names (install/``on`` adoption). ``carried``
-    is the out-map: unit id → {rel path: "modified"|"user"|"unknown"} filled
+    is the out-map: plugin id → {rel path: "modified"|"user"|"unknown"} filled
     by the swap ("unknown" = Ghost-era content whose provenance cannot be
     judged; never counted as the user's edit in reports).
     """
@@ -177,10 +177,8 @@ def _base_deploy_ignore_factory(
     def _ignore(src_dir, names):
         skip = {n for n in names if n in ("__pycache__", "manifest.toml", "hooks")}
         if Path(src_dir) == root:
-            if "presets" in names:
-                skip.add("presets")
-            if "__presets__" in names:
-                skip.add("__presets__")
+            if "__forms__" in names:
+                skip.add("__forms__")
 
         cur_dir = Path(src_dir)
         for name in names:
@@ -214,18 +212,16 @@ def _deploy_ignore_factory(root_src: Path):
 
     - manifest.toml: self-describing manifest (Nyxuri metadata, §10.4 boundary)
     - __pycache__: bytecode cache, never user config
-    - hooks/: unit lifecycle hooks (declared side effects, run by transaction only)
-    - presets/ & __presets__/: top-level variant source tree (only at app root, not nested)
+    - hooks/: plugin lifecycle hooks (declared side effects, run by transaction only)
+    - __forms__/: top-level variant source tree (only at app root, not nested)
     """
     root = root_src
 
     def _ignore(src_dir, names):
         skip = {n for n in names if n in ("__pycache__", "manifest.toml", "hooks")}
         if Path(src_dir) == root:
-            if "presets" in names:
-                skip.add("presets")
-            if "__presets__" in names:
-                skip.add("__presets__")
+            if "__forms__" in names:
+                skip.add("__forms__")
         return skip
 
     return _ignore
@@ -306,7 +302,7 @@ def atomic_replace_item(
 
     Ownership carry (#139): with ``carry=True``, dest entries outside the
     dunder/preserve/preserve_values sets are judged against ``carry_baseline``
-    (the unit's ledger ``files`` map — hashes of what the engine last laid).
+    (the plugin's ledger ``files`` map — hashes of what the engine last laid).
     Untouched engine-laid files follow the new template; untouched engine-laid
     files this deploy no longer lays (hook products) retire with the swap and
     are re-laid by the hook replay; user-modified and user-placed files are
@@ -475,7 +471,7 @@ def atomic_replace_item(
                 elif src_p.is_dir():
                     # Directory preserve (#139 field report): a whole runtime-
                     # managed tree (e.g. fish/functions — Fisher's territory)
-                    # is carried as one unit, injected before the rename. The
+                    # is carried as one plugin, injected before the rename. The
                     # declaration is a promise: the template lays NOTHING in
                     # this directory (mixed payload would freeze forever).
                     shutil.rmtree(tgt_p, ignore_errors=True)
@@ -536,7 +532,7 @@ def atomic_replace_item(
                 elif in_baseline:
                     kind, carry_it = "modified", True
                 elif carry_baseline is not None:
-                    # Enabled unit, engine never laid this name, dest has it:
+                    # Enabled plugin, engine never laid this name, dest has it:
                     # the dest copy is not ours to explain.
                     kind, carry_it = "unknown", carry_unknown
                 else:

@@ -33,17 +33,20 @@ class TempEnv:
         (home / ".config").mkdir(parents=True, exist_ok=True)
         (home / ".local" / "bin").mkdir(parents=True, exist_ok=True)
         (home / ".local" / "state" / "nyxuri").mkdir(parents=True, exist_ok=True)
+        (home / ".local" / "share" / "nyxuri" / "plugins").mkdir(parents=True, exist_ok=True)
         (home / ".cache").mkdir(parents=True, exist_ok=True)
         (home / "Pictures").mkdir(parents=True, exist_ok=True)
 
         # Save and override environment variables
-        for key in ("HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "WAYLAND_DISPLAY"):
+        for key in ("HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "WAYLAND_DISPLAY", "NYXURI_TEST_MODE"):
             self._old_env[key] = os.environ.get(key)
         os.environ.pop("WAYLAND_DISPLAY", None)
         os.environ["HOME"] = str(home)
         os.environ["XDG_STATE_HOME"] = str(home / ".local" / "state")
         os.environ["XDG_CONFIG_HOME"] = str(home / ".config")
+        os.environ["XDG_DATA_HOME"] = str(home / ".local" / "share")
         os.environ["XDG_CACHE_HOME"] = str(home / ".cache")
+        os.environ["NYXURI_TEST_MODE"] = "1"
 
         # Default sandbox protections: intercept external host-mutating runners
         import subprocess
@@ -59,6 +62,7 @@ class TempEnv:
         # _PICS_DIR_CACHE especially: get_pics_dir() otherwise returns a path
         # from a previously-deleted temp HOME, breaking wallpaper assertions.
         core._PICS_DIR_CACHE = None
+        core._XDG_DIR_CACHE.clear()
         import nyxuri.deploy.deploy as _deploy_core
         import nyxuri.deploy.manifest as _deploy_manifest
         _deploy_core._CONFIG_ITEMS_CACHE = []
@@ -69,8 +73,8 @@ class TempEnv:
         env.run_mode = "repo"
         env.mode_label = "Local Path"
         env.repo_dir = Path(__file__).resolve().parent.parent
-        env.units_src = env.repo_dir / "units"
-        env.shell_units_src = env.repo_dir / "shell" / "units"
+        env.plugins_src = env.repo_dir / "plugins"
+        env.shell_units_src = env.repo_dir / "shell" / "plugins"
         self.env = env
 
         return self
