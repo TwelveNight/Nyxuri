@@ -315,7 +315,7 @@ clock controller 的路径授权；主配置和相对 include 保持原样。She
 只在重新登录时选择；外屏模式接受内屏不可用，插拔后不会切换 GPU。
 
 `personal/monitor.kdl` 是首次部署的个人屏幕默认值：HDMI-A-1 为
-2560×1440 @ 143.995 Hz、缩放 1、位置 (-2560, 80)，eDP-2 关闭。
+2560×1440 @ 143.995 Hz、缩放 1、位置 (-2560, 80)，eDP-2 保持可用。
 已有私有 `niri/monitor.kdl` 继续由 manifest 保留，后续安装不强制恢复这套默认值。
 持久修改使用 `~/.config/desktop-profiles/nyxuri/niri/monitor.kdl`；Niri Displays 插件
 只通过 IPC 临时调整。`nwg-displays` 默认重载公共配置，不能直接用于本隔离会话。
