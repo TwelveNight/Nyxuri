@@ -2,6 +2,7 @@
 """Deploy Nyxuri into its installed profile, keeping runtime paths canonical."""
 import argparse
 import copy
+from contextlib import contextmanager
 import os
 import re
 import tomllib
@@ -224,6 +225,20 @@ def scoped_environment(env):
     return scoped
 
 
+@contextmanager
+def environment():
+    """Initialize personal paths without public migration; reject legacy first."""
+    previous = core._ENV
+    env = previous if previous is not None else core.Environment(migrate=False)
+    scoped_environment(env)
+    try:
+        core._ENV = env
+        yield
+    finally:
+        core._ENV = previous
+
+
+@environment()
 def main(argv=None, preflight=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--yes", action="store_true", help="apply the printed deployment plan")

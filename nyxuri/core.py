@@ -346,7 +346,7 @@ def migrate_legacy_storage(env: "Environment") -> None:
 
 
 class Environment:
-    def __init__(self):
+    def __init__(self, *, migrate=True):
         self.home = Path(os.environ.get("HOME", str(Path.home())))
         raw_state = os.environ.get("XDG_STATE_HOME")
         if raw_state:
@@ -395,8 +395,10 @@ class Environment:
         self.forms_dir = self.nyx_dir / "forms"
         self.version = get_version(self.repo_dir)
 
-        # Migrate legacy storage if existing, then purge old directories
-        migrate_legacy_storage(self)
+        # Personal adapters must bind/check their scope before any writes.
+        # Ordinary public initialization retains automatic storage migration.
+        if migrate:
+            migrate_legacy_storage(self)
 
 _ENV: Optional[Environment] = None
 

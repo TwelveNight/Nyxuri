@@ -77,6 +77,9 @@ R0-3：`preset` 命令别名与 `on --preset` 旗标处决——形态切换入�
 只发现准备后的 niri/noctalia/kitty-nyxuri 插件；`use` 只允许这些 ID，
 on/off/add/remove 拒绝绕过个人部署。forms 根为个人 config 下的 nyxuri/forms，
 state/data/cache 使用 nyxuri-desktop/manager；旧 manager 目录须明确迁移。
+个人入口与直接 installer 初始化只解析路径，不执行公共存储的自动迁移；
+在 plan、锁、注册或部署前先拒绝旧个人 manager（包括悬空软链），退出时恢复原环境。
+普通公共 `Environment()` / `get_env()` 的自动迁移保持不变。
 外置 Orbit Translate 保留现装 launcher/package/provider 和 custom TOML，
 popup 使用已有配置发现，settings 使用其正式 `--config` 参数。
 目录、边界与历史旧命令区别见 [个人适配](../personal/README.md)。

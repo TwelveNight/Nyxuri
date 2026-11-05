@@ -86,6 +86,7 @@ def management_menu():
         press_any_key()
 
 
+@install.environment()
 def dispatch(arguments):
     if not arguments:
         return management_menu()
