@@ -442,7 +442,7 @@ def use_form(app: str, axis: Optional[str], value: str,
     """
     if not axis:
         from nyxuri.deploy.templates import _phase_render_templates
-        from nyxuri.deploy.atomic import atomic_replace_item
+        from nyxuri.deploy.atomic import atomic_replace_item, apply_executable_permissions
         from nyxuri.deploy.manifest import load_manifest_for
 
         env = get_env()
@@ -480,13 +480,7 @@ def use_form(app: str, axis: Optional[str], value: str,
             return False
 
         _phase_render_templates(only_app=app)
-        for pattern in chmod:
-            for path in dest.glob(pattern):
-                if path.is_file():
-                    try:
-                        path.chmod(0o755)
-                    except OSError:
-                        pass
+        apply_executable_permissions(dest, chmod)
         # The swap just reset every slot target to the new variant's template:
         # replay ledger-recorded slot choices on top through the same path.
         try:
