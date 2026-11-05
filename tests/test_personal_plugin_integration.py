@@ -111,6 +111,16 @@ class PersonalPluginIntegrationTests(unittest.TestCase):
             self.assertFalse((ctx.env.config_dir/'nyxuri').exists())
             self.assertIs(core._ENV, original)
 
+    def test_registration_records_launcher_under_private_state(self):
+        with TempEnv() as ctx:
+            original = core._ENV
+            def inspect():
+                self.assertEqual(core.get_env().state_dir, ctx.home/'.local/state/nyxuri-desktop/manager')
+            with patch('personal.entry.needs_session_entry',return_value=False), patch.object(entry.subprocess,'run') as run, patch('nyxuri.core.ensure_nyxuri_symlink',side_effect=inspect):
+                entry.register_session(ctx.env)
+                run.assert_called_once_with(['systemctl','--user','daemon-reload'],check=True)
+            self.assertIs(core._ENV,original)
+
     def test_legacy_manager_is_a_read_only_migration_blocker(self):
         with TempEnv() as ctx:
             legacy = ctx.env.config_dir/'desktop-profiles/nyxuri/manager/presets'

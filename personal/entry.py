@@ -26,11 +26,17 @@ def prepare_session(env):
 
 
 def register_session(env):
+    scoped = install.scoped_environment(env)
     subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
     if needs_session_entry(env):
         source = env.config_dir / "desktop-profiles/nyxuri/nyxuri.desktop"
         subprocess.run(["sudo", "install", "-Dm644", str(source), str(GDM_ENTRY)], check=True)
-    core.ensure_nyxuri_symlink()
+    previous = core._ENV
+    try:
+        core._ENV = scoped
+        core.ensure_nyxuri_symlink()
+    finally:
+        core._ENV = previous
     print("Nyxuri installed. Log out and choose Nyxuri · Niri.")
 
 
