@@ -5,7 +5,7 @@
 ## 范围与原因
 
 这是个人 RTX 3060 Laptop、PCI `0000:01:00.0` 的适配，覆盖内屏与外屏。
-Nyxuri、iNiR 和 Hyprland + II 共用一个系统服务，不各自启动锁频任务。
+Nyxuri、iNiR、Hyprland + II 和受管 Umbriel 共用一个系统服务，不各自启动锁频任务。
 不修改上游默认配置，不随普通 install/update 自动安装或更新系统级文件。
 系统平台模式与 NVIDIA 自动调频分别管理；本策略不切换平台模式、CPU governor 或功率限制。
 
@@ -21,7 +21,9 @@ Nyxuri、iNiR 和 Hyprland + II 共用一个系统服务，不各自启动锁频
 
 - AC 电源 online=1。
 - 任意 GPU 的至少一个显示输出 connected、enabled，且 DPMS On，包括 AMD 内屏。
-- 指定普通用户正在运行 Nyxuri、iNiR 或 Hyprland + II 的 compositor。
+- 指定普通用户正在运行 Nyxuri、iNiR、Hyprland + II 或受管原生 Umbriel；后者还须实际打开已核验 PCI/驱动的 NVIDIA render 设备。
+
+Umbriel 频率下限不要求 NVIDIA 作为主合成器。原生默认 GPU 发现模式和旧显式设备模式均可识别；仍拒绝 CLI、nested、软件渲染、部分残留选择器、错误 profile/user/config 和没有 NVIDIA 设备描述符的进程。不会为了锁频向 compositor 加入 `WLR_*` 或 PRIME 参数。
 
 Nyxuri 匹配 `niri --session --config ~/.config/nyxuri-desktop/niri/config.kdl`。
 iNiR 匹配本机用户服务的 `niri --session` 默认入口，或显式指定 `~/.config/niri/config.kdl`。
@@ -29,7 +31,7 @@ Hyprland 匹配本机默认 `Hyprland` 入口，或显式指定 `~/.config/hypr/
 显式配置参数支持 `--config PATH`、`--config=PATH` 和 `-c PATH`；未知路径、缺参数、
 重复指定、其他用户／compositor 与 CLI 查询／校验入口均不匹配。
 
-每两秒检查一次。拔电、全部屏幕关闭／断开／熄屏或退出这三套桌面后恢复自动调频。
+每两秒检查一次。拔电、全部屏幕关闭／断开／熄屏或退出这些受支持桌面后恢复自动调频。
 只关闭外屏而内屏亮着时继续启用。无法读取条件时按不满足处理。
 扫描 `/sys/class/drm` 的输出，不依赖 GPU 或 DRM card 编号；NVIDIA 操作仍按固定 PCI 地址。
 缓存的 compositor PID 每轮重新验证归属与参数，不能沿用离开的会话。

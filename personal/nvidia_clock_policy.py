@@ -4,6 +4,8 @@ import argparse
 import os
 from pathlib import Path
 import pwd
+import re
+import stat
 import signal
 import subprocess
 import threading
@@ -29,6 +31,7 @@ class Conditions:
     def __init__(self, uid, config, sys_root=Path("/sys"), proc_root=Path("/proc")):
         self.uid = uid
         self.config = str(config)
+        self.umbriel_config_root = next((parent for parent in Path(config).parents if parent.name == ".config"), Path(config).parent.parent)
         config_root = next((parent for parent in Path(config).parents if parent.name == ".config"), Path(config).parent.parent)
         self.configs = {
             "niri": {self.config, str(config_root / "niri/config.kdl")},
@@ -53,15 +56,58 @@ class Conditions:
                 return True
         return False
 
+    def matches_umbriel(self, p, args):
+        # Only the managed native entry: no IPC/validate/-s/nested clients.
+        # ProtectHome=yes means do not dereference private user config as root.
+        root = self.umbriel_config_root
+        configs = {str(root / "umbriel/config.toml"),
+                   str(root / "desktop-profiles/umbriel/umbriel/config.toml")}
+        if (os.readlink(p / "exe") != "/usr/bin/umbriel"
+                or not (len(args) == 1 or (len(args) == 3 and args[1] == "-c" and args[2] in configs))):
+            return False
+        env = dict(item.split("=", 1) for item in
+                   os.fsdecode((p / "environ").read_bytes()).split("\0") if "=" in item)
+        renderer = "/dev/dri/by-path/pci-0000:01:00.0-render"
+        if (env.get("DESKTOP_PROFILE") != "umbriel"
+                or env.get("DESKTOP_PROFILE_MAINTENANCE")
+                or not re.fullmatch(r"[0-9a-f]{32}", env.get("UMBRIEL_PROFILE_LOGIN", ""))
+                or env.get("HOME") != str(root.parent)
+                or env.get("XDG_CONFIG_HOME") != str(root)
+                or (env.get("WLR_BACKENDS"), env.get("WLR_RENDER_DRM_DEVICE")) not in
+                   ((None, None), (None, renderer), ("drm,libinput", renderer))
+                or env.get("WLR_RENDERER_FORCE_SOFTWARE") == "1"
+                or any(env.get(key) for key in ("WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY"))):
+            return False
+        node = Path(renderer).stat()
+        if not stat.S_ISCHR(node.st_mode) or os.major(node.st_rdev) != 226:
+            return False
+        device = (self.sys / "dev/char" /
+                  f"{os.major(node.st_rdev)}:{os.minor(node.st_rdev)}" / "device").resolve(strict=True)
+        if (device.name != PCI or read(device / "vendor") != "0x10de"
+                or (device / "driver").resolve(strict=True).name != "nvidia"):
+            return False
+        # Require real NVIDIA use even when AMD is the main renderer.
+        # Recheck the actual process descriptor every poll, including cached PIDs.
+        for fd in (p / "fd").iterdir():
+            try:
+                opened = fd.stat()
+            except OSError:
+                continue
+            if stat.S_ISCHR(opened.st_mode) and opened.st_rdev == node.st_rdev:
+                return True
+        return False
+
     def matches_session(self, p):
         try:
             compositor = read(p / "comm")
-            if p.stat().st_uid != self.uid or compositor not in self.configs:
+            if p.stat().st_uid != self.uid or (compositor not in self.configs and compositor != "umbriel"):
                 return False
             args = (p / "cmdline").read_bytes().split(b"\0")
             args = [os.fsdecode(arg) for arg in args if arg]
             if not args or Path(args[0]).name != compositor:
                 return False
+            if compositor == "umbriel":
+                return self.matches_umbriel(p, args)
             # iNiR's real user unit starts `niri --session` with default config.
             # Requiring --session excludes transient niri msg/validate clients.
             if compositor == "niri" and "--session" not in args:
@@ -99,7 +145,7 @@ class Conditions:
         if not self.display_on():
             return False, "all displays disabled, disconnected or asleep"
         if not self.session_active():
-            return False, "Nyxuri, iNiR or Hyprland session absent"
+            return False, "Nyxuri, iNiR, Hyprland or Umbriel session absent"
         return True, "AC + awake display + supported desktop session"
 
 
